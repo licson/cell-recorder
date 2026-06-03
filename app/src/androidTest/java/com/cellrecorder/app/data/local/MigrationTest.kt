@@ -50,6 +50,24 @@ class MigrationTest {
         )
     }
 
+    @Test
+    fun migrateFrom6To7() {
+        // First migrate to 6
+        helper.runMigrationsAndValidate(
+            TEST_DB,
+            6,
+            true,
+            AppDatabase.MIGRATION_5_6
+        )
+        // Then migrate to 7
+        helper.runMigrationsAndValidate(
+            TEST_DB,
+            7,
+            true,
+            AppDatabase.MIGRATION_6_7
+        )
+    }
+
     @After
     @Throws(IOException::class)
     fun tearDown() {

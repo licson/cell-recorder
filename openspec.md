@@ -100,7 +100,45 @@ data class CellRecordEntity(
 )
 ```
 
-### 3.3 AppConfig (single-row table)
+### 3.3 Carrier Aggregation Bands (child table)
+
+```kotlin
+@Entity(
+    tableName = "cell_record_ca_bands",
+    foreignKeys = [ForeignKey(
+        entity = CellRecordEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["cellRecordId"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("cellRecordId"), Index("bandNumber")]
+)
+data class CellRecordCaBandEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val cellRecordId: Long,
+    val bandNumber: Int?,
+    val earfcn: Int?,
+    val pci: Int?,
+    val rsrp: Int?,
+    val rsrq: Int?,
+    val sinr: Int?,
+    val rssi: Int?,
+    val cqi: Int?,
+    val timingAdvance: Int?
+)
+```
+
+**Relation wrapper** used by Room `@Transaction` queries:
+
+```kotlin
+data class CellRecordWithCaBands(
+    @Embedded val record: CellRecordEntity,
+    @Relation(parentColumn = "id", entityColumn = "cellRecordId")
+    val caBands: List<CellRecordCaBandEntity>
+)
+```
+
+### 3.4 AppConfig (single-row table)
 
 ```kotlin
 @Entity(tableName = "app_config")
@@ -302,7 +340,7 @@ The app records **separate data points for every active SIM slot** simultaneousl
 
 ### 5.4 CellInfoCollector — NetMonster Core Integration
 
-> **API note (v1.2.0)**: `CellNr` does not have `gnbId()`/`clId()` helper methods in v1.2.0 — implemented manually via `nci shr (36 - bitLen)`. `SignalLte.rsrp`/`rsrq`/`snr` are `Double?` (not `Int?`). `SignalNr` has no `timingAdvance`. `BandLte.earfcn` is `downlinkEarfcn`, `BandNr.arfcn` is `downlinkArfcn`. LTE-CA detected via `networkType.technology == NetworkType.LTE_CA` since `LteCa` is not a subclass.
+> **API note (v1.2.0)**: `CellNr` does not have `gnbId()`/`clId()` helper methods in v1.2.0 — implemented manually via `nci shr (36 - bitLen)`. `SignalLte.rsrp`/`rsrq`/`snr` are `Double?` (not `Int?`). `SignalNr` has no `timingAdvance`. `BandLte.earfcn` is `downlinkEarfcn`, `BandNr.arfcn` is `downlinkArfcn`. LTE-CA detected via `networkType.technology == NetworkType.LTE_CA` since `LteCa` is not a subclass. Secondary LTE cells are identified via `connectionStatus is SecondaryConnection`.
 
 ```kotlin
 class CellInfoCollector @Inject constructor(
@@ -313,23 +351,24 @@ class CellInfoCollector @Inject constructor(
         return cells.groupBy { it.subscriptionId }.map { (subId, subCells) ->
             val serving = subCells.firstOrNull { it.connectionStatus is PrimaryConnection }
             val networkType = netMonster.getNetworkType(subId)
-            buildSnapshot(subId, serving, networkType, config)
+            buildSnapshot(subId, serving, subCells, networkType, config)
         }
     }
 
     private fun buildSnapshot(
         subId: Int,
         serving: ICell?,
+        subCells: List<ICell>,
         networkType: NetworkType,
         config: AppConfigEntity
     ): CellRecordSnapshot {
-        return when (serving) {
+        val snapshot = when (serving) {
             is CellLte -> {
-                val fullId = serving.eci?.toLong()
+                val caBands = extractCaBands(serving, subCells)
                 CellRecordSnapshot(
                     subscriptionId = subId,
                     rat = if (networkType is NetworkType.Lte && networkType.technology == NetworkType.LTE_CA) "4G_CA" else "4G",
-                    fullCellIdentity = fullId,
+                    fullCellIdentity = serving.eci?.toLong(),
                     enbOrGnbId = fullId?.shr(8),
                     lcid = fullId?.and(0xFF)?.toInt(),
                     pci = serving.pci, tac = serving.tac,
@@ -342,46 +381,36 @@ class CellInfoCollector @Inject constructor(
                     rssi = serving.signal?.rssi,
                     cqi = serving.signal?.cqi,
                     timingAdvance = serving.signal?.timingAdvance,
-                    mcc = serving.network?.mcc, mnc = serving.network?.mnc
+                    mcc = serving.network?.mcc, mnc = serving.network?.mnc,
+                    caBands = caBands
                 )
             }
-            is CellNr -> {
-                val fullId = serving.nci
-                val shift = 36 - config.nrGnbBitLength
-                CellRecordSnapshot(
-                    subscriptionId = subId,
-                    rat = if (networkType is NetworkType.Nr.Nsa) "5G_NSA" else "5G_SA",
-                    fullCellIdentity = fullId,
-                    enbOrGnbId = fullId?.shr(shift),
-                    lcid = fullId?.and((1L shl shift) - 1)?.toInt(),
-                    cellIdBitLength = config.nrGnbBitLength,
-                    pci = serving.pci, tac = serving.tac,
-                    bandNumber = serving.band?.number,
-                    earfcn = serving.band?.downlinkArfcn,
-                    rsrp = serving.signal?.ssRsrp,
-                    rsrq = serving.signal?.ssRsrq,
-                    sinr = serving.signal?.ssSinr,
-                    mcc = serving.network?.mcc, mnc = serving.network?.mnc
-                )
-            }
-            is CellWcdma -> CellRecordSnapshot(
-                subscriptionId = subId,
-                rat = "3G", fullCellIdentity = serving.ci?.toLong(),
-                pci = serving.psc, mcc = serving.network?.mcc, mnc = serving.network?.mnc
-            )
-            is CellGsm -> CellRecordSnapshot(
-                subscriptionId = subId,
-                rat = "2G", fullCellIdentity = serving.cid?.toLong(),
-                pci = serving.bsic, mcc = serving.network?.mcc, mnc = serving.network?.mnc
-            )
-            else -> CellRecordSnapshot(
-                subscriptionId = subId,
-                rat = "UNKNOWN", networkTypeCode = networkType.technology
+            // ... (CellNr, CellWcdma, CellGsm, else unchanged)
+        }
+        return snapshot
+    }
+
+    private fun extractCaBands(primary: CellLte, subCells: List<ICell>): List<CaBandSnapshot> {
+        return subCells.filter { cell ->
+            cell is CellLte && cell != primary && cell.connectionStatus is SecondaryConnection
+        }.map { cell ->
+            CaBandSnapshot(
+                bandNumber = cell.band?.number,
+                earfcn = cell.band?.downlinkEarfcn,
+                pci = cell.pci,
+                rsrp = cell.signal?.rsrp?.toInt(),
+                rsrq = cell.signal?.rsrq?.toInt(),
+                sinr = cell.signal?.snr?.toInt(),
+                rssi = cell.signal?.rssi,
+                cqi = cell.signal?.cqi,
+                timingAdvance = cell.signal?.timingAdvance
             )
         }
     }
 }
 ```
+
+**CA Band Collection:** For each subscription, after identifying the primary `CellLte`, the remaining LTE cells with `SecondaryConnection` status are extracted into `CaBandSnapshot` objects (band, EARFCN, PCI, signal metrics). These are persisted into the `cell_record_ca_bands` child table upon recording.
 
 ### 5.5 Ping Engine
 
@@ -540,7 +569,12 @@ Optional hardware feature: `android.hardware.sensor.gyroscope` (`required="false
 ### CSV Export
 
 ```
-timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source
+timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source,ca_bands
+```
+
+The `ca_bands` column contains a JSON array string (empty when no CA is active):
+```
+[{"band":7,"earfcn":3100,"pci":456,"rsrp":-105,"rsrq":-10,"sinr":12},...]
 ```
 
 ### GeoJSON Export
@@ -561,7 +595,8 @@ timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,
       "enbGnbId": 12345, "lcid": 7,
       "avgLatencyMs": 25.3, "packetLossPct": 0.0,
       "mcc": "310", "mnc": "410", "band": 4, "earfcn": 2000, "tac": 1234,
-      "isLocationEstimated": false, "locationSource": "GPS"
+      "isLocationEstimated": false, "locationSource": "GPS",
+      "caBands": [{"band":7,"earfcn":3100,"pci":456,"rsrp":-105,"rsrq":-10,"sinr":12}]
     }
   }]
 }

@@ -1,7 +1,9 @@
 package com.cellrecorder.app.domain.analytics
 
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
+import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.domain.analytics.model.AnomalyType
 import com.cellrecorder.app.domain.analytics.model.MobilityType
 import org.junit.jupiter.api.Assertions.*
@@ -36,7 +38,7 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `single RAT session produces one coverage entry`() {
         val records = listOf(
-            record(ts = 1000, rat = "4G", rsrp = -85)
+            wrapper(record(ts = 1000, rat = "4G", rsrp = -85))
         )
         val result = engine.analyze(records, defaultConfig)
         assertEquals(1, result.ratCoverage.size)
@@ -47,11 +49,11 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `rat coverage has correct percentage`() {
         val records = listOf(
-            record(ts = 1000, rat = "4G", rsrp = -85),
-            record(ts = 2000, rat = "4G", rsrp = -90),
-            record(ts = 3000, rat = "5G_SA", rsrp = -75),
-            record(ts = 4000, rat = "5G_SA", rsrp = -70),
-            record(ts = 5000, rat = "UNKNOWN", rsrp = null)
+            wrapper(record(ts = 1000, rat = "4G", rsrp = -85)),
+            wrapper(record(ts = 2000, rat = "4G", rsrp = -90)),
+            wrapper(record(ts = 3000, rat = "5G_SA", rsrp = -75)),
+            wrapper(record(ts = 4000, rat = "5G_SA", rsrp = -70)),
+            wrapper(record(ts = 5000, rat = "UNKNOWN", rsrp = null))
         )
         val result = engine.analyze(records, defaultConfig)
         val coverage4g = result.ratCoverage.find { it.rat == "4G" }
@@ -65,10 +67,10 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `rsrp drop anomaly detected`() {
         val records = listOf(
-            record(ts = 1000, rsrp = -70, simSlot = 0),
-            record(ts = 2000, rsrp = -72, simSlot = 0),
-            record(ts = 3000, rsrp = -90, simSlot = 0),
-            record(ts = 4000, rsrp = -92, simSlot = 0)
+            wrapper(record(ts = 1000, rsrp = -70, simSlot = 0)),
+            wrapper(record(ts = 2000, rsrp = -72, simSlot = 0)),
+            wrapper(record(ts = 3000, rsrp = -90, simSlot = 0)),
+            wrapper(record(ts = 4000, rsrp = -92, simSlot = 0))
         )
         val config = defaultConfig.copy(rsrpDropThresholdDbm = 15, rsrpDropTimeWindowMs = 5000)
         val result = engine.analyze(records, config)
@@ -80,9 +82,9 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `rsrp drop below threshold not flagged`() {
         val records = listOf(
-            record(ts = 1000, rsrp = -70, simSlot = 0),
-            record(ts = 2000, rsrp = -75, simSlot = 0),
-            record(ts = 3000, rsrp = -80, simSlot = 0)
+            wrapper(record(ts = 1000, rsrp = -70, simSlot = 0)),
+            wrapper(record(ts = 2000, rsrp = -75, simSlot = 0)),
+            wrapper(record(ts = 3000, rsrp = -80, simSlot = 0))
         )
         val config = defaultConfig.copy(rsrpDropThresholdDbm = 15, rsrpDropTimeWindowMs = 5000)
         val result = engine.analyze(records, config)
@@ -93,7 +95,7 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `latency spike detected`() {
         val records = (1..20).map { i ->
-            record(ts = i * 1000L, rsrp = -80, latency = if (i == 15) 150.0 else 10.0)
+            wrapper(record(ts = i * 1000L, rsrp = -80, latency = if (i == 15) 150.0 else 10.0))
         }
         val result = engine.analyze(records, defaultConfig)
         val spikes = result.anomalyFlags.filter { it.type == AnomalyType.LATENCY_SPIKE }
@@ -104,11 +106,11 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `pci flapping detected`() {
         val records = listOf(
-            record(ts = 1000, pci = 101, simSlot = 0),
-            record(ts = 2000, pci = 102, simSlot = 0),
-            record(ts = 3000, pci = 101, simSlot = 0),
-            record(ts = 4000, pci = 103, simSlot = 0),
-            record(ts = 5000, pci = 102, simSlot = 0)
+            wrapper(record(ts = 1000, pci = 101, simSlot = 0)),
+            wrapper(record(ts = 2000, pci = 102, simSlot = 0)),
+            wrapper(record(ts = 3000, pci = 101, simSlot = 0)),
+            wrapper(record(ts = 4000, pci = 103, simSlot = 0)),
+            wrapper(record(ts = 5000, pci = 102, simSlot = 0))
         )
         val config = defaultConfig.copy(pciFlapWindowMs = 10000, pciFlapCountThreshold = 3)
         val result = engine.analyze(records, config)
@@ -119,11 +121,11 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `missing ping cluster detected`() {
         val records = listOf(
-            record(ts = 1000, latency = 10.0),
-            record(ts = 2000, latency = null),
-            record(ts = 3000, latency = null),
-            record(ts = 4000, latency = null),
-            record(ts = 5000, latency = 20.0)
+            wrapper(record(ts = 1000, latency = 10.0)),
+            wrapper(record(ts = 2000, latency = null)),
+            wrapper(record(ts = 3000, latency = null)),
+            wrapper(record(ts = 4000, latency = null)),
+            wrapper(record(ts = 5000, latency = 20.0))
         )
         val result = engine.analyze(records, defaultConfig)
         val clusters = result.anomalyFlags.filter { it.type == AnomalyType.MISSING_PING_CLUSTER }
@@ -134,7 +136,7 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `consecutive latency spikes grouped into one anomaly with duration`() {
         val records = (1..30).map { i ->
-            record(ts = i * 1000L, rsrp = -80, latency = if (i in 13..17) 300.0 else 10.0)
+            wrapper(record(ts = i * 1000L, rsrp = -80, latency = if (i in 13..17) 300.0 else 10.0))
         }
         val config = defaultConfig.copy(latencySpikeSigma = 1.0)
         val result = engine.analyze(records, config)
@@ -148,11 +150,11 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `pci flapping produces exactly one anomaly per episode`() {
         val records = listOf(
-            record(ts = 1000, pci = 101, simSlot = 0),
-            record(ts = 2000, pci = 102, simSlot = 0),
-            record(ts = 3000, pci = 101, simSlot = 0),
-            record(ts = 4000, pci = 103, simSlot = 0),
-            record(ts = 5000, pci = 102, simSlot = 0)
+            wrapper(record(ts = 1000, pci = 101, simSlot = 0)),
+            wrapper(record(ts = 2000, pci = 102, simSlot = 0)),
+            wrapper(record(ts = 3000, pci = 101, simSlot = 0)),
+            wrapper(record(ts = 4000, pci = 103, simSlot = 0)),
+            wrapper(record(ts = 5000, pci = 102, simSlot = 0))
         )
         val config = defaultConfig.copy(pciFlapWindowMs = 10000, pciFlapCountThreshold = 3)
         val result = engine.analyze(records, config)
@@ -164,10 +166,10 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `handoff detection across cells`() {
         val records = listOf(
-            record(ts = 1000, enb = 100L, pci = 1, simSlot = 0, rat = "4G", rsrp = -80),
-            record(ts = 2000, enb = 100L, pci = 1, simSlot = 0, rat = "4G", rsrp = -82),
-            record(ts = 3000, enb = 200L, pci = 2, simSlot = 0, rat = "4G", rsrp = -90),
-            record(ts = 4000, enb = 200L, pci = 2, simSlot = 0, rat = "4G", rsrp = -88)
+            wrapper(record(ts = 1000, enb = 100L, pci = 1, simSlot = 0, rat = "4G", rsrp = -80)),
+            wrapper(record(ts = 2000, enb = 100L, pci = 1, simSlot = 0, rat = "4G", rsrp = -82)),
+            wrapper(record(ts = 3000, enb = 200L, pci = 2, simSlot = 0, rat = "4G", rsrp = -90)),
+            wrapper(record(ts = 4000, enb = 200L, pci = 2, simSlot = 0, rat = "4G", rsrp = -88))
         )
         val config = defaultConfig.copy(handoffTimeWindowMs = 5000)
         val result = engine.analyze(records, config)
@@ -179,10 +181,10 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `coverage gap detected for long unknown RAT`() {
         val records = listOf(
-            record(ts = 1000, rat = "4G", rsrp = -80, lat = 10.0, lng = 20.0),
-            record(ts = 40000, rat = "UNKNOWN", rsrp = null, lat = 10.1, lng = 20.1),
-            record(ts = 80000, rat = "UNKNOWN", rsrp = null, lat = 10.1, lng = 20.1),
-            record(ts = 120000, rat = "4G", rsrp = -85, lat = 10.2, lng = 20.2)
+            wrapper(record(ts = 1000, rat = "4G", rsrp = -80, lat = 10.0, lng = 20.0)),
+            wrapper(record(ts = 40000, rat = "UNKNOWN", rsrp = null, lat = 10.1, lng = 20.1)),
+            wrapper(record(ts = 80000, rat = "UNKNOWN", rsrp = null, lat = 10.1, lng = 20.1)),
+            wrapper(record(ts = 120000, rat = "4G", rsrp = -85, lat = 10.2, lng = 20.2))
         )
         val config = defaultConfig.copy(coverageGapThresholdMs = 30000)
         val result = engine.analyze(records, config)
@@ -195,9 +197,9 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `mobility segments generated for speed changes`() {
         val records = listOf(
-            record(ts = 1000, lat = 10.0, lng = 20.0, rat = "4G", rsrp = -80),
-            record(ts = 2000, lat = 10.1, lng = 20.1, rat = "4G", rsrp = -82),
-            record(ts = 3000, lat = 10.5, lng = 20.5, rat = "4G", rsrp = -85)
+            wrapper(record(ts = 1000, lat = 10.0, lng = 20.0, rat = "4G", rsrp = -80)),
+            wrapper(record(ts = 2000, lat = 10.1, lng = 20.1, rat = "4G", rsrp = -82)),
+            wrapper(record(ts = 3000, lat = 10.5, lng = 20.5, rat = "4G", rsrp = -85))
         )
         val result = engine.analyze(records, defaultConfig)
         assertTrue(result.mobilitySegments.isNotEmpty(), "Expected mobility segments")
@@ -206,11 +208,11 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `latency stats computed correctly`() {
         val records = listOf(
-            record(ts = 1000, latency = 10.0),
-            record(ts = 2000, latency = 20.0),
-            record(ts = 3000, latency = 30.0),
-            record(ts = 4000, latency = 40.0),
-            record(ts = 5000, latency = 50.0)
+            wrapper(record(ts = 1000, latency = 10.0)),
+            wrapper(record(ts = 2000, latency = 20.0)),
+            wrapper(record(ts = 3000, latency = 30.0)),
+            wrapper(record(ts = 4000, latency = 40.0)),
+            wrapper(record(ts = 5000, latency = 50.0))
         )
         val result = engine.analyze(records, defaultConfig)
         val stats = result.latencyStats
@@ -225,11 +227,11 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `timeline segments group consecutive RATs`() {
         val records = listOf(
-            record(ts = 1000, rat = "4G"),
-            record(ts = 2000, rat = "4G"),
-            record(ts = 3000, rat = "5G_SA"),
-            record(ts = 4000, rat = "4G"),
-            record(ts = 5000, rat = "UNKNOWN")
+            wrapper(record(ts = 1000, rat = "4G")),
+            wrapper(record(ts = 2000, rat = "4G")),
+            wrapper(record(ts = 3000, rat = "5G_SA")),
+            wrapper(record(ts = 4000, rat = "4G")),
+            wrapper(record(ts = 5000, rat = "UNKNOWN"))
         )
         val result = engine.analyze(records, defaultConfig)
         assertEquals(4, result.timelineSegments.size)
@@ -243,11 +245,11 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `band distribution excludes records with null band number`() {
         val records = listOf(
-            record(ts = 1000, band = 78, simSlot = 0),
-            record(ts = 2000, band = null, simSlot = 0),
-            record(ts = 3000, band = 78, simSlot = 0),
-            record(ts = 4000, band = null, simSlot = 0),
-            record(ts = 5000, band = 1, simSlot = 0)
+            wrapper(record(ts = 1000, band = 78, simSlot = 0)),
+            wrapper(record(ts = 2000, band = null, simSlot = 0)),
+            wrapper(record(ts = 3000, band = 78, simSlot = 0)),
+            wrapper(record(ts = 4000, band = null, simSlot = 0)),
+            wrapper(record(ts = 5000, band = 1, simSlot = 0))
         )
         val result = engine.analyze(records, defaultConfig)
         val bands = result.bandDistributionPerSim[0]
@@ -261,9 +263,42 @@ class SessionAnalyticsEngineTest {
     }
 
     @Test
+    fun `band distribution includes CA bands`() {
+        val records = listOf(
+            wrapper(
+                record(ts = 1000, band = 4, simSlot = 0),
+                caBands = listOf(
+                    CellRecordCaBandEntity(cellRecordId = 1, bandNumber = 7),
+                    CellRecordCaBandEntity(cellRecordId = 1, bandNumber = 3)
+                )
+            ),
+            wrapper(
+                record(ts = 2000, band = 4, simSlot = 0),
+                caBands = listOf(
+                    CellRecordCaBandEntity(cellRecordId = 2, bandNumber = 7)
+                )
+            )
+        )
+        val result = engine.analyze(records, defaultConfig)
+        val bands = result.bandDistributionPerSim[0]
+        assertNotNull(bands)
+        // Primary: band 4 appears 2 times (count=2)
+        // CA: band 7 appears 2 times, band 3 appears 1 time
+        val band4 = bands!!.find { it.bandNumber == 4 }
+        val band7 = bands.find { it.bandNumber == 7 }
+        val band3 = bands.find { it.bandNumber == 3 }
+        assertNotNull(band4)
+        assertNotNull(band7)
+        assertNotNull(band3)
+        assertEquals(2, band4!!.count)
+        assertEquals(2, band7!!.count)
+        assertEquals(1, band3!!.count)
+    }
+
+    @Test
     fun `single record analytics basic fields populated`() {
         val records = listOf(
-            record(ts = 1000, rat = "5G_SA", rsrp = -75, sinr = 25, band = 78, simSlot = 0, mcc = "310", mnc = "260")
+            wrapper(record(ts = 1000, rat = "5G_SA", rsrp = -75, sinr = 25, band = 78, simSlot = 0, mcc = "310", mnc = "260"))
         )
         val result = engine.analyze(records, defaultConfig)
         assertEquals(1, result.ratCoverage.size)
@@ -275,11 +310,11 @@ class SessionAnalyticsEngineTest {
     @Test
     fun `signal quality buckets counted correctly`() {
         val records = listOf(
-            record(ts = 1000, rat = "4G", rsrp = -75),
-            record(ts = 2000, rat = "4G", rsrp = -85),
-            record(ts = 3000, rat = "4G", rsrp = -95),
-            record(ts = 4000, rat = "4G", rsrp = -105),
-            record(ts = 5000, rat = "4G", rsrp = -70)
+            wrapper(record(ts = 1000, rat = "4G", rsrp = -75)),
+            wrapper(record(ts = 2000, rat = "4G", rsrp = -85)),
+            wrapper(record(ts = 3000, rat = "4G", rsrp = -95)),
+            wrapper(record(ts = 4000, rat = "4G", rsrp = -105)),
+            wrapper(record(ts = 5000, rat = "4G", rsrp = -70))
         )
         val result = engine.analyze(records, defaultConfig)
         val coverage = result.ratCoverage.find { it.rat == "4G" }
@@ -292,6 +327,11 @@ class SessionAnalyticsEngineTest {
 
     companion object {
         private var idCounter = 1L
+
+        private fun wrapper(
+            rec: CellRecordEntity,
+            caBands: List<CellRecordCaBandEntity> = emptyList()
+        ) = CellRecordWithCaBands(record = rec, caBands = caBands)
 
         private fun record(
             ts: Long,

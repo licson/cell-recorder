@@ -1,6 +1,8 @@
 package com.cellrecorder.app.domain.usecase
 
+import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SessionEntity
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -10,7 +12,8 @@ class ExportSessionUseCaseTest {
 
     private lateinit var useCase: ExportSessionUseCase
     private lateinit var session: SessionEntity
-    private lateinit var records: List<CellRecordEntity>
+    private lateinit var records: List<CellRecordWithCaBands>
+    private lateinit var record: CellRecordEntity
 
     @BeforeEach
     fun setup() {
@@ -22,31 +25,45 @@ class ExportSessionUseCaseTest {
             endedAt = 2000L,
             pointCount = 1
         )
+        record = CellRecordEntity(
+            id = 1,
+            sessionId = 1,
+            timestamp = 1500L,
+            latitude = 40.7128,
+            longitude = -74.0060,
+            altitude = 10.0,
+            accuracy = 5f,
+            rat = "4G",
+            networkTypeCode = 13,
+            fullCellIdentity = 123456L,
+            enbOrGnbId = 482L,
+            lcid = 64,
+            pci = 301,
+            tac = 1234,
+            bandNumber = 4,
+            earfcn = 2000,
+            rsrp = -110,
+            rsrq = -12,
+            sinr = 15,
+            avgLatencyMs = 25.3,
+            packetLossPct = 0.0,
+            mcc = "310",
+            mnc = "410"
+        )
         records = listOf(
-            CellRecordEntity(
-                id = 1,
-                sessionId = 1,
-                timestamp = 1500L,
-                latitude = 40.7128,
-                longitude = -74.0060,
-                altitude = 10.0,
-                accuracy = 5f,
-                rat = "4G",
-                networkTypeCode = 13,
-                fullCellIdentity = 123456L,
-                enbOrGnbId = 482L,
-                lcid = 64,
-                pci = 301,
-                tac = 1234,
-                bandNumber = 4,
-                earfcn = 2000,
-                rsrp = -110,
-                rsrq = -12,
-                sinr = 15,
-                avgLatencyMs = 25.3,
-                packetLossPct = 0.0,
-                mcc = "310",
-                mnc = "410"
+            CellRecordWithCaBands(
+                record = record,
+                caBands = listOf(
+                    CellRecordCaBandEntity(
+                        cellRecordId = 1,
+                        bandNumber = 7,
+                        earfcn = 3100,
+                        pci = 456,
+                        rsrp = -105,
+                        rsrq = -10,
+                        sinr = 12
+                    )
+                )
             )
         )
     }
@@ -55,6 +72,7 @@ class ExportSessionUseCaseTest {
     fun `exportCsv produces correct header`() {
         val data = useCase.exportCsv(session, records)
         assertTrue(data.content.startsWith("timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac"))
+        assertTrue(data.content.contains("ca_bands"))
     }
 
     @Test
@@ -67,6 +85,15 @@ class ExportSessionUseCaseTest {
         assertTrue(data.content.contains("301"))
         assertTrue(data.content.contains("25.3"))
         assertTrue(data.content.contains("310"))
+    }
+
+    @Test
+    fun `exportCsv contains CA bands`() {
+        val data = useCase.exportCsv(session, records)
+        assertTrue(data.content.contains("ca_bands"))
+        assertTrue(data.content.contains("band"))
+        assertTrue(data.content.contains("7"))
+        assertTrue(data.content.contains("456"))
     }
 
     @Test
@@ -85,6 +112,14 @@ class ExportSessionUseCaseTest {
         assertTrue(data.content.contains("\"pci\":301"))
         assertTrue(data.content.contains("\"mcc\":\"310\""))
         assertTrue(data.content.contains("\"mnc\":\"410\""))
+    }
+
+    @Test
+    fun `exportGeoJson contains CA bands`() {
+        val data = useCase.exportGeoJson(session, records)
+        assertTrue(data.content.contains("\"caBands\""))
+        assertTrue(data.content.contains("\"band\":7"))
+        assertTrue(data.content.contains("\"pci\":456"))
     }
 
     @Test
