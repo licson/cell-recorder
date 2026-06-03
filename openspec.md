@@ -193,6 +193,7 @@ app/
 ├── service/
 │   ├── RecordingService.kt        (Foreground Service)
 │   ├── RecordingState.kt          (SimLiveState, RecordingState data classes)
+│   ├── RecordingStateManager.kt   (Hilt @Singleton, exposes recording state as StateFlow)
 │   ├── LocationCollector.kt       (FusedLocation + GPS fallback + distance check)
 │   ├── CellInfoCollector.kt       (NetMonster Core wrapper)
 │   └── SensorFusionCollector.kt   (Game Rotation Vector heading tracking)
@@ -512,7 +513,7 @@ The bottom bar is only shown on these three top-level destinations.
 - Type: **Foreground Service** (required for Android 11+) with `FOREGROUND_SERVICE_TYPE_LOCATION`
 - Notification: persistent channel `cell_recorder_channel` — content shows elapsed time, point count, GPS status
 - Notification includes "Stop" action and opens MainActivity on tap
-- State shared via `companion object` `_currentState: MutableStateFlow<RecordingState?>`
+- State managed by `RecordingStateManager` (Hilt `@Singleton`), injectable into both `RecordingService` and `RecordingViewModel`
 - Auto-stops on: user "Stop", max duration reached, or system kill (`START_STICKY` restarts but checks `isRecording` flag)
 - GPS extrapolation fallback via `SensorFusionCollector` when fix is lost
 
@@ -540,6 +541,9 @@ timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,
 
 ### GeoJSON Export
 
+- Built with `kotlinx.serialization.json` builders (`buildJsonObject`/`buildJsonArray`/`JsonPrimitive`) instead of string concatenation
+- Output follows the same FeatureCollection schema:
+
 ```json
 {
   "type": "FeatureCollection",
@@ -564,7 +568,7 @@ timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,
 - `ImportSessionUseCase` supports importing both CSV and GeoJSON files
 - `CsvRecordParser` parses CSV content into `CellRecordEntity` list, skipping malformed lines
 - `GeoJsonRecordParser` parses GeoJSON FeatureCollection into `CellRecordEntity` list
-- Each import creates a new `SessionEntity`, inserts all parsed records, and sets `endedAt`
+- Each import creates a new `SessionEntity`, inserts all parsed records, refreshes `pointCount` via `refreshPointCount()`, and sets `endedAt`
 
 ---
 
@@ -587,7 +591,7 @@ timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,
 
 - **Single module** with clean architecture packages (`data/domain/service/ui/di`)
 - **Hilt** for DI; `PingEngine` and other services annotated with `@Inject constructor()` to satisfy Hilt
-- **osmdroid maps** wrapped in Compose `AndroidView` (View interop)
+- **osmdroid maps** wrapped in Compose `AndroidView` (View interop) with `DisposableEffect` for `onResume`/`onPause` and `onRelease` for `onDetach` to prevent tile-loading thread leaks
 - **Recording state** shared via `StateFlow` companion object in `RecordingService`
 - **Export** delegates to SAF `CreateDocument` contract; use case generates content strings
 - **Import** uses `ActivityResultContracts.OpenDocument`; `CsvRecordParser` and `GeoJsonRecordParser` handle parsing
