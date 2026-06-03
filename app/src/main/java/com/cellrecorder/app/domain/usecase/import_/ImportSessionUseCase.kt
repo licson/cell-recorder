@@ -30,6 +30,7 @@ class ImportSessionUseCase @Inject constructor(
 
         if (result.records.isNotEmpty()) {
             cellRecordRepository.insertAll(result.records)
+            sessionRepository.refreshPointCount(sessionId)
             sessionRepository.updateEndedAt(sessionId, System.currentTimeMillis())
         }
 
@@ -51,6 +52,7 @@ class ImportSessionUseCase @Inject constructor(
 
         if (result.records.isNotEmpty()) {
             cellRecordRepository.insertAll(result.records)
+            sessionRepository.refreshPointCount(sessionId)
             sessionRepository.updateEndedAt(sessionId, System.currentTimeMillis())
         }
 

@@ -31,6 +31,9 @@ class SessionRepository @Inject constructor(
     suspend fun updatePrimarySimSlot(id: Long, simSlotIndex: Int?) =
         sessionDao.updatePrimarySimSlot(id, simSlotIndex)
 
+    suspend fun refreshPointCount(sessionId: Long) =
+        sessionDao.refreshPointCount(sessionId)
+
     suspend fun deleteById(id: Long) = sessionDao.deleteById(id)
 
     fun getTotalDurationMs(): Flow<Long?> = sessionDao.getTotalDurationMs()

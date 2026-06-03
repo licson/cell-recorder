@@ -2,6 +2,10 @@ package com.cellrecorder.app.domain.usecase
 
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -54,19 +58,50 @@ class ExportSessionUseCase @Inject constructor() {
     }
 
     fun exportGeoJson(session: SessionEntity, records: List<CellRecordEntity>): ExportData {
-        val sb = StringBuilder()
-        sb.appendLine("""{"type":"FeatureCollection","features":[""")
-        for ((i, r) in records.withIndex()) {
-            if (i > 0) sb.appendLine(",")
-            sb.appendLine("""{"type":"Feature","geometry":{"type":"Point","coordinates":[${r.longitude},${r.latitude},${r.altitude}]},"properties":{""")
-            sb.appendLine(""""timestamp":${r.timestamp},"subscriptionId":${r.subscriptionId ?: "null"},"simSlotIndex":${r.simSlotIndex ?: "null"},"rat":"${r.rat}","pci":${r.pci ?: "null"},"rsrp":${r.rsrp ?: "null"},"rsrq":${r.rsrq ?: "null"},"sinr":${r.sinr ?: "null"},"enbGnbId":${r.enbOrGnbId ?: "null"},"lcid":${r.lcid ?: "null"},"avgLatencyMs":${r.avgLatencyMs ?: "null"},"packetLossPct":${r.packetLossPct ?: "null"},"mcc":"${r.mcc ?: ""}","mnc":"${r.mnc ?: ""}","band":${r.bandNumber ?: "null"},"earfcn":${r.earfcn ?: "null"},"tac":${r.tac ?: "null"},"isLocationEstimated":${r.isLocationEstimated},"locationSource":"${r.locationSource}""")
-            sb.append("}}")
+        val featureCollection = buildJsonObject {
+            put("type", "FeatureCollection")
+            put("features", buildJsonArray {
+                for (r in records) {
+                    add(buildJsonObject {
+                        put("type", "Feature")
+                        put("geometry", buildJsonObject {
+                            put("type", "Point")
+                            put("coordinates", buildJsonArray {
+                                add(JsonPrimitive(r.longitude))
+                                add(JsonPrimitive(r.latitude))
+                                add(JsonPrimitive(r.altitude))
+                            })
+                        })
+                        put("properties", buildJsonObject {
+                            put("timestamp", r.timestamp)
+                            put("subscriptionId", r.subscriptionId)
+                            put("simSlotIndex", r.simSlotIndex)
+                            put("rat", r.rat)
+                            put("pci", r.pci)
+                            put("rsrp", r.rsrp)
+                            put("rsrq", r.rsrq)
+                            put("sinr", r.sinr)
+                            put("enbGnbId", r.enbOrGnbId)
+                            put("lcid", r.lcid)
+                            put("avgLatencyMs", r.avgLatencyMs)
+                            put("packetLossPct", r.packetLossPct)
+                            put("mcc", r.mcc)
+                            put("mnc", r.mnc)
+                            put("band", r.bandNumber)
+                            put("earfcn", r.earfcn)
+                            put("tac", r.tac)
+                            put("isLocationEstimated", r.isLocationEstimated)
+                            put("locationSource", r.locationSource)
+                        })
+                    })
+                }
+            })
         }
-        sb.appendLine("]}")
         return ExportData(
-            content = sb.toString(),
+            content = featureCollection.toString(),
             mimeType = "application/geo+json",
             suggestedFilename = "${session.name.replace(" ", "_")}_cell_records.geojson"
         )
     }
 }
+
