@@ -9,8 +9,8 @@ import com.cellrecorder.app.data.repository.ConfigRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.service.CellInfoCollector
-import com.cellrecorder.app.service.RecordingService
 import com.cellrecorder.app.service.RecordingState
+import com.cellrecorder.app.service.RecordingStateManager
 import com.cellrecorder.app.service.SimLiveState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -29,13 +29,14 @@ class RecordingViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val cellInfoCollector: CellInfoCollector,
     private val configRepository: ConfigRepository,
+    private val stateManager: RecordingStateManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _session = MutableStateFlow<SessionEntity?>(null)
     val session: StateFlow<SessionEntity?> = _session
 
-    val serviceState: StateFlow<RecordingState?> = RecordingService.currentState
+    val serviceState: StateFlow<RecordingState?> = stateManager.state
 
     private val _liveSimStates = MutableStateFlow<List<SimLiveState>>(emptyList())
     val liveSimStates: StateFlow<List<SimLiveState>> = _liveSimStates

@@ -29,9 +29,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.first
 import kotlin.math.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -44,6 +41,7 @@ class RecordingService : Service() {
     @Inject lateinit var cellInfoCollector: CellInfoCollector
     @Inject lateinit var pingEngine: PingEngine
     @Inject lateinit var sensorFusion: SensorFusionCollector
+    @Inject lateinit var stateManager: RecordingStateManager
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val recordingMutex = Mutex()
@@ -303,7 +301,7 @@ class RecordingService : Service() {
                             hasGpsFix -> "OK"
                             else -> "Searching..."
                         }
-                        _currentState.value = _currentState.value?.copy(
+                        stateManager.update { it?.copy(
                             elapsedMs = elapsed,
                             pointCount = totalPointCount,
                             gpsStatus = currentStatus,
@@ -312,7 +310,7 @@ class RecordingService : Service() {
                             currentLatitude = loc?.latitude ?: 0.0,
                             currentLongitude = loc?.longitude ?: 0.0,
                             currentAltitude = loc?.altitude ?: 0.0
-                        )
+                        ) }
                         updateNotification()
                     }
                 }
@@ -346,7 +344,7 @@ class RecordingService : Service() {
             } catch (_: Exception) { }
         }
 
-        if (_currentState.value?.isRecording != false) {
+        if (stateManager.currentState?.isRecording != false) {
             updateState(isRecording = false)
         }
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -377,8 +375,8 @@ class RecordingService : Service() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val elapsed = if (_currentState.value?.elapsedMs != null) {
-            val totalSec = _currentState.value!!.elapsedMs / 1000
+        val elapsed = if (stateManager.currentState?.elapsedMs != null) {
+            val totalSec = stateManager.currentState!!.elapsedMs / 1000
             String.format("%02d:%02d", totalSec / 60, totalSec % 60)
         } else "00:00"
         val gps = when {
@@ -406,7 +404,7 @@ class RecordingService : Service() {
         location: LocationUpdate,
         isExtrapolatingParam: Boolean = false
     ) {
-        _currentState.value = _currentState.value?.copy(
+        stateManager.update { it?.copy(
             pointCount = totalPointCount,
             dataSubId = defaultDataSubId,
             currentLatency = avgLatencyMs?.let { String.format("%.1f", it) } ?: "---",
@@ -416,11 +414,11 @@ class RecordingService : Service() {
             recordedPath = recordedPath.toList(),
             gpsStatus = if (isExtrapolatingParam) "EXTRAPOLATING" else "OK",
             isExtrapolatingGps = isExtrapolatingParam
-        )
+        ) }
     }
 
     private fun updateState(isRecording: Boolean, error: String? = null) {
-        _currentState.value = RecordingState(
+        stateManager.currentState = RecordingState(
             sessionId = sessionId,
             isRecording = isRecording,
             errorMessage = error
@@ -520,9 +518,6 @@ class RecordingService : Service() {
         const val ACTION_START = "com.cellrecorder.app.START_RECORDING"
         const val ACTION_STOP = "com.cellrecorder.app.STOP_RECORDING"
         const val EXTRA_SESSION_ID = "session_id"
-
-        private val _currentState = MutableStateFlow<RecordingState?>(null)
-        val currentState: StateFlow<RecordingState?> = _currentState.asStateFlow()
 
         fun start(context: Context, sessionId: Long) {
             val intent = Intent(context, RecordingService::class.java).apply {
