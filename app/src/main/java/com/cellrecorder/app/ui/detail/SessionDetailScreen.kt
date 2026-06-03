@@ -401,10 +401,7 @@ private fun SimRecordRow(
     }
 }
 
-private fun formatPlmn(mcc: String?, mnc: String?): String {
-    if (mcc != null && mnc != null) return "$mcc-$mnc"
-    return "---"
-}
+private fun formatPlmn(mcc: String?, mnc: String?): String = com.cellrecorder.app.ui.shared.formatPlmn(mcc, mnc)
 
 @Composable
 private fun ActionButtonsRow(

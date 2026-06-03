@@ -12,9 +12,11 @@ import com.cellrecorder.app.service.CellInfoCollector
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.RecordingStateManager
 import com.cellrecorder.app.service.SimLiveState
+import com.cellrecorder.app.ui.shared.formatPlmn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,36 +43,42 @@ class RecordingViewModel @Inject constructor(
     private val _liveSimStates = MutableStateFlow<List<SimLiveState>>(emptyList())
     val liveSimStates: StateFlow<List<SimLiveState>> = _liveSimStates
 
+    private var pollingJob: Job? = null
+
     init {
         viewModelScope.launch {
-            val config = configRepository.getConfig().first()
-            while (isActive) {
-                val snapshots = withContext(Dispatchers.IO) {
-                    cellInfoCollector.snapshots(config)
-                }
-                val subManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
-                val activeSubs = withContext(Dispatchers.IO) {
-                    subManager?.activeSubscriptionInfoList?.associateBy { it.subscriptionId } ?: emptyMap()
-                }
+            configRepository.getConfig().collect { config ->
+                pollingJob?.cancel()
+                pollingJob = launch {
+                    while (isActive) {
+                        val snapshots = withContext(Dispatchers.IO) {
+                            cellInfoCollector.snapshots(config)
+                        }
+                        val subManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+                        val activeSubs = withContext(Dispatchers.IO) {
+                            subManager?.activeSubscriptionInfoList?.associateBy { it.subscriptionId } ?: emptyMap()
+                        }
 
-                _liveSimStates.value = snapshots.map { s ->
-                    val info = activeSubs[s.subscriptionId]
-                    SimLiveState(
-                        subscriptionId = s.subscriptionId,
-                        simSlotIndex = info?.simSlotIndex ?: 0,
-                        plmn = formatPlmn(s.mcc, s.mnc),
-                        rat = s.rat,
-                        tac = s.tac?.toString() ?: "---",
-                        bandNumber = s.bandNumber?.let { "B$it" } ?: "---",
-                        earfcn = s.earfcn?.toString() ?: "---",
-                        cellId = formatCellId(s),
-                        pci = s.pci?.toString() ?: "---",
-                        rsrp = s.rsrp?.toString() ?: "---",
-                        rsrq = s.rsrq?.toString() ?: "---",
-                        sinr = s.sinr?.toString() ?: "---"
-                    )
+                        _liveSimStates.value = snapshots.map { s ->
+                            val info = activeSubs[s.subscriptionId]
+                            SimLiveState(
+                                subscriptionId = s.subscriptionId,
+                                simSlotIndex = info?.simSlotIndex ?: 0,
+                                plmn = formatPlmn(s.mcc, s.mnc),
+                                rat = s.rat,
+                                tac = s.tac?.toString() ?: "---",
+                                bandNumber = s.bandNumber?.let { "B$it" } ?: "---",
+                                earfcn = s.earfcn?.toString() ?: "---",
+                                cellId = formatCellId(s),
+                                pci = s.pci?.toString() ?: "---",
+                                rsrp = s.rsrp?.toString() ?: "---",
+                                rsrq = s.rsrq?.toString() ?: "---",
+                                sinr = s.sinr?.toString() ?: "---"
+                            )
+                        }
+                        delay(config.cellInfoRefreshIntervalSec * 1000L)
+                    }
                 }
-                delay(config.cellInfoRefreshIntervalSec * 1000L)
             }
         }
     }
@@ -81,12 +89,6 @@ class RecordingViewModel @Inject constructor(
                 _session.value = entity
             }
         }
-    }
-
-    private fun formatPlmn(mcc: String?, mnc: String?): String {
-        if (mcc != null && mnc != null) return "$mcc-$mnc"
-        if (mcc != null) return mcc
-        return "---"
     }
 
     private fun formatCellId(snapshot: CellRecordSnapshot): String {

@@ -9,6 +9,8 @@ import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.ping.PingSlidingWindow
 import javax.inject.Inject
 
+private const val MAX_PATH_SIZE = 2000
+
 class PointRecorder @Inject constructor(
     private val cellRecordRepository: CellRecordRepository,
     private val sessionRepository: SessionRepository,
@@ -87,6 +89,9 @@ class PointRecorder @Inject constructor(
         totalPointCount++
 
         _recordedPath.add(location.latitude to location.longitude)
+        if (_recordedPath.size > MAX_PATH_SIZE) {
+            _recordedPath.removeAt(0)
+        }
         lastRecordedLocation = location
         lastRecordedTime = System.currentTimeMillis()
 
