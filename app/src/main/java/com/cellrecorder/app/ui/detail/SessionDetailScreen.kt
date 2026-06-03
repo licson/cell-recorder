@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -62,18 +63,18 @@ fun SessionDetailScreen(
     viewModel: SessionDetailViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val session by viewModel.session.collectAsState()
-    val records by viewModel.records.collectAsState()
-    val filteredRecords by viewModel.filteredRecords.collectAsState()
-    val allGrouped by viewModel.allGrouped.collectAsState()
-    val visibleWindow by viewModel.visibleWindow.collectAsState()
-    val selectedRecord by viewModel.selectedRecord.collectAsState()
-    val exportData by viewModel.exportData.collectAsState()
-    val analytics by viewModel.analytics.collectAsState()
-    val mapDisplayMode by viewModel.mapDisplayMode.collectAsState()
-    val showAnalytics by viewModel.showAnalytics.collectAsState()
-    val selectedSim by viewModel.selectedSim.collectAsState()
-    val availableSimSlots = viewModel.availableSimSlots
+    val session by viewModel.session.collectAsStateWithLifecycle()
+    val records by viewModel.records.collectAsStateWithLifecycle()
+    val filteredRecords by viewModel.filteredRecords.collectAsStateWithLifecycle()
+    val allGrouped by viewModel.allGrouped.collectAsStateWithLifecycle()
+    val visibleWindow by viewModel.visibleWindow.collectAsStateWithLifecycle()
+    val selectedRecord by viewModel.selectedRecord.collectAsStateWithLifecycle()
+    val exportData by viewModel.exportData.collectAsStateWithLifecycle()
+    val analytics by viewModel.analytics.collectAsStateWithLifecycle()
+    val mapDisplayMode by viewModel.mapDisplayMode.collectAsStateWithLifecycle()
+    val showAnalytics by viewModel.showAnalytics.collectAsStateWithLifecycle()
+    val selectedSim by viewModel.selectedSim.collectAsStateWithLifecycle()
+    val availableSimSlots by viewModel.availableSimSlots.collectAsStateWithLifecycle()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showMapModeMenu by remember { mutableStateOf(false) }
@@ -234,64 +235,15 @@ fun SessionDetailScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             } else {
-                val listState = rememberLazyListState()
-                val measuredHeights = remember { mutableStateMapOf<Int, Int>() }
-                val density = LocalDensity.current
-
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.layoutInfo.visibleItemsInfo }
-                        .map { visible ->
-                            val dataIndices = visible
-                                .map { it.index - 1 }
-                                .filter { it >= 0 }
-                            if (dataIndices.isEmpty()) null
-                            else dataIndices.first() to dataIndices.last()
-                        }
-                        .distinctUntilChanged()
-                        .collect { range ->
-                            range?.let { (first, last) ->
-                                viewModel.updateVisibleWindow(first, last)
-                            }
-                        }
-                }
-
-                LaunchedEffect(allGrouped) {
-                    measuredHeights.clear()
-                }
-
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    state = listState
-                ) {
-                    stickyHeader(key = "headers") {
-                        ColumnHeadersRow(modifier = Modifier.fillParentMaxWidth())
-                    }
-
-                    items(
-                        count = allGrouped.size,
-                        key = { index -> allGrouped[index].serialNumber }
-                    ) { index ->
-                        val group = allGrouped[index]
-                        if (index in visibleWindow) {
-                            TimestampGroupRow(
-                                group = group,
-                                onRecordClick = { viewModel.selectRecord(it) },
-                                modifier = Modifier.onGloballyPositioned { coordinates ->
-                                    measuredHeights[index] = coordinates.size.height
-                                }
-                            )
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
-                        } else {
-                            val heightPx = measuredHeights[index]
-                            val placeholderHeight = if (heightPx != null) {
-                                with(density) { heightPx.toDp() }
-                            } else {
-                                56.dp
-                            }
-                            Box(modifier = Modifier.fillMaxWidth().height(placeholderHeight))
-                        }
-                    }
-                }
+                RecordsList(
+                    allGrouped = allGrouped,
+                    visibleWindow = visibleWindow,
+                    onRecordClick = { viewModel.selectRecord(it) },
+                    onUpdateVisibleWindow = { first, last ->
+                        viewModel.updateVisibleWindow(first, last)
+                    },
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                )
             }
         }
     }
@@ -541,5 +493,74 @@ private fun ActionButton(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary
         )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RecordsList(
+    allGrouped: List<TimestampGroup>,
+    visibleWindow: IntRange,
+    onRecordClick: (CellRecordEntity) -> Unit,
+    onUpdateVisibleWindow: (Int, Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val listState = rememberLazyListState()
+    val measuredHeights = remember { mutableStateMapOf<Int, Int>() }
+    val density = LocalDensity.current
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+            .map { visible ->
+                val dataIndices = visible
+                    .map { it.index - 1 }
+                    .filter { it >= 0 }
+                if (dataIndices.isEmpty()) null
+                else dataIndices.first() to dataIndices.last()
+            }
+            .distinctUntilChanged()
+            .collect { range ->
+                range?.let { (first, last) ->
+                    onUpdateVisibleWindow(first, last)
+                }
+            }
+    }
+
+    LaunchedEffect(allGrouped) {
+        measuredHeights.clear()
+    }
+
+    LazyColumn(
+        modifier = modifier,
+        state = listState
+    ) {
+        stickyHeader(key = "headers") {
+            ColumnHeadersRow(modifier = Modifier.fillParentMaxWidth())
+        }
+
+        items(
+            count = allGrouped.size,
+            key = { index -> allGrouped[index].serialNumber }
+        ) { index ->
+            val group = allGrouped[index]
+            if (index in visibleWindow) {
+                TimestampGroupRow(
+                    group = group,
+                    onRecordClick = onRecordClick,
+                    modifier = Modifier.onGloballyPositioned { coordinates ->
+                        measuredHeights[index] = coordinates.size.height
+                    }
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+            } else {
+                val heightPx = measuredHeights[index]
+                val placeholderHeight = if (heightPx != null) {
+                    with(density) { heightPx.toDp() }
+                } else {
+                    56.dp
+                }
+                Box(modifier = Modifier.fillMaxWidth().height(placeholderHeight))
+            }
+        }
     }
 }

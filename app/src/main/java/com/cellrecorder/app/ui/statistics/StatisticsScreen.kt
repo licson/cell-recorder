@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.domain.model.BandDistribution
 import com.cellrecorder.app.domain.model.RatDistribution
+import com.cellrecorder.app.ui.detail.ratColor
 
 private val bandColors = listOf(
     Color(0xFF1565C0), Color(0xFF7B1FA2), Color(0xFFC62828), Color(0xFF2E7D32),
@@ -31,12 +33,12 @@ private val bandColors = listOf(
 fun StatisticsScreen(
     viewModel: StatisticsViewModel = hiltViewModel()
 ) {
-    val stats by viewModel.stats.collectAsState()
-    val ratDistributionPerSim by viewModel.ratDistributionPerSim.collectAsState()
-    val bandDistributionPerSim by viewModel.bandDistributionPerSim.collectAsState()
-    val simSlotDist by viewModel.simSlotDistribution.collectAsState()
-    val fiveGPercent by viewModel.fiveGPercentPerSim.collectAsState()
-    val onNetworkPerSim by viewModel.onNetworkPerSim.collectAsState()
+    val stats by viewModel.stats.collectAsStateWithLifecycle()
+    val ratDistributionPerSim by viewModel.ratDistributionPerSim.collectAsStateWithLifecycle()
+    val bandDistributionPerSim by viewModel.bandDistributionPerSim.collectAsStateWithLifecycle()
+    val simSlotDist by viewModel.simSlotDistribution.collectAsStateWithLifecycle()
+    val fiveGPercent by viewModel.fiveGPercentPerSim.collectAsStateWithLifecycle()
+    val onNetworkPerSim by viewModel.onNetworkPerSim.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -468,10 +470,3 @@ private fun formatDuration(ms: Long): String {
     return "${hours}h ${mins}m"
 }
 
-private fun ratColor(rat: String): Color = when {
-    rat.startsWith("5G") -> Color(0xFF00BCD4)
-    rat.startsWith("4G") -> Color(0xFF2196F3)
-    rat == "3G" -> Color(0xFFFF9800)
-    rat == "2G" -> Color(0xFFF44336)
-    else -> Color.Gray
-}

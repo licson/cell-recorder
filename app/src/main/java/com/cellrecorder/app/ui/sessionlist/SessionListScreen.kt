@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -43,9 +44,9 @@ fun SessionListScreen(
     onOpenSettings: () -> Unit,
     viewModel: SessionListViewModel = hiltViewModel()
 ) {
-    val sessions by viewModel.sessions.collectAsState()
-    val selectedIds by viewModel.selectedIds.collectAsState()
-    val inSelectionMode by viewModel.selectionMode.collectAsState()
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val selectedIds by viewModel.selectedIds.collectAsStateWithLifecycle()
+    val inSelectionMode by viewModel.selectionMode.collectAsStateWithLifecycle()
     var showCreateDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<SessionSummary?>(null) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -54,8 +55,8 @@ fun SessionListScreen(
     var assignSimTarget by remember { mutableStateOf<SessionSummary?>(null) }
     var deleteTarget by remember { mutableStateOf<SessionSummary?>(null) }
     var showImportFormatDialog by remember { mutableStateOf(false) }
-    val importSummary by viewModel.importSummary.collectAsState()
-    val createdSessionId by viewModel.createdSessionId.collectAsState()
+    val importSummary by viewModel.importSummary.collectAsStateWithLifecycle()
+    val createdSessionId by viewModel.createdSessionId.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val importFilePicker = rememberLauncherForActivityResult(

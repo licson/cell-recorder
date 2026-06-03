@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Report
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,7 +35,7 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val config by viewModel.config.collectAsState()
+    val config by viewModel.config.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     Scaffold(
@@ -116,20 +118,23 @@ fun SettingsScreen(
                     }
                 )
                 HorizontalDivider()
+                val scope = rememberCoroutineScope()
                 ClickableAboutRow(
                     icon = Icons.Default.BugReport,
                     label = "Share Crash Log",
                     onClick = {
-                        val log = viewModel.getLatestCrashLog()
-                        if (log != null) {
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, "Cell Recorder Crash Log")
-                                putExtra(Intent.EXTRA_TEXT, log)
+                        scope.launch {
+                            val log = viewModel.getLatestCrashLog()
+                            if (log != null) {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Cell Recorder Crash Log")
+                                    putExtra(Intent.EXTRA_TEXT, log)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Share Crash Log"))
+                            } else {
+                                Toast.makeText(context, "No crash logs available", Toast.LENGTH_SHORT).show()
                             }
-                            context.startActivity(Intent.createChooser(intent, "Share Crash Log"))
-                        } else {
-                            Toast.makeText(context, "No crash logs available", Toast.LENGTH_SHORT).show()
                         }
                     }
                 )

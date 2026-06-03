@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -29,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -45,19 +47,21 @@ fun ReplayScreen(
     onNavigateBack: () -> Unit,
     viewModel: ReplayViewModel = hiltViewModel()
 ) {
-    val records by viewModel.records.collectAsState()
-    val filteredRecords by viewModel.filteredRecords.collectAsState()
-    val currentIndex by viewModel.currentIndex.collectAsState()
-    val isPlaying by viewModel.isPlaying.collectAsState()
-    val speed by viewModel.speed.collectAsState()
-    val selectedSim by viewModel.selectedSim.collectAsState()
-    val availableSimSlots by viewModel.availableSimSlots.collectAsState()
+    val records by viewModel.records.collectAsStateWithLifecycle()
+    val filteredRecords by viewModel.filteredRecords.collectAsStateWithLifecycle()
+    val currentIndex by viewModel.currentIndex.collectAsStateWithLifecycle()
+    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
+    val speed by viewModel.speed.collectAsStateWithLifecycle()
+    val selectedSim by viewModel.selectedSim.collectAsStateWithLifecycle()
+    val availableSimSlots by viewModel.availableSimSlots.collectAsStateWithLifecycle()
 
     LaunchedEffect(sessionId) {
         viewModel.loadSession(sessionId)
     }
 
-    val currentRecord = filteredRecords.getOrNull(currentIndex)
+    val currentRecord by remember(filteredRecords, currentIndex) {
+        derivedStateOf { filteredRecords.getOrNull(currentIndex) }
+    }
 
     Scaffold(
         topBar = {
@@ -586,10 +590,3 @@ private fun formatCellId(record: CellRecordEntity): String {
     return record.fullCellIdentity?.toString() ?: "---"
 }
 
-private fun ratColor(rat: String): Color = when {
-    rat.startsWith("5G") -> Color(0xFF00BCD4)
-    rat.startsWith("4G") -> Color(0xFF2196F3)
-    rat == "3G" -> Color(0xFFFF9800)
-    rat == "2G" -> Color(0xFFF44336)
-    else -> Color.Gray
-}

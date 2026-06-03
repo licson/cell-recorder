@@ -13,12 +13,14 @@ import cz.mroczis.netmonster.core.db.BandTableWcdma
 import com.cellrecorder.app.service.SimLiveState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -45,9 +47,13 @@ class LiveInfoViewModel @Inject constructor(
         viewModelScope.launch {
             val config = configRepository.getConfig().first()
             while (isActive) {
-                val snapshots = cellInfoCollector.snapshots(config)
+                val snapshots = withContext(Dispatchers.IO) {
+                    cellInfoCollector.snapshots(config)
+                }
                 val subManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
-                val activeSubs = subManager?.activeSubscriptionInfoList?.associateBy { it.subscriptionId } ?: emptyMap()
+                val activeSubs = withContext(Dispatchers.IO) {
+                    subManager?.activeSubscriptionInfoList?.associateBy { it.subscriptionId } ?: emptyMap()
+                }
 
                 _liveSimStates.value = snapshots.map { s ->
                     val info = activeSubs[s.subscriptionId]
@@ -67,18 +73,16 @@ class LiveInfoViewModel @Inject constructor(
                     )
                 }
 
-                val currentRsrp = _rsrpHistory.value.toMutableMap()
-                val currentSinr = _sinrHistory.value.toMutableMap()
+                val currentRsrp = _rsrpHistory.value.mapValues { it.value.toMutableList() }.toMutableMap()
+                val currentSinr = _sinrHistory.value.mapValues { it.value.toMutableList() }.toMutableMap()
                 for (s in snapshots) {
-                    val rsrpList = (currentRsrp[s.subscriptionId] ?: emptyList()).toMutableList()
+                    val rsrpList = currentRsrp.getOrPut(s.subscriptionId) { mutableListOf() }
                     rsrpList.add(s.rsrp)
                     if (rsrpList.size > MAX_HISTORY) rsrpList.removeFirst()
-                    currentRsrp[s.subscriptionId] = rsrpList
 
-                    val sinrList = (currentSinr[s.subscriptionId] ?: emptyList()).toMutableList()
+                    val sinrList = currentSinr.getOrPut(s.subscriptionId) { mutableListOf() }
                     sinrList.add(s.sinr)
                     if (sinrList.size > MAX_HISTORY) sinrList.removeFirst()
-                    currentSinr[s.subscriptionId] = sinrList
                 }
                 _rsrpHistory.value = currentRsrp
                 _sinrHistory.value = currentSinr

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,8 +39,7 @@ fun MetricChart(
                 .fillMaxWidth()
                 .height(100.dp)
         ) {
-            val displayValues = remember(values) { values }
-            val validValues = remember(displayValues) { displayValues.filterNotNull() }
+            val validValues = remember(values) { values.filterNotNull() }
             val minVal = remember(validValues, fixedMin) { fixedMin ?: (validValues.minOrNull() ?: 0f) }
             val maxVal = remember(validValues, fixedMax) { fixedMax ?: (validValues.maxOrNull() ?: 1f) }
             val range = remember(minVal, maxVal) { (maxVal - minVal).coerceAtLeast(1f) }
@@ -53,7 +53,7 @@ fun MetricChart(
             }
 
             Canvas(modifier = Modifier.fillMaxSize()) {
-                if (displayValues.isEmpty() || validValues.isEmpty()) {
+                if (values.isEmpty() || validValues.isEmpty()) {
                     val text = "No data"
                     val textWidth = labelPaint.measureText(text)
                     drawContext.canvas.nativeCanvas.drawText(
@@ -66,7 +66,7 @@ fun MetricChart(
                 val rw = size.width - padding * 2
                 val rh = size.height - padding * 2
 
-                val count = displayValues.size
+                val count = values.size
                 if (count < 2) return@Canvas
                 val step = rw / (count - 1)
 
@@ -82,8 +82,8 @@ fun MetricChart(
 
                 val path = Path()
                 var started = false
-                for (i in displayValues.indices) {
-                    val v = displayValues[i] ?: continue
+                for (i in values.indices) {
+                    val v = values[i] ?: continue
                     val x = padding + step * i
                     val y = padding + rh * (1f - (v - minVal) / range)
                     if (!started) {
@@ -95,7 +95,7 @@ fun MetricChart(
                 }
                 drawPath(path, color, style = Stroke(width = 2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
 
-                if (currentIndex in displayValues.indices && currentIndex >= 0) {
+                if (currentIndex in values.indices && currentIndex >= 0) {
                     val cx = padding + step * currentIndex
                     drawLine(
                         color.copy(alpha = 0.5f),
@@ -103,7 +103,7 @@ fun MetricChart(
                         Offset(cx, padding + rh),
                         strokeWidth = 1.5f
                     )
-                    displayValues[currentIndex]?.let { cv ->
+                    values[currentIndex]?.let { cv ->
                         val cy = padding + rh * (1f - (cv - minVal) / range)
                         drawCircle(color, radius = 4f, center = Offset(cx, cy))
                         drawCircle(Color.White, radius = 2f, center = Offset(cx, cy))

@@ -14,12 +14,14 @@ import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.SimLiveState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -42,9 +44,13 @@ class RecordingViewModel @Inject constructor(
         viewModelScope.launch {
             val config = configRepository.getConfig().first()
             while (isActive) {
-                val snapshots = cellInfoCollector.snapshots(config)
+                val snapshots = withContext(Dispatchers.IO) {
+                    cellInfoCollector.snapshots(config)
+                }
                 val subManager = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
-                val activeSubs = subManager?.activeSubscriptionInfoList?.associateBy { it.subscriptionId } ?: emptyMap()
+                val activeSubs = withContext(Dispatchers.IO) {
+                    subManager?.activeSubscriptionInfoList?.associateBy { it.subscriptionId } ?: emptyMap()
+                }
 
                 _liveSimStates.value = snapshots.map { s ->
                     val info = activeSubs[s.subscriptionId]

@@ -15,12 +15,14 @@ import com.cellrecorder.app.domain.usecase.import_.ImportSessionUseCase
 import com.cellrecorder.app.domain.usecase.import_.ImportSummary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -115,32 +117,34 @@ class SessionListViewModel @Inject constructor(
 
     fun exportSelected(sessionsToExport: List<SessionSummary>, format: String, treeUri: Uri) {
         viewModelScope.launch {
-            val takeFlags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            try {
-                context.contentResolver.takePersistableUriPermission(treeUri, takeFlags)
-            } catch (_: Exception) { }
-
-            for (session in sessionsToExport) {
-                val records = getSessionPointsUseCase.getOnce(session.id)
-                if (records.isEmpty()) continue
-
-                val export = if (format == "GeoJSON") {
-                    exportSessionUseCase.exportGeoJson(session.toEntity(), records)
-                } else {
-                    exportSessionUseCase.exportCsv(session.toEntity(), records)
-                }
-
-                val mime = if (format == "GeoJSON") "application/geo+json" else "text/csv"
-                val filename = "${session.name.replace(" ", "_")}_records.${if (format == "GeoJSON") "geojson" else "csv"}"
+            withContext(Dispatchers.IO) {
+                val takeFlags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 try {
-                    val docUri = DocumentsContract.createDocument(
-                        context.contentResolver, treeUri, mime, filename
-                    ) ?: continue
-                    context.contentResolver.openOutputStream(docUri)?.use { stream ->
-                        stream.write(export.content.toByteArray())
-                    }
+                    context.contentResolver.takePersistableUriPermission(treeUri, takeFlags)
                 } catch (_: Exception) { }
+
+                for (session in sessionsToExport) {
+                    val records = getSessionPointsUseCase.getOnce(session.id)
+                    if (records.isEmpty()) continue
+
+                    val export = if (format == "GeoJSON") {
+                        exportSessionUseCase.exportGeoJson(session.toEntity(), records)
+                    } else {
+                        exportSessionUseCase.exportCsv(session.toEntity(), records)
+                    }
+
+                    val mime = if (format == "GeoJSON") "application/geo+json" else "text/csv"
+                    val filename = "${session.name.replace(" ", "_")}_records.${if (format == "GeoJSON") "geojson" else "csv"}"
+                    try {
+                        val docUri = DocumentsContract.createDocument(
+                            context.contentResolver, treeUri, mime, filename
+                        ) ?: continue
+                        context.contentResolver.openOutputStream(docUri)?.use { stream ->
+                            stream.write(export.content.toByteArray())
+                        }
+                    } catch (_: Exception) { }
+                }
             }
             _selectedIds.value = emptySet()
         }

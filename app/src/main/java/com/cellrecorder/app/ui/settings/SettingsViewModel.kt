@@ -9,11 +9,13 @@ import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.domain.usecase.GetConfigUseCase
 import com.cellrecorder.app.domain.usecase.UpdateConfigUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -161,11 +163,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun getLatestCrashLog(): String? {
-        val logDir = File(app.filesDir, "crash_logs")
-        return logDir.listFiles()
-            ?.sortedByDescending { it.lastModified() }
-            ?.firstOrNull()
-            ?.readText()
+    suspend fun getLatestCrashLog(): String? {
+        return withContext(Dispatchers.IO) {
+            val logDir = File(app.filesDir, "crash_logs")
+            logDir.listFiles()
+                ?.sortedByDescending { it.lastModified() }
+                ?.firstOrNull()
+                ?.readText()
+        }
     }
 }

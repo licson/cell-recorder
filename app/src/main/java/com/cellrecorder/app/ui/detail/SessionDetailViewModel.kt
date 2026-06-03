@@ -14,10 +14,12 @@ import com.cellrecorder.app.domain.usecase.ExportSessionUseCase
 import com.cellrecorder.app.domain.usecase.GetConfigUseCase
 import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class TimestampGroup(
@@ -68,8 +70,8 @@ class SessionDetailViewModel @Inject constructor(
     private val _selectedSim = MutableStateFlow<Int?>(null)
     val selectedSim: StateFlow<Int?> = _selectedSim
 
-    val availableSimSlots: List<Int>
-        get() = _records.value.mapNotNull { it.simSlotIndex }.distinct().sorted()
+    private val _availableSimSlots = MutableStateFlow<List<Int>>(emptyList())
+    val availableSimSlots: StateFlow<List<Int>> = _availableSimSlots
 
     private val engine = SessionAnalyticsEngine()
     private var config: AppConfigEntity = AppConfigEntity()
@@ -92,16 +94,19 @@ class SessionDetailViewModel @Inject constructor(
         viewModelScope.launch {
             getSessionPointsUseCase(sessionId).collect { list ->
                 _records.value = list
-                val grouped = list.groupBy { it.timestamp }
-                    .entries
-                    .sortedBy { it.key }
-                    .mapIndexed { index, (ts, recs) ->
-                        TimestampGroup(
-                            serialNumber = index + 1,
-                            timestamp = ts,
-                            records = recs.sortedBy { it.simSlotIndex ?: -1 }
-                        )
-                    }
+                _availableSimSlots.value = list.mapNotNull { it.simSlotIndex }.distinct().sorted()
+                val grouped = withContext(Dispatchers.Default) {
+                    list.groupBy { it.timestamp }
+                        .entries
+                        .sortedBy { it.key }
+                        .mapIndexed { index, (ts, recs) ->
+                            TimestampGroup(
+                                serialNumber = index + 1,
+                                timestamp = ts,
+                                records = recs.sortedBy { it.simSlotIndex ?: -1 }
+                            )
+                        }
+                }
                 _allGrouped.value = grouped
                 _visibleWindow.value = 0..minOf(300, maxOf(0, grouped.lastIndex))
                 updateFilteredAndAnalytics()
@@ -120,14 +125,22 @@ class SessionDetailViewModel @Inject constructor(
         val session = _session.value ?: return
         val records = _records.value
         if (records.isEmpty()) return
-        _exportData.value = exportSessionUseCase.exportCsv(session, records)
+        viewModelScope.launch {
+            _exportData.value = withContext(Dispatchers.IO) {
+                exportSessionUseCase.exportCsv(session, records)
+            }
+        }
     }
 
     fun exportGeoJson() {
         val session = _session.value ?: return
         val records = _records.value
         if (records.isEmpty()) return
-        _exportData.value = exportSessionUseCase.exportGeoJson(session, records)
+        viewModelScope.launch {
+            _exportData.value = withContext(Dispatchers.IO) {
+                exportSessionUseCase.exportGeoJson(session, records)
+            }
+        }
     }
 
     fun clearExportData() {
@@ -159,14 +172,16 @@ class SessionDetailViewModel @Inject constructor(
 
     fun setSimFilter(sim: Int?) {
         _selectedSim.value = sim
-        updateFilteredAndAnalytics()
+        viewModelScope.launch { updateFilteredAndAnalytics() }
     }
 
-    private fun updateFilteredAndAnalytics() {
+    private suspend fun updateFilteredAndAnalytics() {
         val records = _records.value
         val sim = _selectedSim.value
         val filtered = if (sim == null) records else records.filter { it.simSlotIndex == sim }
         _filteredRecords.value = filtered
-        _analytics.value = engine.analyze(filtered, config)
+        _analytics.value = withContext(Dispatchers.Default) {
+            engine.analyze(filtered, config)
+        }
     }
 }

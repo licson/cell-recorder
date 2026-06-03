@@ -85,7 +85,7 @@ class StatisticsViewModel @Inject constructor(
 
     val onNetworkPerSim: StateFlow<List<SimOnNetwork>> = combine(
         cellRecordRepository.getOnNetworkPerSim(),
-        cellRecordRepository.getSimSlotDistribution()
+        simSlotDistribution
     ) { onNet, totals ->
         val totalMap = totals.associateBy { it.simSlotIndex }
         onNet.map { on ->
@@ -99,7 +99,7 @@ class StatisticsViewModel @Inject constructor(
 
     val fiveGPercentPerSim: StateFlow<List<Sim5GPercent>> = combine(
         cellRecordRepository.get5GTimePerSim(),
-        cellRecordRepository.getSimSlotDistribution()
+        simSlotDistribution
     ) { fiveG, totals ->
         val totalMap = totals.associateBy { it.simSlotIndex }
         fiveG.map { fg ->

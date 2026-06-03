@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -28,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.service.RecordingService
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.SimLiveState
+import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.PermissionDeniedDialog
 import com.cellrecorder.app.ui.shared.PermissionHelper
 import com.cellrecorder.app.ui.shared.PermissionRationaleDialog
@@ -47,9 +49,9 @@ fun RecordingScreen(
     viewModel: RecordingViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val session by viewModel.session.collectAsState()
-    val serviceState by viewModel.serviceState.collectAsState()
-    val liveSimStates by viewModel.liveSimStates.collectAsState()
+    val session by viewModel.session.collectAsStateWithLifecycle()
+    val serviceState by viewModel.serviceState.collectAsStateWithLifecycle()
+    val liveSimStates by viewModel.liveSimStates.collectAsStateWithLifecycle()
     val isRecording = serviceState?.isRecording == true && serviceState?.sessionId == sessionId
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -477,10 +479,3 @@ private fun formatElapsed(ms: Long): String {
     return "%02d:%02d".format(min, sec)
 }
 
-private fun ratColor(rat: String): Color = when {
-    rat.startsWith("5G") -> Color(0xFF00BCD4)
-    rat.startsWith("4G") -> Color(0xFF2196F3)
-    rat == "3G" -> Color(0xFFFF9800)
-    rat == "2G" -> Color(0xFFF44336)
-    else -> Color.Gray
-}

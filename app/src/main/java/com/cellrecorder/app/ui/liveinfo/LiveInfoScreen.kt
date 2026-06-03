@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -14,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.service.SimLiveState
+import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.detail.replay.MetricChart
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -21,9 +23,9 @@ import com.cellrecorder.app.ui.detail.replay.MetricChart
 fun LiveInfoScreen(
     viewModel: LiveInfoViewModel = hiltViewModel()
 ) {
-    val liveSimStates by viewModel.liveSimStates.collectAsState()
-    val rsrpHistory by viewModel.rsrpHistory.collectAsState()
-    val sinrHistory by viewModel.sinrHistory.collectAsState()
+    val liveSimStates by viewModel.liveSimStates.collectAsStateWithLifecycle()
+    val rsrpHistory by viewModel.rsrpHistory.collectAsStateWithLifecycle()
+    val sinrHistory by viewModel.sinrHistory.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -159,10 +161,3 @@ private fun LiveStatItem(
     }
 }
 
-private fun ratColor(rat: String): Color = when {
-    rat.startsWith("5G") -> Color(0xFF00BCD4)
-    rat.startsWith("4G") -> Color(0xFF2196F3)
-    rat == "3G" -> Color(0xFFFF9800)
-    rat == "2G" -> Color(0xFFF44336)
-    else -> Color.Gray
-}
