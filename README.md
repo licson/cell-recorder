@@ -19,12 +19,17 @@ Cell Recorder is an Android app that records cellular tower information (signal 
 
 ## Screenshots
 
-<!-- TODO: Add screenshots to docs/screenshots/ and update paths below -->
+![Session List](https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013955.png)
+![Recording Screen](https://s3.licson.net/licson/attachment/hkepc-t2769578-1/Screenshot_20260524-180152.png)
+![Live Cell Info](https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-014604.png)
+![Global Statistics](https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013939.png)
+![Session Analytics](https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013842.png)
 
-<!-- ![Recording Screen](docs/screenshots/recording.png) -->
-<!-- ![Session List](docs/screenshots/sessions.png) -->
-<!-- ![Map Replay](docs/screenshots/replay.png) -->
-<!-- ![Settings](docs/screenshots/settings.png) -->
+## Video Demo
+
+[Cell record replay #1](https://www.youtube.com/watch?v=zOBkPQWeMf4)
+
+[Cell record replay #2](https://www.youtube.com/watch?v=XO2RV8mKdfE)
 
 ## Permissions
 
