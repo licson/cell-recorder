@@ -5,6 +5,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Handler
+import android.os.Looper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,7 +56,12 @@ class SensorFusionCollector @Inject constructor(
         smoothedDelta = 0f
         _headingDelta.value = 0f
         gameRotation?.let {
-            sensorManager.registerListener(sensorCallback, it, SensorManager.SENSOR_DELAY_GAME)
+            sensorManager.registerListener(
+                sensorCallback,
+                it,
+                SensorManager.SENSOR_DELAY_GAME,
+                Handler(Looper.getMainLooper())
+            )
         }
     }
 

@@ -66,7 +66,8 @@ open class LocationCollector @Inject constructor(
                 LocationManager.GPS_PROVIDER,
                 1000L,
                 0f,
-                listener
+                listener,
+                getMainLooper()
             )
             awaitClose {
                 locationManager.removeUpdates(listener)

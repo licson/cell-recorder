@@ -90,7 +90,8 @@ class LocationCollectorTest {
                 LocationManager.GPS_PROVIDER,
                 1000L,
                 0f,
-                any<android.location.LocationListener>()
+                any<android.location.LocationListener>(),
+                any<android.os.Looper>()
             )
         } answers {
             arg<android.location.LocationListener>(3).onLocationChanged(location)
@@ -160,7 +161,8 @@ class LocationCollectorTest {
                 LocationManager.GPS_PROVIDER,
                 1000L,
                 0f,
-                any<android.location.LocationListener>()
+                any<android.location.LocationListener>(),
+                any<android.os.Looper>()
             )
         } answers {
             arg<android.location.LocationListener>(3).onLocationChanged(location)
@@ -216,7 +218,8 @@ class LocationCollectorTest {
                 LocationManager.GPS_PROVIDER,
                 1000L,
                 0f,
-                any<android.location.LocationListener>()
+                any<android.location.LocationListener>(),
+                any<android.os.Looper>()
             )
         } answers {
             arg<android.location.LocationListener>(3).onLocationChanged(location)
