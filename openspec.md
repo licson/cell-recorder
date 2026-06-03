@@ -194,6 +194,9 @@ app/
 │   ├── RecordingService.kt        (Foreground Service)
 │   ├── RecordingState.kt          (SimLiveState, RecordingState data classes)
 │   ├── RecordingStateManager.kt   (Hilt @Singleton, exposes recording state as StateFlow)
+│   ├── RecordingNotificationHelper.kt  (notification building/updating)
+│   ├── GpsStateMachine.kt         (GPS fix/extrapolation state machine)
+│   ├── PointRecorder.kt           (recordPoint logic, path tracking, live state)
 │   ├── LocationCollector.kt       (FusedLocation + GPS fallback + distance check)
 │   ├── CellInfoCollector.kt       (NetMonster Core wrapper)
 │   └── SensorFusionCollector.kt   (Game Rotation Vector heading tracking)
@@ -245,7 +248,8 @@ app/
 │   │   └── SessionMapView.kt
 │   ├── shared/
 │   │   ├── TooltipIconButton.kt
-│   │   └── PermissionRationaleDialog.kt
+│   │   ├── PermissionRationaleDialog.kt
+│   │   └── FormatUtils.kt
 │   └── theme/
 │       ├── Color.kt
 │       ├── Theme.kt
@@ -592,7 +596,7 @@ timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,
 - **Single module** with clean architecture packages (`data/domain/service/ui/di`)
 - **Hilt** for DI; `PingEngine` and other services annotated with `@Inject constructor()` to satisfy Hilt
 - **osmdroid maps** wrapped in Compose `AndroidView` (View interop) with `DisposableEffect` for `onResume`/`onPause` and `onRelease` for `onDetach` to prevent tile-loading thread leaks
-- **Recording state** shared via `StateFlow` companion object in `RecordingService`
+- **Recording state** shared via `RecordingStateManager` (Hilt `@Singleton`) injected into both `RecordingService` and `RecordingViewModel`
 - **Export** delegates to SAF `CreateDocument` contract; use case generates content strings
 - **Import** uses `ActivityResultContracts.OpenDocument`; `CsvRecordParser` and `GeoJsonRecordParser` handle parsing
 - **JUnit 5** configured via `tasks.withType<Test> { useJUnitPlatform() }` in `build.gradle.kts`
