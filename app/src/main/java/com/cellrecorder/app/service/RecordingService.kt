@@ -1,9 +1,5 @@
 package com.cellrecorder.app.service
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -12,17 +8,13 @@ import android.os.Build
 import android.os.IBinder
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
-import androidx.core.app.NotificationCompat
-import com.cellrecorder.app.R
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
-import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.ConfigRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.model.PingResult
 import com.cellrecorder.app.domain.ping.PingEngine
 import com.cellrecorder.app.domain.ping.PingSlidingWindow
-import com.cellrecorder.app.ui.MainActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -42,37 +34,28 @@ class RecordingService : Service() {
     @Inject lateinit var pingEngine: PingEngine
     @Inject lateinit var sensorFusion: SensorFusionCollector
     @Inject lateinit var stateManager: RecordingStateManager
+    @Inject lateinit var notificationHelper: RecordingNotificationHelper
+    @Inject lateinit var pointRecorder: PointRecorder
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val recordingMutex = Mutex()
     private var recordingJob: Job? = null
     private var pingJob: Job? = null
     private val pingWindow = PingSlidingWindow()
+    private val gpsState = GpsStateMachine()
 
     private var sessionId: Long = -1L
     private var config: AppConfigEntity = AppConfigEntity()
-    private var lastRecordedLocation: LocationUpdate? = null
-    private var lastRecordedTime: Long = 0L
     private var startTime: Long = 0L
-    private var totalPointCount: Int = 0
     private var activeSubs: Map<Int, SubscriptionInfo> = emptyMap()
     private var defaultDataSubId: Int = -1
-    private var hasGpsFix: Boolean = false
-    private var lastKnownSpeedMps: Float = 0f
-    private var lastKnownBearing: Float = 0f
-    private var lastValidLocation: LocationUpdate? = null
-    private var lastAccurateFixTime: Long = 0L
-    private var isExtrapolating: Boolean = false
-    private var gpsLostAtMs: Long = 0L
-    private var gpsSettlingUntilMs: Long = 0L
     private var fallbackRecordingJob: Job? = null
     private var lastLocation: LocationUpdate? = null
-    private val recordedPath = mutableListOf<Pair<Double, Double>>()
     private var stateUpdateJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        notificationHelper.createChannel(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -101,12 +84,9 @@ class RecordingService : Service() {
 
     private fun startRecording() {
         startTime = System.currentTimeMillis()
-        lastRecordedTime = System.currentTimeMillis()
-        lastAccurateFixTime = System.currentTimeMillis()
-        hasGpsFix = false
-        isExtrapolating = false
-        gpsSettlingUntilMs = 0L
-        recordedPath.clear()
+        pointRecorder.reset()
+        gpsState.reset()
+        gpsState.lastAccurateFixTime = System.currentTimeMillis()
 
         try {
             val subManager = getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
@@ -117,20 +97,28 @@ class RecordingService : Service() {
             defaultDataSubId = -1
         }
 
-        updateState(isRecording = true)
+        pointRecorder.updateState(sessionId, isRecording = true)
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(
                     NOTIFICATION_ID,
-                    buildNotification(),
+                    notificationHelper.buildNotification(
+                        this, sessionId,
+                        elapsedMs = 0, pointCount = 0,
+                        isExtrapolating = false, hasGpsFix = false
+                    ),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
                 )
             } else {
-                startForeground(NOTIFICATION_ID, buildNotification())
+                startForeground(NOTIFICATION_ID, notificationHelper.buildNotification(
+                    this, sessionId,
+                    elapsedMs = 0, pointCount = 0,
+                    isExtrapolating = false, hasGpsFix = false
+                ))
             }
         } catch (e: Exception) {
-            updateState(isRecording = false, error = "Foreground service failed: ${e.message}")
+            pointRecorder.updateState(sessionId, isRecording = false, error = "Foreground service failed: ${e.message}")
             stopSelf()
             return
         }
@@ -139,7 +127,7 @@ class RecordingService : Service() {
             try {
                 config = configRepository.getConfig().first()
             } catch (e: Exception) {
-                updateState(isRecording = false, error = "Config load failed: ${e.message}")
+                pointRecorder.updateState(sessionId, isRecording = false, error = "Config load failed: ${e.message}")
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return@launch
@@ -149,54 +137,56 @@ class RecordingService : Service() {
                 try {
                     locationCollector.locationFlow().collect { location ->
                         recordingMutex.withLock {
-                            lastKnownSpeedMps = location.speed ?: lastKnownSpeedMps
-                            location.bearing?.let { lastKnownBearing = it }
+                            gpsState.updateMotion(location.speed, location.bearing)
+                            lastLocation = location
 
-                            if (isExtrapolating) {
+                            if (gpsState.isExtrapolating) {
                                 if (location.accuracy > config.gpsAccuracyThresholdM) {
                                     return@withLock
                                 }
 
-                                val distanceFromLast = lastRecordedLocation?.let {
+                                val distanceFromLast = pointRecorder.lastRecordedLocation?.let {
                                     calculateDistance(it.latitude, it.longitude, location.latitude, location.longitude)
                                 } ?: Float.MAX_VALUE
 
-                                val extrapolationAgeMs = System.currentTimeMillis() - gpsLostAtMs
+                                val extrapolationAgeMs = System.currentTimeMillis() - gpsState.gpsLostAtMs
                                 if (extrapolationAgeMs > 5_000 && distanceFromLast < config.locationChangeThresholdM) {
                                     return@withLock
                                 }
 
-                                isExtrapolating = false
+                                gpsState.stopExtrapolating()
                                 sensorFusion.stop()
                                 val now = System.currentTimeMillis()
-                                lastAccurateFixTime = now
-                                lastValidLocation = location
+                                gpsState.recordAccurateFix(location, now)
+                                gpsState.setSettlingUntil(now + GPS_SETTLING_DELAY_MS)
                                 lastLocation = location
-                                gpsSettlingUntilMs = now + GPS_SETTLING_DELAY_MS
-                                recordPoint(location, isEstimated = false, source = "GPS")
-                                if (!hasGpsFix) hasGpsFix = true
+                                pointRecorder.recordPoint(
+                                    location, isEstimated = false, source = "GPS",
+                                    sessionId, config, activeSubs, pingWindow,
+                                    notificationHelper, this@RecordingService
+                                )
                                 return@collect
                             }
 
                             if (location.accuracy > config.gpsAccuracyThresholdM) return@withLock
 
-                            lastAccurateFixTime = System.currentTimeMillis()
-                            lastValidLocation = location
+                            gpsState.recordAccurateFix(location, System.currentTimeMillis())
                             lastLocation = location
-                            val elapsedSinceLast = System.currentTimeMillis() - lastRecordedTime
-                            val distance = lastRecordedLocation?.let { last ->
+
+                            val elapsedSinceLast = System.currentTimeMillis() - pointRecorder.lastRecordedTime
+                            val distance = pointRecorder.lastRecordedLocation?.let { last ->
                                 calculateDistance(last.latitude, last.longitude, location.latitude, location.longitude)
                             } ?: Float.MAX_VALUE
 
                             val shouldRecord = distance >= config.locationChangeThresholdM ||
                                     elapsedSinceLast >= config.recordingIntervalMs
 
-                            if (!hasGpsFix && location.accuracy < config.gpsAccuracyThresholdM) {
-                                hasGpsFix = true
-                            }
-
                             if (shouldRecord) {
-                                recordPoint(location, isEstimated = false, source = "GPS")
+                                pointRecorder.recordPoint(
+                                    location, isEstimated = false, source = "GPS",
+                                    sessionId, config, activeSubs, pingWindow,
+                                    notificationHelper, this@RecordingService
+                                )
                             }
                         }
 
@@ -208,10 +198,10 @@ class RecordingService : Service() {
                 } catch (e: CancellationException) {
                     // normal stop
                 } catch (e: SecurityException) {
-                    updateState(isRecording = false, error = "Location permission revoked")
+                    pointRecorder.updateState(sessionId, isRecording = false, error = "Location permission revoked")
                     stopRecording()
                 } catch (e: Exception) {
-                    updateState(isRecording = false, error = "Recording error: ${e.message}")
+                    pointRecorder.updateState(sessionId, isRecording = false, error = "Recording error: ${e.message}")
                     stopRecording()
                 }
             }
@@ -222,50 +212,47 @@ class RecordingService : Service() {
                     val now = System.currentTimeMillis()
 
                     recordingMutex.withLock {
-                        val timeSinceAccurateFix = now - lastAccurateFixTime
-
-                        if (timeSinceAccurateFix > 3_000 && hasGpsFix && !isExtrapolating && now >= gpsSettlingUntilMs) {
-                            isExtrapolating = true
-                            gpsLostAtMs = now
+                        if (gpsState.isFixLost(now, 3_000L)) {
+                            gpsState.startExtrapolating(now)
                             if (sensorFusion.isAvailable) sensorFusion.start()
                         }
 
-                        if (isExtrapolating) {
-                            val extrapolationAgeSec = (now - gpsLostAtMs) / 1000f
+                        if (gpsState.isExtrapolating) {
+                            val extrapolationAgeSec = gpsState.extrapolationAgeSec(now)
                             if (extrapolationAgeSec > config.maxGpsLossExtrapolationSec) {
-                                isExtrapolating = false
+                                gpsState.stopExtrapolating()
                                 sensorFusion.stop()
                                 return@withLock
                             }
 
-                            if (lastValidLocation == null) return@withLock
-                            val timeSinceLastRecorded = now - lastRecordedTime
+                            if (gpsState.lastValidLocation == null) return@withLock
+                            val timeSinceLastRecorded = now - pointRecorder.lastRecordedTime
                             if (timeSinceLastRecorded < config.recordingIntervalMs) return@withLock
 
-                            val elapsedSec = (now - lastRecordedTime) / 1000f
-                            val distanceM = lastKnownSpeedMps * elapsedSec
+                            val elapsedSec = (now - pointRecorder.lastRecordedTime) / 1000f
+                            val distanceM = gpsState.lastKnownSpeedMps * elapsedSec
                             val headingDelta = if (sensorFusion.isAvailable) sensorFusion.headingDelta.value else 0f
-                            val estimatedHeading = (lastKnownBearing + headingDelta) % 360f
+                            val estimatedHeading = (gpsState.lastKnownBearing + headingDelta) % 360f
 
-                            val origin = lastRecordedLocation ?: lastValidLocation ?: return@withLock
+                            val origin = pointRecorder.lastRecordedLocation ?: gpsState.lastValidLocation ?: return@withLock
                             val (estLat, estLon) = movePoint(
-                                origin.latitude,
-                                origin.longitude,
-                                estimatedHeading,
-                                distanceM
+                                origin.latitude, origin.longitude,
+                                estimatedHeading, distanceM
                             )
 
                             val estimatedLocation = LocationUpdate(
-                                latitude = estLat,
-                                longitude = estLon,
-                                altitude = lastValidLocation?.altitude ?: 0.0,
-                                accuracy = 50f + extrapolationAgeSec * 3f,
-                                timestamp = now,
-                                speed = lastKnownSpeedMps,
+                                latitude = estLat, longitude = estLon,
+                                altitude = gpsState.lastValidLocation?.altitude ?: 0.0,
+                                accuracy = gpsState.estimatedAccuracy(extrapolationAgeSec),
+                                timestamp = now, speed = gpsState.lastKnownSpeedMps,
                                 bearing = estimatedHeading
                             )
 
-                            recordPoint(estimatedLocation, isEstimated = true, source = "SENSOR_FUSION")
+                            pointRecorder.recordPoint(
+                                estimatedLocation, isEstimated = true, source = "SENSOR_FUSION",
+                                sessionId, config, activeSubs, pingWindow,
+                                notificationHelper, this@RecordingService
+                            )
                         }
                     }
 
@@ -295,23 +282,29 @@ class RecordingService : Service() {
                     val elapsed = System.currentTimeMillis() - startTime
 
                     recordingMutex.withLock {
-                        val loc = lastRecordedLocation ?: lastLocation
+                        val loc = pointRecorder.lastRecordedLocation ?: lastLocation
                         val currentStatus = when {
-                            isExtrapolating -> "EXTRAPOLATING"
-                            hasGpsFix -> "OK"
+                            gpsState.isExtrapolating -> "EXTRAPOLATING"
+                            gpsState.hasGpsFix -> "OK"
                             else -> "Searching..."
                         }
                         stateManager.update { it?.copy(
                             elapsedMs = elapsed,
-                            pointCount = totalPointCount,
+                            pointCount = pointRecorder.totalPointCount,
                             gpsStatus = currentStatus,
-                            isExtrapolatingGps = isExtrapolating,
-                            recordedPath = recordedPath.toList(),
+                            isExtrapolatingGps = gpsState.isExtrapolating,
+                            recordedPath = pointRecorder.recordedPathSnapshot,
                             currentLatitude = loc?.latitude ?: 0.0,
                             currentLongitude = loc?.longitude ?: 0.0,
                             currentAltitude = loc?.altitude ?: 0.0
                         ) }
-                        updateNotification()
+                        notificationHelper.notify(this@RecordingService, notificationHelper.buildNotification(
+                            this@RecordingService, sessionId,
+                            elapsedMs = elapsed,
+                            pointCount = pointRecorder.totalPointCount,
+                            isExtrapolating = gpsState.isExtrapolating,
+                            hasGpsFix = gpsState.hasGpsFix
+                        ))
                     }
                 }
             }
@@ -328,9 +321,9 @@ class RecordingService : Service() {
         stateUpdateJob?.cancel()
         stateUpdateJob = null
         sensorFusion.stop()
-        isExtrapolating = false
+        gpsState.stopExtrapolating()
         pingWindow.reset()
-        recordedPath.clear()
+        pointRecorder.reset()
 
         val endedSessionId = sessionId
         val primarySlot = activeSubs[defaultDataSubId]?.simSlotIndex
@@ -345,140 +338,10 @@ class RecordingService : Service() {
         }
 
         if (stateManager.currentState?.isRecording != false) {
-            updateState(isRecording = false)
+            pointRecorder.updateState(sessionId, isRecording = false)
         }
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
-    }
-
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.recording_notification_channel),
-            NotificationManager.IMPORTANCE_LOW
-        )
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
-    }
-
-    private fun buildNotification(): Notification {
-        val stopIntent = PendingIntent.getService(
-            this, 0, Intent(this, RecordingService::class.java).apply {
-                action = ACTION_STOP
-                putExtra(EXTRA_SESSION_ID, sessionId)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val openIntent = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java).apply {
-                putExtra(EXTRA_SESSION_ID, sessionId)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val elapsed = if (stateManager.currentState?.elapsedMs != null) {
-            val totalSec = stateManager.currentState!!.elapsedMs / 1000
-            String.format("%02d:%02d", totalSec / 60, totalSec % 60)
-        } else "00:00"
-        val gps = when {
-            isExtrapolating -> "GPS ! Hold phone steady"
-            hasGpsFix -> "GPS OK"
-            else -> "GPS ..."
-        }
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Cell Recorder")
-            .setContentText("$elapsed — $totalPointCount pts — $gps")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setContentIntent(openIntent)
-            .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
-            .setOngoing(true)
-            .build()
-    }
-
-    private fun updateNotification() {
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID, buildNotification())
-    }
-
-    private fun updateLiveState(
-        avgLatencyMs: Double?,
-        location: LocationUpdate,
-        isExtrapolatingParam: Boolean = false
-    ) {
-        stateManager.update { it?.copy(
-            pointCount = totalPointCount,
-            dataSubId = defaultDataSubId,
-            currentLatency = avgLatencyMs?.let { String.format("%.1f", it) } ?: "---",
-            currentLatitude = location.latitude,
-            currentLongitude = location.longitude,
-            currentAltitude = location.altitude,
-            recordedPath = recordedPath.toList(),
-            gpsStatus = if (isExtrapolatingParam) "EXTRAPOLATING" else "OK",
-            isExtrapolatingGps = isExtrapolatingParam
-        ) }
-    }
-
-    private fun updateState(isRecording: Boolean, error: String? = null) {
-        stateManager.currentState = RecordingState(
-            sessionId = sessionId,
-            isRecording = isRecording,
-            errorMessage = error
-        )
-    }
-
-    private suspend fun recordPoint(
-        location: LocationUpdate,
-        isEstimated: Boolean,
-        source: String
-    ) {
-        val snapshots = cellInfoCollector.snapshots(config)
-        val pingAvg = pingWindow.avgLatencyMs()
-        val pingLoss = pingWindow.packetLossPct()
-
-        for (snapshot in snapshots) {
-            val record = CellRecordEntity(
-                sessionId = sessionId,
-                timestamp = System.currentTimeMillis(),
-                latitude = location.latitude,
-                longitude = location.longitude,
-                altitude = location.altitude,
-                accuracy = location.accuracy,
-                rat = snapshot.rat,
-                networkTypeCode = snapshot.networkTypeCode,
-                fullCellIdentity = snapshot.fullCellIdentity,
-                enbOrGnbId = snapshot.enbOrGnbId,
-                lcid = snapshot.lcid,
-                cellIdBitLength = snapshot.cellIdBitLength,
-                pci = snapshot.pci,
-                tac = snapshot.tac,
-                bandNumber = snapshot.bandNumber,
-                earfcn = snapshot.earfcn,
-                bandwidthKhz = snapshot.bandwidthKhz,
-                rsrp = snapshot.rsrp,
-                rsrq = snapshot.rsrq,
-                sinr = snapshot.sinr,
-                rssi = snapshot.rssi,
-                cqi = snapshot.cqi,
-                timingAdvance = snapshot.timingAdvance,
-                mcc = snapshot.mcc,
-                mnc = snapshot.mnc,
-                subscriptionId = snapshot.subscriptionId,
-                simSlotIndex = activeSubs[snapshot.subscriptionId]?.simSlotIndex,
-                avgLatencyMs = pingAvg,
-                packetLossPct = pingLoss,
-                isLocationEstimated = isEstimated,
-                locationSource = source
-            )
-            cellRecordRepository.insert(record)
-        }
-        sessionRepository.incrementPointCount(sessionId)
-        totalPointCount++
-
-        recordedPath.add(location.latitude to location.longitude)
-        lastRecordedLocation = location
-        lastRecordedTime = System.currentTimeMillis()
-
-        updateLiveState(pingAvg, location, isExtrapolatingParam = isEstimated)
-        updateNotification()
     }
 
     private fun movePoint(
@@ -490,7 +353,6 @@ class RecordingService : Service() {
         val lonRad = Math.toRadians(lon)
         val bRad = Math.toRadians(bearingDeg.toDouble())
         val dR = distanceM / R
-
         val newLatRad = asin(
             sin(latRad) * cos(dR) + cos(latRad) * sin(dR) * cos(bRad)
         )
@@ -498,7 +360,6 @@ class RecordingService : Service() {
             sin(bRad) * sin(dR) * cos(latRad),
             cos(dR) - sin(latRad) * sin(newLatRad)
         )
-
         return Math.toDegrees(newLatRad) to Math.toDegrees(newLonRad)
     }
 
