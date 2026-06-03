@@ -35,18 +35,6 @@ interface CellRecordDao {
         SET enbOrGnbId = :enbOrGnbId, lcid = :lcid, cellIdBitLength = :cellIdBitLength 
         WHERE id = :recordId
     """)
-    suspend fun updateCellSplit(
-        recordId: Long,
-        enbOrGnbId: Long?,
-        lcid: Int?,
-        cellIdBitLength: Int?
-    )
-
-    @Query("""
-        UPDATE cell_records 
-        SET enbOrGnbId = :enbOrGnbId, lcid = :lcid, cellIdBitLength = :cellIdBitLength 
-        WHERE id = :recordId
-    """)
     suspend fun updateSplitForRecord(
         recordId: Long,
         enbOrGnbId: Long?,

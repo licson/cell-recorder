@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.cellrecorder.app.BuildConfig
 import com.cellrecorder.app.service.RecordingService
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.SimLiveState
@@ -120,7 +121,7 @@ fun RecordingScreen(
             isRequestingPermissions = true
             mainHandler.postDelayed({
                 val missingBg = PermissionHelper.missingBackgroundPermissions(context)
-                android.util.Log.d("RecordingScreen", "Foreground done, launching background: ${missingBg.toList()}")
+                if (BuildConfig.DEBUG) android.util.Log.d("RecordingScreen", "Foreground done, launching background: ${missingBg.toList()}")
                 backgroundPermissionLauncher.launch(missingBg)
             }, 200)
         } else {
@@ -131,18 +132,18 @@ fun RecordingScreen(
     fun requestNextPermissions() {
         val missingFg = PermissionHelper.missingForegroundPermissions(context)
         val missingBg = PermissionHelper.missingBackgroundPermissions(context)
-        android.util.Log.d("RecordingScreen", "requestNext: missingFg=${missingFg.toList()} missingBg=${missingBg.toList()}")
+        if (BuildConfig.DEBUG) android.util.Log.d("RecordingScreen", "requestNext: missingFg=${missingFg.toList()} missingBg=${missingBg.toList()}")
 
         when {
             missingFg.isNotEmpty() -> {
                 mainHandler.postDelayed({
-                    android.util.Log.d("RecordingScreen", "Launching foreground permissions: ${missingFg.toList()}")
+                    if (BuildConfig.DEBUG) android.util.Log.d("RecordingScreen", "Launching foreground permissions: ${missingFg.toList()}")
                     foregroundPermissionLauncher.launch(missingFg)
                 }, 200)
             }
             missingBg.isNotEmpty() -> {
                 mainHandler.postDelayed({
-                    android.util.Log.d("RecordingScreen", "Launching background permissions: ${missingBg.toList()}")
+                    if (BuildConfig.DEBUG) android.util.Log.d("RecordingScreen", "Launching background permissions: ${missingBg.toList()}")
                     backgroundPermissionLauncher.launch(missingBg)
                 }, 200)
             }

@@ -247,10 +247,10 @@ class RecordingService : Service() {
                             val headingDelta = if (sensorFusion.isAvailable) sensorFusion.headingDelta.value else 0f
                             val estimatedHeading = (lastKnownBearing + headingDelta) % 360f
 
-                            val origin = lastRecordedLocation ?: lastValidLocation
+                            val origin = lastRecordedLocation ?: lastValidLocation ?: return@withLock
                             val (estLat, estLon) = movePoint(
-                                origin!!.latitude,
-                                origin!!.longitude,
+                                origin.latitude,
+                                origin.longitude,
                                 estimatedHeading,
                                 distanceM
                             )
@@ -258,7 +258,7 @@ class RecordingService : Service() {
                             val estimatedLocation = LocationUpdate(
                                 latitude = estLat,
                                 longitude = estLon,
-                                altitude = lastValidLocation!!.altitude,
+                                altitude = lastValidLocation?.altitude ?: 0.0,
                                 accuracy = 50f + extrapolationAgeSec * 3f,
                                 timestamp = now,
                                 speed = lastKnownSpeedMps,

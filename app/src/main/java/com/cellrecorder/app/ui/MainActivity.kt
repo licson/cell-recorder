@@ -13,6 +13,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
+import com.cellrecorder.app.BuildConfig
 import com.cellrecorder.app.service.RecordingService
 import com.cellrecorder.app.ui.navigation.AppNavGraph
 import com.cellrecorder.app.ui.navigation.Routes
@@ -113,18 +114,18 @@ class MainActivity : ComponentActivity() {
         val missingFg = PermissionHelper.missingForegroundPermissions(this)
         val missingBg = PermissionHelper.missingBackgroundPermissions(this)
 
-        android.util.Log.d("MainActivity", "requestNext: missingFg=${missingFg.toList()} missingBg=${missingBg.toList()}")
+        if (BuildConfig.DEBUG) android.util.Log.d("MainActivity", "requestNext: missingFg=${missingFg.toList()} missingBg=${missingBg.toList()}")
 
         when {
             missingFg.isNotEmpty() -> {
                 mainHandler.postDelayed({
-                    android.util.Log.d("MainActivity", "Launching foreground permissions: ${missingFg.toList()}")
+                    if (BuildConfig.DEBUG) android.util.Log.d("MainActivity", "Launching foreground permissions: ${missingFg.toList()}")
                     foregroundPermissionLauncher.launch(missingFg)
                 }, 200)
             }
             missingBg.isNotEmpty() -> {
                 mainHandler.postDelayed({
-                    android.util.Log.d("MainActivity", "Launching background permissions: ${missingBg.toList()}")
+                    if (BuildConfig.DEBUG) android.util.Log.d("MainActivity", "Launching background permissions: ${missingBg.toList()}")
                     backgroundPermissionLauncher.launch(missingBg)
                 }, 200)
             }
@@ -140,7 +141,7 @@ class MainActivity : ComponentActivity() {
             isRequestingPermissions = true
             mainHandler.postDelayed({
                 val missingBg = PermissionHelper.missingBackgroundPermissions(this)
-                android.util.Log.d("MainActivity", "Foreground done, launching background: ${missingBg.toList()}")
+                if (BuildConfig.DEBUG) android.util.Log.d("MainActivity", "Foreground done, launching background: ${missingBg.toList()}")
                 backgroundPermissionLauncher.launch(missingBg)
             }, 200)
         } else {

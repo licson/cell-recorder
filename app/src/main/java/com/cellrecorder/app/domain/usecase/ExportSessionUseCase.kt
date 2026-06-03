@@ -18,6 +18,15 @@ data class ExportData(
 @Singleton
 class ExportSessionUseCase @Inject constructor() {
 
+    private fun csvField(value: Any?): String {
+        val s = value?.toString() ?: ""
+        return if (s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r')) {
+            "\"${s.replace("\"", "\"\"")}\""
+        } else {
+            s
+        }
+    }
+
     fun exportCsv(session: SessionEntity, records: List<CellRecordEntity>): ExportData {
         val sb = StringBuilder()
         sb.appendLine("timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source")
@@ -29,24 +38,24 @@ class ExportSessionUseCase @Inject constructor() {
                     append(r.longitude); append(',')
                     append(r.altitude); append(',')
                     append(r.accuracy); append(',')
-                    append(r.subscriptionId ?: ""); append(',')
-                    append(r.simSlotIndex ?: ""); append(',')
-                    append(r.rat); append(',')
-                    append(r.pci ?: ""); append(',')
-                    append(r.rsrp ?: ""); append(',')
-                    append(r.rsrq ?: ""); append(',')
-                    append(r.sinr ?: ""); append(',')
-                    append(r.enbOrGnbId ?: ""); append(',')
-                    append(r.lcid ?: ""); append(',')
+                    append(csvField(r.subscriptionId)); append(',')
+                    append(csvField(r.simSlotIndex)); append(',')
+                    append(csvField(r.rat)); append(',')
+                    append(csvField(r.pci)); append(',')
+                    append(csvField(r.rsrp)); append(',')
+                    append(csvField(r.rsrq)); append(',')
+                    append(csvField(r.sinr)); append(',')
+                    append(csvField(r.enbOrGnbId)); append(',')
+                    append(csvField(r.lcid)); append(',')
                     append(r.avgLatencyMs?.let { String.format("%.1f", it) } ?: ""); append(',')
                     append(r.packetLossPct?.let { String.format("%.0f", it) } ?: ""); append(',')
-                    append(r.mcc ?: ""); append(',')
-                    append(r.mnc ?: ""); append(',')
-                    append(r.bandNumber ?: ""); append(',')
-                    append(r.earfcn ?: ""); append(',')
-                    append(r.tac ?: ""); append(',')
+                    append(csvField(r.mcc)); append(',')
+                    append(csvField(r.mnc)); append(',')
+                    append(csvField(r.bandNumber)); append(',')
+                    append(csvField(r.earfcn)); append(',')
+                    append(csvField(r.tac)); append(',')
                     append(r.isLocationEstimated); append(',')
-                    append(r.locationSource)
+                    append(csvField(r.locationSource))
                 }
             )
         }

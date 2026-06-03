@@ -51,103 +51,163 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updatePingInterval(value: String) {
-        value.toLongOrNull()?.let { _config.value = _config.value.copy(pingIntervalMs = it) }
-        debouncedSave()
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1..60_000) {
+            _config.value = _config.value.copy(pingIntervalMs = parsed)
+            debouncedSave()
+        }
     }
 
     fun updatePingTimeout(value: String) {
-        value.toLongOrNull()?.let { _config.value = _config.value.copy(pingTimeoutMs = it) }
-        debouncedSave()
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1..300_000) {
+            _config.value = _config.value.copy(pingTimeoutMs = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateRecordingInterval(value: String) {
-        value.toLongOrNull()?.let { _config.value = _config.value.copy(recordingIntervalMs = it) }
-        debouncedSave()
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1_000..60_000) {
+            _config.value = _config.value.copy(recordingIntervalMs = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateLocationChangeThreshold(value: String) {
-        value.toFloatOrNull()?.let { _config.value = _config.value.copy(locationChangeThresholdM = it) }
-        debouncedSave()
+        val parsed = value.toFloatOrNull()
+        if (parsed != null && parsed >= 0f && parsed <= 1_000f) {
+            _config.value = _config.value.copy(locationChangeThresholdM = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateGpsAccuracyThreshold(value: String) {
-        value.toFloatOrNull()?.let { _config.value = _config.value.copy(gpsAccuracyThresholdM = it) }
-        debouncedSave()
+        val parsed = value.toFloatOrNull()
+        if (parsed != null && parsed in 1f..500f) {
+            _config.value = _config.value.copy(gpsAccuracyThresholdM = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateMaxRecordingDuration(value: String) {
-        value.toIntOrNull()?.let { _config.value = _config.value.copy(maxRecordingDurationMin = it) }
-        debouncedSave()
+        val parsed = value.toIntOrNull()
+        if (parsed != null && parsed in 1..1_440) {
+            _config.value = _config.value.copy(maxRecordingDurationMin = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateNrGnbBitLength(value: String) {
-        value.toIntOrNull()?.let { _config.value = _config.value.copy(nrGnbBitLength = it) }
-        debouncedSave()
+        val parsed = value.toIntOrNull()
+        if (parsed != null && parsed in 1..35) {
+            _config.value = _config.value.copy(nrGnbBitLength = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateCellInfoRefreshInterval(value: String) {
-        value.toIntOrNull()?.let { _config.value = _config.value.copy(cellInfoRefreshIntervalSec = it) }
-        debouncedSave()
+        val parsed = value.toIntOrNull()
+        if (parsed != null && parsed in 1..60) {
+            _config.value = _config.value.copy(cellInfoRefreshIntervalSec = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateMaxGpsLossExtrapolation(value: String) {
-        value.toIntOrNull()?.let { _config.value = _config.value.copy(maxGpsLossExtrapolationSec = it) }
-        debouncedSave()
+        val parsed = value.toIntOrNull()
+        if (parsed != null && parsed in 0..600) {
+            _config.value = _config.value.copy(maxGpsLossExtrapolationSec = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateHandoffTimeWindow(value: String) {
-        value.toLongOrNull()?.let { _config.value = _config.value.copy(handoffTimeWindowMs = it) }
-        debouncedSave()
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1_000..60_000) {
+            _config.value = _config.value.copy(handoffTimeWindowMs = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateRsrpDropThreshold(value: String) {
-        value.toIntOrNull()?.let { _config.value = _config.value.copy(rsrpDropThresholdDbm = it) }
-        debouncedSave()
+        val parsed = value.toIntOrNull()
+        if (parsed != null && parsed in 1..100) {
+            _config.value = _config.value.copy(rsrpDropThresholdDbm = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateRsrpDropTimeWindow(value: String) {
-        value.toLongOrNull()?.let { _config.value = _config.value.copy(rsrpDropTimeWindowMs = it) }
-        debouncedSave()
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1_000..60_000) {
+            _config.value = _config.value.copy(rsrpDropTimeWindowMs = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateLatencySpikeSigma(value: String) {
-        value.toDoubleOrNull()?.let { _config.value = _config.value.copy(latencySpikeSigma = it) }
-        debouncedSave()
+        val parsed = value.toDoubleOrNull()
+        if (parsed != null && parsed in 0.1..10.0) {
+            _config.value = _config.value.copy(latencySpikeSigma = parsed)
+            debouncedSave()
+        }
     }
 
     fun updatePciFlapWindow(value: String) {
-        value.toLongOrNull()?.let { _config.value = _config.value.copy(pciFlapWindowMs = it) }
-        debouncedSave()
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1_000..120_000) {
+            _config.value = _config.value.copy(pciFlapWindowMs = parsed)
+            debouncedSave()
+        }
     }
 
     fun updatePciFlapCountThreshold(value: String) {
-        value.toIntOrNull()?.let { _config.value = _config.value.copy(pciFlapCountThreshold = it) }
-        debouncedSave()
+        val parsed = value.toIntOrNull()
+        if (parsed != null && parsed in 2..20) {
+            _config.value = _config.value.copy(pciFlapCountThreshold = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateCoverageGapThreshold(value: String) {
-        value.toLongOrNull()?.let { _config.value = _config.value.copy(coverageGapThresholdMs = it) }
-        debouncedSave()
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1_000..300_000) {
+            _config.value = _config.value.copy(coverageGapThresholdMs = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateMobilityStationary(value: String) {
-        value.toFloatOrNull()?.let { _config.value = _config.value.copy(mobilityStationaryKmh = it) }
-        debouncedSave()
+        val parsed = value.toFloatOrNull()
+        if (parsed != null && parsed in 0f..50f) {
+            _config.value = _config.value.copy(mobilityStationaryKmh = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateMobilityWalking(value: String) {
-        value.toFloatOrNull()?.let { _config.value = _config.value.copy(mobilityWalkingKmh = it) }
-        debouncedSave()
+        val parsed = value.toFloatOrNull()
+        if (parsed != null && parsed in 0f..200f) {
+            _config.value = _config.value.copy(mobilityWalkingKmh = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateIndoorAccuracyThreshold(value: String) {
-        value.toFloatOrNull()?.let { _config.value = _config.value.copy(indoorAccuracyThresholdM = it) }
-        debouncedSave()
+        val parsed = value.toFloatOrNull()
+        if (parsed != null && parsed in 1f..100f) {
+            _config.value = _config.value.copy(indoorAccuracyThresholdM = parsed)
+            debouncedSave()
+        }
     }
 
     fun updateTunnelSignalLossThreshold(value: String) {
-        value.toLongOrNull()?.let { _config.value = _config.value.copy(tunnelSignalLossThresholdMs = it) }
-        debouncedSave()
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1_000..60_000) {
+            _config.value = _config.value.copy(tunnelSignalLossThresholdMs = parsed)
+            debouncedSave()
+        }
     }
 
     fun getVersionDisplay(): String {

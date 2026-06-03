@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import com.cellrecorder.app.BuildConfig
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
@@ -85,7 +86,7 @@ object PermissionHelper {
         val bg = backgroundPermissions().associateWith {
             ContextCompat.checkSelfPermission(context, it).permissionLabel()
         }
-        android.util.Log.d(TAG, "[$label] foreground=$fg  background=$bg")
+        if (BuildConfig.DEBUG) android.util.Log.d(TAG, "[$label] foreground=$fg  background=$bg")
     }
 
     private fun Int.permissionLabel(): String = when (this) {
