@@ -1,0 +1,20 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2026-06-03
+
+### Added
+
+- Initial release
+- Real-time cell tower recording (signal strength, Cell ID, RAT, frequency bands)
+- GPS coordinate logging during recording sessions
+- Background recording via foreground service
+- Session management with custom names
+- CSV and GeoJSON export
+- Session replay on interactive OpenStreetMap
+- In-app crash logger with device info capture
+- About screen showing version, git hash, source link, and pre-filled GitHub issue reporting

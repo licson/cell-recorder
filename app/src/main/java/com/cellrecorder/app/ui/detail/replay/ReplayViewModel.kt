@@ -1,0 +1,115 @@
+package com.cellrecorder.app.ui.detail.replay
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class ReplayViewModel @Inject constructor(
+    private val getSessionPointsUseCase: GetSessionPointsUseCase
+) : ViewModel() {
+
+    private val _records = MutableStateFlow<List<CellRecordEntity>>(emptyList())
+    val records: StateFlow<List<CellRecordEntity>> = _records
+
+    private val _filteredRecords = MutableStateFlow<List<CellRecordEntity>>(emptyList())
+    val filteredRecords: StateFlow<List<CellRecordEntity>> = _filteredRecords
+
+    private val _currentIndex = MutableStateFlow(0)
+    val currentIndex: StateFlow<Int> = _currentIndex
+
+    private val _isPlaying = MutableStateFlow(false)
+    val isPlaying: StateFlow<Boolean> = _isPlaying
+
+    private val _speed = MutableStateFlow(1f)
+    val speed: StateFlow<Float> = _speed
+
+    private val _selectedSim = MutableStateFlow<Int?>(null)
+    val selectedSim: StateFlow<Int?> = _selectedSim
+
+    private val _availableSimSlots = MutableStateFlow<List<Int>>(emptyList())
+    val availableSimSlots: StateFlow<List<Int>> = _availableSimSlots
+
+    private var playbackJob: Job? = null
+
+    fun loadSession(sessionId: Long) {
+        viewModelScope.launch {
+            getSessionPointsUseCase(sessionId).collect { list ->
+                _records.value = list
+                val slots = list.mapNotNull { it.simSlotIndex }.distinct().sorted()
+                _availableSimSlots.value = slots
+                _selectedSim.value = slots.firstOrNull()
+                applyFilter()
+            }
+        }
+    }
+
+    fun setSimFilter(simSlotIndex: Int?) {
+        _selectedSim.value = simSlotIndex
+        applyFilter()
+    }
+
+    private fun applyFilter() {
+        val sim = _selectedSim.value
+        _filteredRecords.value = if (sim == null) {
+            _records.value
+        } else {
+            _records.value.filter { it.simSlotIndex == sim }
+        }
+        _currentIndex.value = 0
+        if (_isPlaying.value) {
+            pause()
+        }
+    }
+
+    fun togglePlayPause() {
+        if (_isPlaying.value) pause() else play()
+    }
+
+    fun play() {
+        val records = _filteredRecords.value
+        if (records.isEmpty()) return
+        _isPlaying.value = true
+        playbackJob?.cancel()
+        playbackJob = viewModelScope.launch {
+            while (_currentIndex.value < records.lastIndex) {
+                val current = records[_currentIndex.value]
+                val next = records[_currentIndex.value + 1]
+                val delta = next.timestamp - current.timestamp
+                val adjustedDelta = (delta.toFloat() / _speed.value).toLong().coerceAtLeast(16L)
+                delay(adjustedDelta)
+                _currentIndex.value = _currentIndex.value + 1
+            }
+            _isPlaying.value = false
+        }
+    }
+
+    fun pause() {
+        _isPlaying.value = false
+        playbackJob?.cancel()
+    }
+
+    fun seekTo(index: Int) {
+        val records = _filteredRecords.value
+        if (index in records.indices) {
+            _currentIndex.value = index
+        }
+    }
+
+    fun setSpeed(speed: Float) {
+        _speed.value = speed
+    }
+
+    override fun onCleared() {
+        playbackJob?.cancel()
+        super.onCleared()
+    }
+}
