@@ -25,6 +25,7 @@ private class TestLocationCollector(
     private val gmsAvailable: Boolean
 ) : LocationCollector(fusedLocationClient, context) {
     override fun isGooglePlayServicesAvailable(): Boolean = gmsAvailable
+    override fun getMainLooper(): android.os.Looper = mockk(relaxed = true)
 }
 
 class LocationCollectorTest {

@@ -3,6 +3,7 @@ package com.cellrecorder.app.service
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
+import android.os.Looper
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -49,7 +50,7 @@ open class LocationCollector @Inject constructor(
                     }
                 }
             }
-            fusedLocationClient.requestLocationUpdates(locationRequest, callback, null)
+            fusedLocationClient.requestLocationUpdates(locationRequest, callback, getMainLooper())
             awaitClose {
                 fusedLocationClient.removeLocationUpdates(callback)
             }
@@ -95,6 +96,8 @@ open class LocationCollector @Inject constructor(
             null
         }
     }
+
+    protected open fun getMainLooper(): Looper = Looper.getMainLooper()
 
     internal open fun isGooglePlayServicesAvailable(): Boolean {
         return try {
