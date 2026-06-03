@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -68,6 +69,11 @@ fun SessionMapView(
         }
     }
 
+    DisposableEffect(Unit) {
+        mapView.onResume()
+        onDispose { mapView.onPause() }
+    }
+
     LaunchedEffect(records, displayMode) {
         mapView.overlays.clear()
         if (records.isNotEmpty()) {
@@ -85,7 +91,8 @@ fun SessionMapView(
     Box(modifier = modifier) {
         AndroidView(
             factory = { mapView },
-            modifier = Modifier.fillMaxSize().clipToBounds()
+            modifier = Modifier.fillMaxSize().clipToBounds(),
+            onRelease = { it.onDetach() }
         )
 
         if (showLegend && records.isNotEmpty()) {

@@ -309,6 +309,11 @@ private fun OsmMapView(
         }
     }
 
+    DisposableEffect(Unit) {
+        mapView.onResume()
+        onDispose { mapView.onPause() }
+    }
+
     val marker = remember {
         Marker(mapView).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
@@ -354,7 +359,8 @@ private fun OsmMapView(
     Box(modifier = modifier) {
         AndroidView(
             factory = { mapView },
-            modifier = Modifier.fillMaxSize().clipToBounds()
+            modifier = Modifier.fillMaxSize().clipToBounds(),
+            onRelease = { it.onDetach() }
         )
 
         if ((state?.currentLatitude ?: 0.0) == 0.0 && (state?.currentLongitude ?: 0.0) == 0.0) {

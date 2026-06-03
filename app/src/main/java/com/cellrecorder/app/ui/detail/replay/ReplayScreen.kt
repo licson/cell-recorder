@@ -416,6 +416,11 @@ private fun ReplayMapView(
         }
     }
 
+    DisposableEffect(Unit) {
+        mapView.onResume()
+        onDispose { mapView.onPause() }
+    }
+
     val currentMarker = remember {
         Marker(mapView).apply {
             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
@@ -460,7 +465,8 @@ private fun ReplayMapView(
     Box(modifier = modifier) {
         AndroidView(
             factory = { mapView },
-            modifier = Modifier.fillMaxSize().clipToBounds()
+            modifier = Modifier.fillMaxSize().clipToBounds(),
+            onRelease = { it.onDetach() }
         )
         if (filteredRecords.isEmpty()) {
             Box(
