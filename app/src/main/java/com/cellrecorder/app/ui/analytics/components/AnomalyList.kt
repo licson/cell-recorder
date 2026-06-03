@@ -299,6 +299,12 @@ private fun AnomalyRow(
 
     val dateFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
+    val timeText = if (anomaly.endTimestamp > anomaly.timestamp) {
+        "${dateFormat.format(Date(anomaly.timestamp))} – ${dateFormat.format(Date(anomaly.endTimestamp))} (${formatDuration(anomaly.timestamp, anomaly.endTimestamp)})"
+    } else {
+        dateFormat.format(Date(anomaly.timestamp))
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -327,10 +333,18 @@ private fun AnomalyRow(
                 maxLines = 2
             )
             Text(
-                text = "SIM${anomaly.simSlot + 1} · ${dateFormat.format(Date(anomaly.timestamp))}",
+                text = "SIM${anomaly.simSlot + 1} · $timeText",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
+}
+
+private fun formatDuration(fromMs: Long, toMs: Long): String {
+    val seconds = (toMs - fromMs) / 1000
+    if (seconds < 60) return "${seconds}s"
+    val minutes = seconds / 60
+    val remainingSeconds = seconds % 60
+    return if (remainingSeconds > 0) "${minutes}m ${remainingSeconds}s" else "${minutes}m"
 }

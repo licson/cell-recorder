@@ -406,11 +406,12 @@ The `SessionAnalyticsEngine` performs comprehensive post-hoc analysis on a sessi
 - **Correlation Analysis**: RSRP↔Ping, RSRP↔Packet Loss, SINR↔Ping, SINR↔Loss, per SIM
 - **Latency Stats**: mean, p50, p95, p99, jitter (standard deviation)
 - **Handoff Detection**: detects cell/site changes within `handoffTimeWindowMs`, classifies as intra-site PCI change vs inter-site handoff, tracks latency impact
-- **Anomaly Detection**:
+- **Anomaly Detection** (grouped by consecutive occurrence with duration):
   - RSRP drops exceeding `rsrpDropThresholdDbm` within `rsrpDropTimeWindowMs`
-  - Latency spikes exceeding mean + `latencySpikeSigma` * standard deviation
-  - PCI flapping: rapid PCI changes within `pciFlapWindowMs` exceeding `pciFlapCountThreshold`
+  - Latency spikes exceeding mean + `latencySpikeSigma` * standard deviation — consecutive spikes grouped into one anomaly with peak latency
+  - PCI flapping: rapid PCI changes within `pciFlapWindowMs` exceeding `pciFlapCountThreshold` — overlapping windows collapsed into one anomaly per episode
   - Missing ping clusters: 3+ consecutive samples without ping data
+  - Each anomaly includes `endTimestamp` for duration display in the UI
 - **Mobility Classification**: segments the session into stationary, walking, driving, indoor, tunnel based on speed and signal characteristics
 - **Coverage Gaps**: detects periods of UNKNOWN RAT exceeding `coverageGapThresholdMs`
 - **Timeline Segments**: groups contiguous points by RAT

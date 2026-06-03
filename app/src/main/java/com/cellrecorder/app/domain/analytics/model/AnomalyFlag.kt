@@ -15,6 +15,7 @@ enum class Severity {
 
 data class AnomalyFlag(
     val timestamp: Long,
+    val endTimestamp: Long = timestamp,
     val simSlot: Int,
     val type: AnomalyType,
     val severity: Severity,

@@ -132,6 +132,36 @@ class SessionAnalyticsEngineTest {
     }
 
     @Test
+    fun `consecutive latency spikes grouped into one anomaly with duration`() {
+        val records = (1..30).map { i ->
+            record(ts = i * 1000L, rsrp = -80, latency = if (i in 13..17) 300.0 else 10.0)
+        }
+        val config = defaultConfig.copy(latencySpikeSigma = 1.0)
+        val result = engine.analyze(records, config)
+        val spikes = result.anomalyFlags.filter { it.type == AnomalyType.LATENCY_SPIKE }
+        assertEquals(1, spikes.size, "All consecutive spikes should be grouped into one")
+        val spike = spikes[0]
+        assertTrue(spike.endTimestamp > spike.timestamp, "Grouped anomaly should have duration")
+        assertEquals(4_000, spike.endTimestamp - spike.timestamp, "5 spikes at 1s intervals from 13s to 17s")
+    }
+
+    @Test
+    fun `pci flapping produces exactly one anomaly per episode`() {
+        val records = listOf(
+            record(ts = 1000, pci = 101, simSlot = 0),
+            record(ts = 2000, pci = 102, simSlot = 0),
+            record(ts = 3000, pci = 101, simSlot = 0),
+            record(ts = 4000, pci = 103, simSlot = 0),
+            record(ts = 5000, pci = 102, simSlot = 0)
+        )
+        val config = defaultConfig.copy(pciFlapWindowMs = 10000, pciFlapCountThreshold = 3)
+        val result = engine.analyze(records, config)
+        val flaps = result.anomalyFlags.filter { it.type == AnomalyType.PCI_FLAP }
+        assertEquals(1, flaps.size, "Overlapping windows should produce one flap per episode")
+        assertTrue(flaps[0].endTimestamp > flaps[0].timestamp, "PCI flap should have duration")
+    }
+
+    @Test
     fun `handoff detection across cells`() {
         val records = listOf(
             record(ts = 1000, enb = 100L, pci = 1, simSlot = 0, rat = "4G", rsrp = -80),

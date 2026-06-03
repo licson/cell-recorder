@@ -274,7 +274,8 @@ class SessionAnalyticsEngine {
                 if (drop >= config.rsrpDropThresholdDbm) {
                     result.add(
                         AnomalyFlag(
-                            timestamp = next.timestamp,
+                            timestamp = cur.timestamp,
+                            endTimestamp = next.timestamp,
                             simSlot = next.simSlotIndex ?: 0,
                             type = AnomalyType.RSRP_DROP,
                             severity = if (drop >= config.rsrpDropThresholdDbm * 1.5) Severity.CRITICAL else Severity.WARNING,
@@ -300,17 +301,36 @@ class SessionAnalyticsEngine {
         val stddev = sqrt(variance)
         val threshold = mean + config.latencySpikeSigma * stddev
 
-        return records.filter { r ->
-            r.avgLatencyMs != null && r.avgLatencyMs!! > threshold
-        }.map {
-            AnomalyFlag(
-                timestamp = it.timestamp,
-                simSlot = it.simSlotIndex ?: 0,
-                type = AnomalyType.LATENCY_SPIKE,
-                severity = if (it.avgLatencyMs!! > mean + 2 * config.latencySpikeSigma * stddev) Severity.CRITICAL else Severity.WARNING,
-                description = "Latency spike: ${"%.0f".format(it.avgLatencyMs)}ms (mean ${"%.0f".format(mean)}ms)"
-            )
+        val result = mutableListOf<AnomalyFlag>()
+        var i = 0
+        while (i < records.size) {
+            val r = records[i]
+            if (r.avgLatencyMs != null && r.avgLatencyMs!! > threshold) {
+                val runStart = i
+                var peak = r.avgLatencyMs!!
+                while (i + 1 < records.size &&
+                    records[i + 1].avgLatencyMs != null &&
+                    records[i + 1].avgLatencyMs!! > threshold
+                ) {
+                    i++
+                    if (records[i].avgLatencyMs!! > peak) {
+                        peak = records[i].avgLatencyMs!!
+                    }
+                }
+                result.add(
+                    AnomalyFlag(
+                        timestamp = records[runStart].timestamp,
+                        endTimestamp = records[i].timestamp,
+                        simSlot = records[runStart].simSlotIndex ?: 0,
+                        type = AnomalyType.LATENCY_SPIKE,
+                        severity = if (peak > mean + 2 * config.latencySpikeSigma * stddev) Severity.CRITICAL else Severity.WARNING,
+                        description = "Latency spike: ${"%.0f".format(peak)}ms (mean ${"%.0f".format(mean)}ms)"
+                    )
+                )
+            }
+            i++
         }
+        return result
     }
 
     private fun detectPciFlapping(
@@ -322,20 +342,23 @@ class SessionAnalyticsEngine {
 
         for ((sim, recs) in bySim) {
             val sorted = recs.filter { it.pci != null }.sortedBy { it.timestamp }
-            for (i in sorted.indices) {
+            var i = 0
+            while (i < sorted.size) {
                 val windowEnd = sorted[i].timestamp + config.pciFlapWindowMs
                 val distinctPcis = mutableSetOf<Int>()
                 val distinctSiteIds = mutableSetOf<Long>()
-                for (j in i until sorted.size) {
-                    if (sorted[j].timestamp > windowEnd) break
+                var j = i
+                while (j < sorted.size && sorted[j].timestamp <= windowEnd) {
                     distinctPcis.add(sorted[j].pci!!)
                     sorted[j].enbOrGnbId?.let { distinctSiteIds.add(it) }
+                    j++
                 }
                 if (distinctPcis.size >= config.pciFlapCountThreshold) {
                     val isIntraSite = distinctSiteIds.size <= 1
                     result.add(
                         AnomalyFlag(
                             timestamp = sorted[i].timestamp,
+                            endTimestamp = windowEnd,
                             simSlot = sim,
                             type = AnomalyType.PCI_FLAP,
                             severity = if (isIntraSite) Severity.INFO else Severity.WARNING,
@@ -346,6 +369,9 @@ class SessionAnalyticsEngine {
                             }
                         )
                     )
+                    i = j
+                } else {
+                    i++
                 }
             }
         }
@@ -365,6 +391,7 @@ class SessionAnalyticsEngine {
                         result.add(
                             AnomalyFlag(
                                 timestamp = records[runStart].timestamp,
+                                endTimestamp = records[i - 1].timestamp,
                                 simSlot = records[runStart].simSlotIndex ?: 0,
                                 type = AnomalyType.MISSING_PING_CLUSTER,
                                 severity = if (runLength >= 10) Severity.CRITICAL else Severity.INFO,
@@ -383,6 +410,7 @@ class SessionAnalyticsEngine {
                 result.add(
                     AnomalyFlag(
                         timestamp = records[runStart].timestamp,
+                        endTimestamp = records.last().timestamp,
                         simSlot = records[runStart].simSlotIndex ?: 0,
                         type = AnomalyType.MISSING_PING_CLUSTER,
                         severity = if (runLength >= 10) Severity.CRITICAL else Severity.INFO,
