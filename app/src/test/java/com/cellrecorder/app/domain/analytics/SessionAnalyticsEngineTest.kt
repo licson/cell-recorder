@@ -241,6 +241,26 @@ class SessionAnalyticsEngineTest {
     }
 
     @Test
+    fun `band distribution excludes records with null band number`() {
+        val records = listOf(
+            record(ts = 1000, band = 78, simSlot = 0),
+            record(ts = 2000, band = null, simSlot = 0),
+            record(ts = 3000, band = 78, simSlot = 0),
+            record(ts = 4000, band = null, simSlot = 0),
+            record(ts = 5000, band = 1, simSlot = 0)
+        )
+        val result = engine.analyze(records, defaultConfig)
+        val bands = result.bandDistributionPerSim[0]
+        assertNotNull(bands)
+        assertTrue(bands!!.none { it.bandNumber == -1 }, "Should not contain band -1")
+        assertEquals(2, bands.size)
+        assertEquals(78, bands[0].bandNumber)
+        assertEquals(2, bands[0].count)
+        assertEquals(1, bands[1].bandNumber)
+        assertEquals(1, bands[1].count)
+    }
+
+    @Test
     fun `single record analytics basic fields populated`() {
         val records = listOf(
             record(ts = 1000, rat = "5G_SA", rsrp = -75, sinr = 25, band = 78, simSlot = 0, mcc = "310", mnc = "260")

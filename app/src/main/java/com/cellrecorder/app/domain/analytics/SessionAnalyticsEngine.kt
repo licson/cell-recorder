@@ -70,8 +70,9 @@ class SessionAnalyticsEngine {
         bySim: Map<Int, List<CellRecordEntity>>
     ): Map<Int, List<BandDistItem>> {
         return bySim.mapValues { (_, recs) ->
-            recs.groupBy { it.bandNumber }
-                .map { (band, group) -> BandDistItem(band ?: -1, group.size) }
+            recs.filter { it.bandNumber != null }
+                .groupBy { it.bandNumber }
+                .map { (band, group) -> BandDistItem(band!!, group.size) }
                 .sortedByDescending { it.count }
         }
     }
