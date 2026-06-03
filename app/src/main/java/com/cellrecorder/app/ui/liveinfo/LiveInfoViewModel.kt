@@ -7,10 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.repository.ConfigRepository
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.service.CellInfoCollector
+import com.cellrecorder.app.service.SimLiveState
 import cz.mroczis.netmonster.core.db.BandTableLte
 import cz.mroczis.netmonster.core.db.BandTableNr
 import cz.mroczis.netmonster.core.db.BandTableWcdma
-import com.cellrecorder.app.service.SimLiveState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -69,7 +69,10 @@ class LiveInfoViewModel @Inject constructor(
                         pci = s.pci?.toString() ?: "---",
                         rsrp = s.rsrp?.toString() ?: "---",
                         rsrq = s.rsrq?.toString() ?: "---",
-                        sinr = s.sinr?.toString() ?: "---"
+                        sinr = s.sinr?.toString() ?: "---",
+                        caBands = s.caBands.map { ca ->
+                            "B${ca.bandNumber ?: "?"} (PCI ${ca.pci ?: "?"})"
+                        }
                     )
                 }
 

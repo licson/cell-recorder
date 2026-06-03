@@ -104,6 +104,11 @@ private fun LiveSimCard(
                 LiveStatItem("SINR", sim.sinr, Modifier.weight(1f))
             }
 
+            if (sim.caBands.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                LiveStatItem("CA Bands", sim.caBands.joinToString(", "), Modifier.fillMaxWidth())
+            }
+
             if (rsrpHistory.isNotEmpty() || sinrHistory.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
@@ -160,4 +165,3 @@ private fun LiveStatItem(
         )
     }
 }
-

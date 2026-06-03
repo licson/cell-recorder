@@ -2,7 +2,7 @@ package com.cellrecorder.app.ui.detail.replay
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -17,11 +17,11 @@ class ReplayViewModel @Inject constructor(
     private val getSessionPointsUseCase: GetSessionPointsUseCase
 ) : ViewModel() {
 
-    private val _records = MutableStateFlow<List<CellRecordEntity>>(emptyList())
-    val records: StateFlow<List<CellRecordEntity>> = _records
+    private val _records = MutableStateFlow<List<CellRecordWithCaBands>>(emptyList())
+    val records: StateFlow<List<CellRecordWithCaBands>> = _records
 
-    private val _filteredRecords = MutableStateFlow<List<CellRecordEntity>>(emptyList())
-    val filteredRecords: StateFlow<List<CellRecordEntity>> = _filteredRecords
+    private val _filteredRecords = MutableStateFlow<List<CellRecordWithCaBands>>(emptyList())
+    val filteredRecords: StateFlow<List<CellRecordWithCaBands>> = _filteredRecords
 
     private val _currentIndex = MutableStateFlow(0)
     val currentIndex: StateFlow<Int> = _currentIndex
@@ -44,7 +44,7 @@ class ReplayViewModel @Inject constructor(
         viewModelScope.launch {
             getSessionPointsUseCase(sessionId).collect { list ->
                 _records.value = list
-                val slots = list.mapNotNull { it.simSlotIndex }.distinct().sorted()
+                val slots = list.mapNotNull { it.record.simSlotIndex }.distinct().sorted()
                 _availableSimSlots.value = slots
                 _selectedSim.value = slots.firstOrNull()
                 applyFilter()
@@ -62,7 +62,7 @@ class ReplayViewModel @Inject constructor(
         _filteredRecords.value = if (sim == null) {
             _records.value
         } else {
-            _records.value.filter { it.simSlotIndex == sim }
+            _records.value.filter { it.record.simSlotIndex == sim }
         }
         _currentIndex.value = 0
         if (_isPlaying.value) {
@@ -83,7 +83,7 @@ class ReplayViewModel @Inject constructor(
             while (_currentIndex.value < records.lastIndex) {
                 val current = records[_currentIndex.value]
                 val next = records[_currentIndex.value + 1]
-                val delta = next.timestamp - current.timestamp
+                val delta = next.record.timestamp - current.record.timestamp
                 val adjustedDelta = (delta.toFloat() / _speed.value).toLong().coerceAtLeast(16L)
                 delay(adjustedDelta)
                 _currentIndex.value = _currentIndex.value + 1

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import org.osmdroid.config.Configuration
@@ -63,6 +64,9 @@ fun ReplayScreen(
         derivedStateOf { filteredRecords.getOrNull(currentIndex) }
     }
 
+    val entities = remember(filteredRecords) { filteredRecords.map { it.record } }
+    val currentEntity = remember(currentRecord) { currentRecord?.record }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -84,7 +88,7 @@ fun ReplayScreen(
                     .padding(top = padding.calculateTopPadding())
             ) {
                 ReplayMapView(
-                    filteredRecords = filteredRecords,
+                    filteredRecords = entities,
                     currentIndex = currentIndex,
                     modifier = Modifier
                         .fillMaxHeight()
@@ -97,15 +101,15 @@ fun ReplayScreen(
                         .fillMaxHeight()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    StatsPanel(record = currentRecord)
+                    StatsPanel(record = currentEntity)
 
                     RatTimelineBar(
-                        records = filteredRecords,
+                        records = entities,
                         currentIndex = currentIndex
                     )
 
                     ChartGrid(
-                        records = filteredRecords,
+                        records = entities,
                         currentIndex = currentIndex
                     )
 
@@ -161,7 +165,7 @@ fun ReplayScreen(
                     .padding(top = padding.calculateTopPadding())
             ) {
                 ReplayMapView(
-                    filteredRecords = filteredRecords,
+                    filteredRecords = entities,
                     currentIndex = currentIndex,
                     modifier = Modifier.fillMaxWidth().height(350.dp)
                 )
@@ -170,19 +174,19 @@ fun ReplayScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
                     item {
-                        StatsPanel(record = currentRecord)
+                        StatsPanel(record = currentEntity)
                     }
 
                     item {
                         RatTimelineBar(
-                            records = filteredRecords,
+                            records = entities,
                             currentIndex = currentIndex
                         )
                     }
 
                     item {
                         ChartGrid(
-                            records = filteredRecords,
+                            records = entities,
                             currentIndex = currentIndex
                         )
                     }
@@ -600,4 +604,3 @@ private fun formatCellId(record: CellRecordEntity): String {
     }
     return record.fullCellIdentity?.toString() ?: "---"
 }
-

@@ -73,7 +73,10 @@ class RecordingViewModel @Inject constructor(
                                 pci = s.pci?.toString() ?: "---",
                                 rsrp = s.rsrp?.toString() ?: "---",
                                 rsrq = s.rsrq?.toString() ?: "---",
-                                sinr = s.sinr?.toString() ?: "---"
+                                sinr = s.sinr?.toString() ?: "---",
+                                caBands = s.caBands.map { ca ->
+                                    "B${ca.bandNumber ?: "?"} (PCI ${ca.pci ?: "?"})"
+                                }
                             )
                         }
                         delay(config.cellInfoRefreshIntervalSec * 1000L)

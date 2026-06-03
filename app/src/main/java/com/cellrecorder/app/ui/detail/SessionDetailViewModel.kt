@@ -3,7 +3,7 @@ package com.cellrecorder.app.ui.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
-import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SessionEntity
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.analytics.SessionAnalyticsEngine
@@ -17,7 +17,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -25,7 +24,7 @@ import javax.inject.Inject
 data class TimestampGroup(
     val serialNumber: Int,
     val timestamp: Long,
-    val records: List<CellRecordEntity>
+    val records: List<CellRecordWithCaBands>
 )
 
 @HiltViewModel
@@ -40,14 +39,14 @@ class SessionDetailViewModel @Inject constructor(
     private val _session = MutableStateFlow<SessionEntity?>(null)
     val session: StateFlow<SessionEntity?> = _session
 
-    private val _records = MutableStateFlow<List<CellRecordEntity>>(emptyList())
-    val records: StateFlow<List<CellRecordEntity>> = _records
+    private val _records = MutableStateFlow<List<CellRecordWithCaBands>>(emptyList())
+    val records: StateFlow<List<CellRecordWithCaBands>> = _records
 
-    private val _filteredRecords = MutableStateFlow<List<CellRecordEntity>>(emptyList())
-    val filteredRecords: StateFlow<List<CellRecordEntity>> = _filteredRecords
+    private val _filteredRecords = MutableStateFlow<List<CellRecordWithCaBands>>(emptyList())
+    val filteredRecords: StateFlow<List<CellRecordWithCaBands>> = _filteredRecords
 
-    private val _selectedRecord = MutableStateFlow<CellRecordEntity?>(null)
-    val selectedRecord: StateFlow<CellRecordEntity?> = _selectedRecord
+    private val _selectedRecord = MutableStateFlow<CellRecordWithCaBands?>(null)
+    val selectedRecord: StateFlow<CellRecordWithCaBands?> = _selectedRecord
 
     private val _exportData = MutableStateFlow<ExportData?>(null)
     val exportData: StateFlow<ExportData?> = _exportData
@@ -94,16 +93,16 @@ class SessionDetailViewModel @Inject constructor(
         viewModelScope.launch {
             getSessionPointsUseCase(sessionId).collect { list ->
                 _records.value = list
-                _availableSimSlots.value = list.mapNotNull { it.simSlotIndex }.distinct().sorted()
+                _availableSimSlots.value = list.mapNotNull { it.record.simSlotIndex }.distinct().sorted()
                 val grouped = withContext(Dispatchers.Default) {
-                    list.groupBy { it.timestamp }
+                    list.groupBy { it.record.timestamp }
                         .entries
                         .sortedBy { it.key }
                         .mapIndexed { index, (ts, recs) ->
                             TimestampGroup(
                                 serialNumber = index + 1,
                                 timestamp = ts,
-                                records = recs.sortedBy { it.simSlotIndex ?: -1 }
+                                records = recs.sortedBy { it.record.simSlotIndex ?: -1 }
                             )
                         }
                 }
@@ -117,7 +116,7 @@ class SessionDetailViewModel @Inject constructor(
         }
     }
 
-    fun selectRecord(record: CellRecordEntity?) {
+    fun selectRecord(record: CellRecordWithCaBands?) {
         _selectedRecord.value = record
     }
 
@@ -178,7 +177,7 @@ class SessionDetailViewModel @Inject constructor(
     private suspend fun updateFilteredAndAnalytics() {
         val records = _records.value
         val sim = _selectedSim.value
-        val filtered = if (sim == null) records else records.filter { it.simSlotIndex == sim }
+        val filtered = if (sim == null) records else records.filter { it.record.simSlotIndex == sim }
         _filteredRecords.value = filtered
         _analytics.value = withContext(Dispatchers.Default) {
             engine.analyze(filtered, config)

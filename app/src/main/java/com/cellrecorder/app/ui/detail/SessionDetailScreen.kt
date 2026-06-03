@@ -40,7 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.domain.usecase.ExportData
 import com.cellrecorder.app.ui.detail.analytics.AnalyticsPanel
 import com.cellrecorder.app.ui.map.SessionMapView
@@ -139,7 +139,7 @@ fun SessionDetailScreen(
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
         ) {
             SessionMapView(
-                records = if (showAnalytics) filteredRecords else records,
+                records = if (showAnalytics) filteredRecords.map { it.record } else records.map { it.record },
                 displayMode = mapDisplayMode,
                 showLegend = showAnalytics,
                 modifier = Modifier.fillMaxWidth().height(if (showAnalytics) 400.dp else 200.dp)
@@ -333,16 +333,16 @@ private fun ColumnHeadersRow(modifier: Modifier = Modifier) {
 @Composable
 private fun TimestampGroupRow(
     group: TimestampGroup,
-    onRecordClick: (CellRecordEntity) -> Unit,
+    onRecordClick: (CellRecordWithCaBands) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.padding(vertical = 4.dp)) {
-        group.records.forEachIndexed { index, record ->
+        group.records.forEachIndexed { index, wrapper ->
             val isFirst = index == 0
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onRecordClick(record) }
+                    .clickable { onRecordClick(wrapper) }
                     .padding(horizontal = 8.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -358,7 +358,7 @@ private fun TimestampGroupRow(
                 } else {
                     Spacer(Modifier.width(48.dp))
                 }
-                SimRecordRow(record = record, modifier = Modifier.weight(1f))
+                SimRecordRow(wrapper = wrapper, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -366,9 +366,10 @@ private fun TimestampGroupRow(
 
 @Composable
 private fun SimRecordRow(
-    record: CellRecordEntity,
+    wrapper: CellRecordWithCaBands,
     modifier: Modifier = Modifier
 ) {
+    val record = wrapper.record
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically
@@ -500,7 +501,7 @@ private fun ActionButton(
 private fun RecordsList(
     allGrouped: List<TimestampGroup>,
     visibleWindow: IntRange,
-    onRecordClick: (CellRecordEntity) -> Unit,
+    onRecordClick: (CellRecordWithCaBands) -> Unit,
     onUpdateVisibleWindow: (Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
