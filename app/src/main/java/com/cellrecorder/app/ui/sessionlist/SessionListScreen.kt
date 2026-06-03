@@ -169,11 +169,7 @@ fun SessionListScreen(
     ) { padding ->
         if (sessions.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(
-                    start = padding.calculateStartPadding(LocalLayoutDirection.current),
-                    top = padding.calculateTopPadding(),
-                    end = padding.calculateEndPadding(LocalLayoutDirection.current)
-                ),
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -196,9 +192,7 @@ fun SessionListScreen(
             }
 
             val listPadding = if (inSelectionMode) padding else PaddingValues(
-                    start = padding.calculateStartPadding(LocalLayoutDirection.current),
-                    top = padding.calculateTopPadding(),
-                    end = padding.calculateEndPadding(LocalLayoutDirection.current)
+                    top = padding.calculateTopPadding()
                 )
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(listPadding),

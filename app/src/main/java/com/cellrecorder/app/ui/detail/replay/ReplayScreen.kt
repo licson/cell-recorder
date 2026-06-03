@@ -25,7 +25,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -82,11 +81,7 @@ fun ReplayScreen(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(
-                        start = padding.calculateStartPadding(LocalLayoutDirection.current),
-                        top = padding.calculateTopPadding(),
-                        end = padding.calculateEndPadding(LocalLayoutDirection.current)
-                    )
+                    .padding(top = padding.calculateTopPadding())
             ) {
                 ReplayMapView(
                     filteredRecords = filteredRecords,
@@ -163,11 +158,7 @@ fun ReplayScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(
-                        start = padding.calculateStartPadding(LocalLayoutDirection.current),
-                        top = padding.calculateTopPadding(),
-                        end = padding.calculateEndPadding(LocalLayoutDirection.current)
-                    )
+                    .padding(top = padding.calculateTopPadding())
             ) {
                 ReplayMapView(
                     filteredRecords = filteredRecords,

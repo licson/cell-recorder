@@ -9,7 +9,6 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -37,11 +36,7 @@ fun LiveInfoScreen(
     ) { padding ->
         if (liveSimStates.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize().padding(
-                    start = padding.calculateStartPadding(LocalLayoutDirection.current),
-                    top = padding.calculateTopPadding(),
-                    end = padding.calculateEndPadding(LocalLayoutDirection.current)
-                ),
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -52,11 +47,7 @@ fun LiveInfoScreen(
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(
-                    start = padding.calculateStartPadding(LocalLayoutDirection.current),
-                    top = padding.calculateTopPadding(),
-                    end = padding.calculateEndPadding(LocalLayoutDirection.current)
-                ),
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
