@@ -22,5 +22,6 @@ data class CellRecordSnapshot(
     val cqi: Int? = null,
     val timingAdvance: Int? = null,
     val mcc: String? = null,
-    val mnc: String? = null
+    val mnc: String? = null,
+    val caBands: List<CaBandSnapshot> = emptyList()
 )

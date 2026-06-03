@@ -3,6 +3,7 @@ package com.cellrecorder.app.service
 import android.content.Context
 import android.telephony.SubscriptionInfo
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
+import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.SessionRepository
@@ -83,7 +84,24 @@ class PointRecorder @Inject constructor(
                 isLocationEstimated = isEstimated,
                 locationSource = source
             )
-            cellRecordRepository.insert(record)
+            val recordId = cellRecordRepository.insert(record)
+            if (snapshot.caBands.isNotEmpty()) {
+                val caEntities = snapshot.caBands.map { ca ->
+                    CellRecordCaBandEntity(
+                        cellRecordId = recordId,
+                        bandNumber = ca.bandNumber,
+                        earfcn = ca.earfcn,
+                        pci = ca.pci,
+                        rsrp = ca.rsrp,
+                        rsrq = ca.rsrq,
+                        sinr = ca.sinr,
+                        rssi = ca.rssi,
+                        cqi = ca.cqi,
+                        timingAdvance = ca.timingAdvance
+                    )
+                }
+                cellRecordRepository.insertCaBands(caEntities)
+            }
         }
         sessionRepository.incrementPointCount(sessionId)
         totalPointCount++

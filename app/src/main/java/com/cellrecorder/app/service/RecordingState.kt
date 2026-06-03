@@ -12,7 +12,8 @@ data class SimLiveState(
     val pci: String = "---",
     val rsrp: String = "---",
     val rsrq: String = "---",
-    val sinr: String = "---"
+    val sinr: String = "---",
+    val caBands: List<String> = emptyList()
 )
 
 data class RecordingState(

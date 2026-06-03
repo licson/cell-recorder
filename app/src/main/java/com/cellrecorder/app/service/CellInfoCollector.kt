@@ -1,6 +1,7 @@
 package com.cellrecorder.app.service
 
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
+import com.cellrecorder.app.domain.model.CaBandSnapshot
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import cz.mroczis.netmonster.core.INetMonster
 import cz.mroczis.netmonster.core.db.BandTableLte
@@ -13,6 +14,7 @@ import cz.mroczis.netmonster.core.model.cell.CellNr
 import cz.mroczis.netmonster.core.model.cell.CellWcdma
 import cz.mroczis.netmonster.core.model.cell.ICell
 import cz.mroczis.netmonster.core.model.connection.PrimaryConnection
+import cz.mroczis.netmonster.core.model.connection.SecondaryConnection
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,19 +28,21 @@ class CellInfoCollector @Inject constructor(
         return cells.groupBy { it.subscriptionId }.map { (subId, subCells) ->
             val serving = subCells.firstOrNull { it.connectionStatus is PrimaryConnection }
             val networkType = netMonster.getNetworkType(subId)
-            buildSnapshot(subId, serving, networkType, config)
+            buildSnapshot(subId, serving, subCells, networkType, config)
         }
     }
 
     private fun buildSnapshot(
         subId: Int,
         serving: ICell?,
+        subCells: List<ICell>,
         networkType: NetworkType,
         config: AppConfigEntity
     ): CellRecordSnapshot {
-        return when (serving) {
+        val snapshot = when (serving) {
             is CellLte -> {
                 val fullId = serving.eci?.toLong()
+                val caBands = extractCaBands(serving, subCells)
                 CellRecordSnapshot(
                     subscriptionId = subId,
                     rat = if (networkType is NetworkType.Lte && networkType.technology == NetworkType.LTE_CA) "4G_CA" else "4G",
@@ -58,7 +62,8 @@ class CellInfoCollector @Inject constructor(
                     cqi = serving.signal?.cqi,
                     timingAdvance = serving.signal?.timingAdvance,
                     mcc = serving.network?.mcc,
-                    mnc = serving.network?.mnc
+                    mnc = serving.network?.mnc,
+                    caBands = caBands
                 )
             }
             is CellNr -> {
@@ -113,6 +118,26 @@ class CellInfoCollector @Inject constructor(
                 subscriptionId = subId,
                 rat = "UNKNOWN",
                 networkTypeCode = networkType.technology
+            )
+        }
+        return snapshot
+    }
+
+    private fun extractCaBands(primary: CellLte, subCells: List<ICell>): List<CaBandSnapshot> {
+        return subCells.filter { cell ->
+            cell is CellLte && cell != primary && cell.connectionStatus is SecondaryConnection
+        }.map { cell ->
+            cell as CellLte
+            CaBandSnapshot(
+                bandNumber = cell.band?.downlinkEarfcn?.let { BandTableLte.map(it).number } ?: cell.band?.number,
+                earfcn = cell.band?.downlinkEarfcn,
+                pci = cell.pci,
+                rsrp = cell.signal?.rsrp?.toInt(),
+                rsrq = cell.signal?.rsrq?.toInt(),
+                sinr = cell.signal?.snr?.toInt(),
+                rssi = cell.signal?.rssi,
+                cqi = cell.signal?.cqi,
+                timingAdvance = cell.signal?.timingAdvance
             )
         }
     }
