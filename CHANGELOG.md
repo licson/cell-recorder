@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-06-03
+
+### Added
+
+- Anomaly inspector bottom sheet with filter chips and lazy virtualization
+- Group repeated anomaly messages into duration-aware anomalies (peak latency, episode duration)
+
+### Fixed
+
+- FAB position offset from corner
+- Extra left padding in landscape mode
+- Double bottom padding on all screens
+
+### Changed
+
+- Improved UI performance: lifecycle-aware state collection, off-main-thread dispatchers, reduced recompositions
+
 ## [1.0.2] - 2026-06-03
 
 ### Fixed
