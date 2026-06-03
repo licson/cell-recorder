@@ -1,5 +1,6 @@
 package com.cellrecorder.app.domain.usecase.import_
 
+import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -24,16 +25,17 @@ class GeoJsonRecordParser @Inject constructor() {
         val root: JsonObject = try {
             json.parseToJsonElement(content).jsonObject
         } catch (e: Exception) {
-            return ParseResult(emptyList(), listOf(ParseError(0, "Invalid GeoJSON: ${e.message}")))
+            return ParseResult(emptyList(), errors = listOf(ParseError(0, "Invalid GeoJSON: ${e.message}")))
         }
 
         if (root["type"]?.jsonPrimitive?.content != "FeatureCollection") {
-            return ParseResult(emptyList(), listOf(ParseError(0, "Expected a FeatureCollection")))
+            return ParseResult(emptyList(), errors = listOf(ParseError(0, "Expected a FeatureCollection")))
         }
 
-        val features = root["features"]?.jsonArray ?: return ParseResult(emptyList(), listOf(ParseError(0, "Missing features array")))
+        val features = root["features"]?.jsonArray ?: return ParseResult(emptyList(), errors = listOf(ParseError(0, "Missing features array")))
 
         val records = mutableListOf<CellRecordEntity>()
+        val caBandsList = mutableListOf<List<CellRecordCaBandEntity>>()
         val errors = mutableListOf<ParseError>()
 
         for ((i, featureEl) in features.withIndex()) {
@@ -80,6 +82,10 @@ class GeoJsonRecordParser @Inject constructor() {
                     errors.add(ParseError(featureNum, "Feature $featureNum missing timestamp"))
                     continue
                 }
+
+                val caJson = props?.get("caBands") as? JsonArray
+                val caBands = parseCaBands(caJson)
+
                 records.add(CellRecordEntity(
                     sessionId = sessionId,
                     timestamp = ts,
@@ -104,11 +110,31 @@ class GeoJsonRecordParser @Inject constructor() {
                     earfcn = int("earfcn"),
                     tac = int("tac")
                 ))
+                caBandsList.add(caBands)
             } catch (e: Exception) {
                 errors.add(ParseError(featureNum, "Feature $featureNum error: ${e.message}"))
             }
         }
 
-        return ParseResult(records, errors)
+        return ParseResult(records, caBandsList, errors)
+    }
+
+    private fun parseCaBands(arr: JsonArray?): List<CellRecordCaBandEntity> {
+        if (arr == null) return emptyList()
+        return arr.mapNotNull { el ->
+            val obj = el.jsonObject
+            CellRecordCaBandEntity(
+                cellRecordId = 0,
+                bandNumber = obj["band"]?.jsonPrimitive?.intOrNull,
+                earfcn = obj["earfcn"]?.jsonPrimitive?.intOrNull,
+                pci = obj["pci"]?.jsonPrimitive?.intOrNull,
+                rsrp = obj["rsrp"]?.jsonPrimitive?.intOrNull,
+                rsrq = obj["rsrq"]?.jsonPrimitive?.intOrNull,
+                sinr = obj["sinr"]?.jsonPrimitive?.intOrNull,
+                rssi = obj["rssi"]?.jsonPrimitive?.intOrNull,
+                cqi = obj["cqi"]?.jsonPrimitive?.intOrNull,
+                timingAdvance = obj["timingAdvance"]?.jsonPrimitive?.intOrNull
+            )
+        }
     }
 }

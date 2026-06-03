@@ -29,7 +29,13 @@ class ImportSessionUseCase @Inject constructor(
         val result = csvRecordParser.parse(content, sessionId)
 
         if (result.records.isNotEmpty()) {
-            cellRecordRepository.insertAll(result.records)
+            val ids = cellRecordRepository.insertAll(result.records)
+            for (i in result.records.indices) {
+                val caBands = result.caBands.getOrElse(i) { emptyList() }
+                if (caBands.isNotEmpty()) {
+                    cellRecordRepository.insertCaBands(caBands.map { it.copy(cellRecordId = ids[i]) })
+                }
+            }
             sessionRepository.refreshPointCount(sessionId)
             sessionRepository.updateEndedAt(sessionId, System.currentTimeMillis())
         }
@@ -51,7 +57,13 @@ class ImportSessionUseCase @Inject constructor(
         val result = geoJsonRecordParser.parse(content, sessionId)
 
         if (result.records.isNotEmpty()) {
-            cellRecordRepository.insertAll(result.records)
+            val ids = cellRecordRepository.insertAll(result.records)
+            for (i in result.records.indices) {
+                val caBands = result.caBands.getOrElse(i) { emptyList() }
+                if (caBands.isNotEmpty()) {
+                    cellRecordRepository.insertCaBands(caBands.map { it.copy(cellRecordId = ids[i]) })
+                }
+            }
             sessionRepository.refreshPointCount(sessionId)
             sessionRepository.updateEndedAt(sessionId, System.currentTimeMillis())
         }

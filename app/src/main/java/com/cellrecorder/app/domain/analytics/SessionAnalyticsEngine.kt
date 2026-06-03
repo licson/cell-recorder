@@ -2,6 +2,7 @@ package com.cellrecorder.app.domain.analytics
 
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.domain.analytics.model.*
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -9,30 +10,31 @@ import kotlin.math.sqrt
 
 class SessionAnalyticsEngine {
 
-    fun analyze(records: List<CellRecordEntity>, config: AppConfigEntity): SessionAnalytics {
+    fun analyze(records: List<CellRecordWithCaBands>, config: AppConfigEntity): SessionAnalytics {
         if (records.isEmpty()) return SessionAnalytics()
 
-        val bySim = records.groupBy { it.simSlotIndex ?: 0 }.toSortedMap()
-        val handoffs = detectHandoffs(records, config)
+        val entities = records.map { it.record }
+        val bySim = entities.groupBy { it.simSlotIndex ?: 0 }.toSortedMap()
+        val handoffs = detectHandoffs(entities, config)
 
         return SessionAnalytics(
-            ratCoverage = computeRatCoverage(records),
-            bandDistributionPerSim = computeBandDistribution(bySim),
-            rsrpHistogram = computeHistogram(records, RSRP_BINS, CellRecordEntity::rsrp),
-            sinrHistogram = computeHistogram(records, SINR_BINS, CellRecordEntity::sinr),
-            pingHistogram = computeHistogram(records, PING_BINS) { it.avgLatencyMs?.toInt() },
+            ratCoverage = computeRatCoverage(entities),
+            bandDistributionPerSim = computeBandDistribution(records, bySim),
+            rsrpHistogram = computeHistogram(entities, RSRP_BINS, CellRecordEntity::rsrp),
+            sinrHistogram = computeHistogram(entities, SINR_BINS, CellRecordEntity::sinr),
+            pingHistogram = computeHistogram(entities, PING_BINS) { it.avgLatencyMs?.toInt() },
             correlationBins = CorrelationBins(
-                rsrpPing = computeCorrelation(records, RSRP_BINS, { it.rsrp }, { it.avgLatencyMs }),
-                rsrpLoss = computeCorrelation(records, RSRP_BINS, { it.rsrp }, { it.packetLossPct }),
-                sinrPing = computeCorrelation(records, SINR_BINS, { it.sinr }, { it.avgLatencyMs }),
-                sinrLoss = computeCorrelation(records, SINR_BINS, { it.sinr }, { it.packetLossPct })
+                rsrpPing = computeCorrelation(entities, RSRP_BINS, { it.rsrp }, { it.avgLatencyMs }),
+                rsrpLoss = computeCorrelation(entities, RSRP_BINS, { it.rsrp }, { it.packetLossPct }),
+                sinrPing = computeCorrelation(entities, SINR_BINS, { it.sinr }, { it.avgLatencyMs }),
+                sinrLoss = computeCorrelation(entities, SINR_BINS, { it.sinr }, { it.packetLossPct })
             ),
-            latencyStats = computeLatencyStats(records),
+            latencyStats = computeLatencyStats(entities),
             handoffEvents = handoffs,
-            anomalyFlags = detectAnomalies(records, config),
-            mobilitySegments = classifyMobility(records, config),
-            coverageGaps = detectCoverageGaps(records, config),
-            timelineSegments = buildTimeline(records),
+            anomalyFlags = detectAnomalies(entities, config),
+            mobilitySegments = classifyMobility(entities, config),
+            coverageGaps = detectCoverageGaps(entities, config),
+            timelineSegments = buildTimeline(entities),
             insightCards = generatePciInsights(handoffs)
         )
     }
@@ -64,15 +66,37 @@ class SessionAnalyticsEngine {
         return records.last().timestamp - records.first().timestamp
     }
 
-    // ── Band Distribution per SIM ─────────────────────────────────
+    // ── Band Distribution per SIM (includes CA bands) ─────────────
 
     private fun computeBandDistribution(
+        recordsWithCa: List<CellRecordWithCaBands>,
         bySim: Map<Int, List<CellRecordEntity>>
     ): Map<Int, List<BandDistItem>> {
-        return bySim.mapValues { (_, recs) ->
-            recs.filter { it.bandNumber != null }
+        val caBySim = mutableMapOf<Int, MutableMap<Int, Int>>()
+        for ((sim, recs) in bySim) {
+            caBySim.getOrPut(sim) { mutableMapOf() }
+        }
+        for (wrapper in recordsWithCa) {
+            val sim = wrapper.record.simSlotIndex ?: 0
+            for (caBand in wrapper.caBands) {
+                val band = caBand.bandNumber ?: continue
+                val map = caBySim.getOrPut(sim) { mutableMapOf() }
+                map[band] = (map[band] ?: 0) + 1
+            }
+        }
+
+        return bySim.mapValues { (sim, recs) ->
+            val primaryCounts = recs.filter { it.bandNumber != null }
                 .groupBy { it.bandNumber }
-                .map { (band, group) -> BandDistItem(band!!, group.size) }
+                .mapValues { it.value.size }
+                .toMutableMap()
+
+            val caCounts = caBySim[sim] ?: emptyMap()
+            caCounts.forEach { (band, count) ->
+                primaryCounts[band] = (primaryCounts[band] ?: 0) + count
+            }
+
+            primaryCounts.map { (band, count) -> BandDistItem(band!!, count) }
                 .sortedByDescending { it.count }
         }
     }

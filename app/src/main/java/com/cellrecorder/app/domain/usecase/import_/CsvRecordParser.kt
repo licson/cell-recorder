@@ -1,6 +1,12 @@
 package com.cellrecorder.app.domain.usecase.import_
 
+import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -8,6 +14,7 @@ data class ParseError(val line: Int, val message: String)
 
 data class ParseResult(
     val records: List<CellRecordEntity>,
+    val caBands: List<List<CellRecordCaBandEntity>> = emptyList(),
     val errors: List<ParseError>
 )
 
@@ -35,12 +42,15 @@ class CsvRecordParser @Inject constructor() {
         "mnc" to "mnc",
         "band" to "bandNumber",
         "earfcn" to "earfcn",
-        "tac" to "tac"
+        "tac" to "tac",
+        "ca_bands" to "caBands"
     )
+
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     fun parse(content: String, sessionId: Long): ParseResult {
         val lines = content.lines().filter { it.isNotBlank() }
-        if (lines.size < 2) return ParseResult(emptyList(), listOf(ParseError(0, "File has no data rows")))
+        if (lines.size < 2) return ParseResult(emptyList(), errors = listOf(ParseError(0, "File has no data rows")))
 
         val headers = parseCsvLine(lines[0])
         val colIdx = mutableMapOf<String, Int>()
@@ -50,24 +60,28 @@ class CsvRecordParser @Inject constructor() {
         }
 
         if (!colIdx.contains("timestamp") || !colIdx.contains("latitude") || !colIdx.contains("longitude")) {
-            return ParseResult(emptyList(), listOf(ParseError(0, "Missing required columns: timestamp, lat, lon")))
+            return ParseResult(emptyList(), errors = listOf(ParseError(0, "Missing required columns: timestamp, lat, lon")))
         }
 
         val records = mutableListOf<CellRecordEntity>()
+        val caBandsList = mutableListOf<List<CellRecordCaBandEntity>>()
         val errors = mutableListOf<ParseError>()
 
         for ((i, line) in lines.drop(1).withIndex()) {
             val dataLine = i + 2
             try {
                 val cols = parseCsvLine(line)
-                val record = parseRow(cols, colIdx, sessionId, dataLine, errors)
-                if (record != null) records.add(record)
+                val (record, caBands) = parseRow(cols, colIdx, sessionId, dataLine, errors)
+                if (record != null) {
+                    records.add(record)
+                    caBandsList.add(caBands ?: emptyList())
+                }
             } catch (e: Exception) {
                 errors.add(ParseError(dataLine, e.message ?: "Unexpected error"))
             }
         }
 
-        return ParseResult(records, errors)
+        return ParseResult(records, caBandsList, errors)
     }
 
     private fun parseCsvLine(line: String): List<String> {
@@ -94,7 +108,7 @@ class CsvRecordParser @Inject constructor() {
         sessionId: Long,
         lineNum: Int,
         errors: MutableList<ParseError>
-    ): CellRecordEntity? {
+    ): Pair<CellRecordEntity?, List<CellRecordCaBandEntity>?> {
         val str = { key: String -> idx[key]?.let { cols.getOrNull(it) }?.takeIf { it.isNotEmpty() } }
         val long = { key: String -> str(key)?.toLongOrNull() }
         val int = { key: String -> str(key)?.toIntOrNull() }
@@ -107,8 +121,10 @@ class CsvRecordParser @Inject constructor() {
 
         if (timestamp == null || lat == null || lon == null) {
             errors.add(ParseError(lineNum, "Missing or invalid timestamp, lat, or lon"))
-            return null
+            return null to null
         }
+
+        val caBands = parseCaBands(str("caBands"))
 
         return CellRecordEntity(
             sessionId = sessionId,
@@ -133,6 +149,30 @@ class CsvRecordParser @Inject constructor() {
             bandNumber = int("band"),
             earfcn = int("earfcn"),
             tac = int("tac")
-        )
+        ) to caBands
+    }
+
+    private fun parseCaBands(jsonStr: String?): List<CellRecordCaBandEntity>? {
+        if (jsonStr.isNullOrBlank()) return null
+        return try {
+            val arr = json.parseToJsonElement(jsonStr).jsonArray
+            arr.map { el ->
+                val obj = el.jsonObject
+                CellRecordCaBandEntity(
+                    cellRecordId = 0,
+                    bandNumber = obj["band"]?.jsonPrimitive?.intOrNull,
+                    earfcn = obj["earfcn"]?.jsonPrimitive?.intOrNull,
+                    pci = obj["pci"]?.jsonPrimitive?.intOrNull,
+                    rsrp = obj["rsrp"]?.jsonPrimitive?.intOrNull,
+                    rsrq = obj["rsrq"]?.jsonPrimitive?.intOrNull,
+                    sinr = obj["sinr"]?.jsonPrimitive?.intOrNull,
+                    rssi = obj["rssi"]?.jsonPrimitive?.intOrNull,
+                    cqi = obj["cqi"]?.jsonPrimitive?.intOrNull,
+                    timingAdvance = obj["timingAdvance"]?.jsonPrimitive?.intOrNull
+                )
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }

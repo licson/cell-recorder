@@ -1,6 +1,7 @@
 package com.cellrecorder.app.domain.usecase
 
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SessionEntity
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -27,10 +28,28 @@ class ExportSessionUseCase @Inject constructor() {
         }
     }
 
-    fun exportCsv(session: SessionEntity, records: List<CellRecordEntity>): ExportData {
+    fun exportCsv(session: SessionEntity, records: List<CellRecordWithCaBands>): ExportData {
         val sb = StringBuilder()
-        sb.appendLine("timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source")
-        for (r in records) {
+        sb.appendLine("timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source,ca_bands")
+        for (wrapper in records) {
+            val r = wrapper.record
+            val caJson = if (wrapper.caBands.isNotEmpty()) {
+                buildJsonArray {
+                    for (ca in wrapper.caBands) {
+                        add(buildJsonObject {
+                            ca.bandNumber?.let { put("band", it) }
+                            ca.earfcn?.let { put("earfcn", it) }
+                            ca.pci?.let { put("pci", it) }
+                            ca.rsrp?.let { put("rsrp", it) }
+                            ca.rsrq?.let { put("rsrq", it) }
+                            ca.sinr?.let { put("sinr", it) }
+                            ca.rssi?.let { put("rssi", it) }
+                            ca.cqi?.let { put("cqi", it) }
+                            ca.timingAdvance?.let { put("timingAdvance", it) }
+                        })
+                    }
+                }.toString()
+            } else ""
             sb.appendLine(
                 buildString {
                     append(r.timestamp); append(',')
@@ -55,7 +74,8 @@ class ExportSessionUseCase @Inject constructor() {
                     append(csvField(r.earfcn)); append(',')
                     append(csvField(r.tac)); append(',')
                     append(r.isLocationEstimated); append(',')
-                    append(csvField(r.locationSource))
+                    append(csvField(r.locationSource)); append(',')
+                    append(csvField(caJson))
                 }
             )
         }
@@ -66,11 +86,12 @@ class ExportSessionUseCase @Inject constructor() {
         )
     }
 
-    fun exportGeoJson(session: SessionEntity, records: List<CellRecordEntity>): ExportData {
+    fun exportGeoJson(session: SessionEntity, records: List<CellRecordWithCaBands>): ExportData {
         val featureCollection = buildJsonObject {
             put("type", "FeatureCollection")
             put("features", buildJsonArray {
-                for (r in records) {
+                for (wrapper in records) {
+                    val r = wrapper.record
                     add(buildJsonObject {
                         put("type", "Feature")
                         put("geometry", buildJsonObject {
@@ -101,6 +122,23 @@ class ExportSessionUseCase @Inject constructor() {
                             put("tac", r.tac)
                             put("isLocationEstimated", r.isLocationEstimated)
                             put("locationSource", r.locationSource)
+                            if (wrapper.caBands.isNotEmpty()) {
+                                put("caBands", buildJsonArray {
+                                    for (ca in wrapper.caBands) {
+                                        add(buildJsonObject {
+                                            ca.bandNumber?.let { put("band", it) }
+                                            ca.earfcn?.let { put("earfcn", it) }
+                                            ca.pci?.let { put("pci", it) }
+                                            ca.rsrp?.let { put("rsrp", it) }
+                                            ca.rsrq?.let { put("rsrq", it) }
+                                            ca.sinr?.let { put("sinr", it) }
+                                            ca.rssi?.let { put("rssi", it) }
+                                            ca.cqi?.let { put("cqi", it) }
+                                            ca.timingAdvance?.let { put("timingAdvance", it) }
+                                        })
+                                    }
+                                })
+                            }
                         })
                     })
                 }
@@ -113,4 +151,3 @@ class ExportSessionUseCase @Inject constructor() {
         )
     }
 }
-
