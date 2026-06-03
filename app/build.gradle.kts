@@ -1,5 +1,6 @@
 val gitCommitHash: String = try {
     val process = ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+        .directory(rootDir)
         .redirectErrorStream(true)
         .start()
     process.inputStream.bufferedReader().readText().trim()
@@ -24,8 +25,8 @@ android {
         applicationId = "com.cellrecorder.app"
         minSdk = 30
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
 
         buildConfigField("String", "GIT_HASH", "\"$gitCommitHash\"")
 
