@@ -343,52 +343,60 @@ private fun ChartGrid(
     val pingValues = remember(records) { records.map { it.avgLatencyMs?.toFloat() } }
     val lossValues = remember(records) { records.map { it.packetLossPct?.toFloat() } }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MetricChart(
-                label = "RSRP",
-                values = rsrpValues,
-                unit = "dBm",
-                currentIndex = currentIndex,
-                color = Color(0xFF2196F3),
-                modifier = Modifier.weight(1f)
-            )
-            MetricChart(
-                label = "SINR",
-                values = sinrValues,
-                unit = "dB",
-                currentIndex = currentIndex,
-                color = Color(0xFF00BCD4),
-                modifier = Modifier.weight(1f)
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MetricChart(
-                label = "Ping",
-                values = pingValues,
-                unit = "ms",
-                currentIndex = currentIndex,
-                color = Color(0xFFFF9800),
-                fixedMin = 0f,
-                modifier = Modifier.weight(1f)
-            )
-            MetricChart(
-                label = "Pkt Loss",
-                values = lossValues,
-                unit = "%",
-                currentIndex = currentIndex,
-                color = Color(0xFFF44336),
-                fixedMin = 0f,
-                fixedMax = 100f,
-                modifier = Modifier.weight(1f)
-            )
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                MetricChart(
+                    label = "RSRP",
+                    values = rsrpValues,
+                    unit = "dBm",
+                    currentIndex = currentIndex,
+                    color = Color(0xFF2196F3),
+                    modifier = Modifier.weight(1f)
+                )
+                MetricChart(
+                    label = "SINR",
+                    values = sinrValues,
+                    unit = "dB",
+                    currentIndex = currentIndex,
+                    color = Color(0xFF00BCD4),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                MetricChart(
+                    label = "Ping",
+                    values = pingValues,
+                    unit = "ms",
+                    currentIndex = currentIndex,
+                    color = Color(0xFFFF9800),
+                    fixedMin = 0f,
+                    modifier = Modifier.weight(1f)
+                )
+                MetricChart(
+                    label = "Pkt Loss",
+                    values = lossValues,
+                    unit = "%",
+                    currentIndex = currentIndex,
+                    color = Color(0xFFF44336),
+                    fixedMin = 0f,
+                    fixedMax = 100f,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
