@@ -229,6 +229,7 @@ fun SessionListScreen(
 
     if (showCreateDialog) {
         CreateSessionDialog(
+            suggestedName = generatePresetName(sessions),
             onDismiss = { showCreateDialog = false },
             onConfirm = { name ->
                 viewModel.createSession(name)
@@ -519,12 +520,25 @@ private fun SimSectionHeader(slot: Int?) {
     }
 }
 
+private fun generatePresetName(sessions: List<SessionSummary>): String {
+    val base = "New Recording Session"
+    val existingNames = sessions.map { it.name }.toSet()
+    if (base !in existingNames) return base
+    var counter = 2
+    while (true) {
+        val candidate = "$base $counter"
+        if (candidate !in existingNames) return candidate
+        counter++
+    }
+}
+
 @Composable
 private fun CreateSessionDialog(
+    suggestedName: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
+    var name by remember(suggestedName) { mutableStateOf(suggestedName) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
