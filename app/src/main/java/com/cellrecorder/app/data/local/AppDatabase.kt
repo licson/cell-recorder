@@ -8,6 +8,7 @@ import com.cellrecorder.app.data.local.dao.CellRecordDao
 import com.cellrecorder.app.data.local.dao.ConfigDao
 import com.cellrecorder.app.data.local.dao.SessionDao
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
+import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.SessionEntity
 
@@ -15,9 +16,10 @@ import com.cellrecorder.app.data.local.entity.SessionEntity
     entities = [
         SessionEntity::class,
         CellRecordEntity::class,
+        CellRecordCaBandEntity::class,
         AppConfigEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -37,6 +39,25 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL("ALTER TABLE cell_records ADD COLUMN isLocationEstimated INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE cell_records ADD COLUMN locationSource TEXT NOT NULL DEFAULT 'GPS'")
             db.execSQL("ALTER TABLE app_config ADD COLUMN maxGpsLossExtrapolationSec INTEGER NOT NULL DEFAULT 120")
+        }
+
+        val MIGRATION_6_7 = Migration(6, 7) { db ->
+            db.execSQL("""CREATE TABLE IF NOT EXISTS `cell_record_ca_bands` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `cellRecordId` INTEGER NOT NULL,
+                `bandNumber` INTEGER,
+                `earfcn` INTEGER,
+                `pci` INTEGER,
+                `rsrp` INTEGER,
+                `rsrq` INTEGER,
+                `sinr` INTEGER,
+                `rssi` INTEGER,
+                `cqi` INTEGER,
+                `timingAdvance` INTEGER,
+                FOREIGN KEY (`cellRecordId`) REFERENCES `cell_records`(`id`) ON DELETE CASCADE
+            )""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_cell_record_ca_bands_cellRecordId` ON `cell_record_ca_bands` (`cellRecordId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_cell_record_ca_bands_bandNumber` ON `cell_record_ca_bands` (`bandNumber`)")
         }
 
         val MIGRATION_5_6 = Migration(5, 6) { db ->

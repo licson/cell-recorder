@@ -1,7 +1,9 @@
 package com.cellrecorder.app.data.repository
 
 import com.cellrecorder.app.data.local.dao.CellRecordDao
+import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.domain.model.BandDistribution
 import com.cellrecorder.app.domain.model.BandDistributionPerSim
 import com.cellrecorder.app.domain.model.RatDistribution
@@ -19,8 +21,17 @@ class CellRecordRepository @Inject constructor(
     suspend fun insert(record: CellRecordEntity): Long =
         cellRecordDao.insert(record)
 
-    suspend fun insertAll(records: List<CellRecordEntity>) =
+    suspend fun insertAll(records: List<CellRecordEntity>): List<Long> =
         cellRecordDao.insertAll(records)
+
+    suspend fun insertCaBands(caBands: List<CellRecordCaBandEntity>) =
+        cellRecordDao.insertCaBands(caBands)
+
+    fun getBySessionIdWithCaBands(sessionId: Long): Flow<List<CellRecordWithCaBands>> =
+        cellRecordDao.getBySessionIdWithCaBands(sessionId)
+
+    suspend fun getBySessionIdOnceWithCaBands(sessionId: Long): List<CellRecordWithCaBands> =
+        cellRecordDao.getBySessionIdOnceWithCaBands(sessionId)
 
     fun getBySessionId(sessionId: Long): Flow<List<CellRecordEntity>> =
         cellRecordDao.getBySessionId(sessionId)
