@@ -252,8 +252,7 @@ app/
 └── di/
     ├── AppModule.kt
     ├── DatabaseModule.kt
-    ├── NetMonsterModule.kt
-    └── ServiceModule.kt
+    └── NetMonsterModule.kt
 ```
 
 ## 5. Feature Details

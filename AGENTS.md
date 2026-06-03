@@ -5,8 +5,8 @@
 - **Platform:** Android (min API 30 / Android 11)
 - **Language:** Kotlin, Jetpack Compose + Material 3, Hilt, Room
 - **Build:** Gradle wrapper (`./gradlew`)
-- **Version:** `1.0.2` (versionCode `3`) — defined in `app/build.gradle.kts`
-- **Tags:** `v1.0.0`, `v1.0.1`, `v1.0.2`
+- **Version:** `1.0.3` (versionCode `4`) — defined in `app/build.gradle.kts`
+- **Tags:** `v1.0.0`, `v1.0.1`, `v1.0.2`, `v1.0.3`
 
 ---
 
