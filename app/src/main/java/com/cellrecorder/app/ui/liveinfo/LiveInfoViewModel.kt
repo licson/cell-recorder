@@ -5,12 +5,10 @@ import android.telephony.SubscriptionManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.repository.ConfigRepository
+import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.service.CellInfoCollector
 import com.cellrecorder.app.service.SimLiveState
-import cz.mroczis.netmonster.core.db.BandTableLte
-import cz.mroczis.netmonster.core.db.BandTableNr
-import cz.mroczis.netmonster.core.db.BandTableWcdma
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -63,7 +61,7 @@ class LiveInfoViewModel @Inject constructor(
                         plmn = if (s.mcc != null && s.mnc != null) "${s.mcc}-${s.mnc}" else "---",
                         rat = s.rat,
                         tac = s.tac?.toString() ?: "---",
-                        bandNumber = resolveBandNumber(s),
+                        bandNumber = BandResolver.formatBand(s.bandNumber, s.earfcn, s.rat),
                         earfcn = s.earfcn?.toString() ?: "---",
                         cellId = formatCellId(s),
                         pci = s.pci?.toString() ?: "---",
@@ -93,19 +91,6 @@ class LiveInfoViewModel @Inject constructor(
                 delay(config.cellInfoRefreshIntervalSec * 1000L)
             }
         }
-    }
-
-    private fun resolveBandNumber(snapshot: CellRecordSnapshot): String {
-        val band = snapshot.bandNumber
-            ?: snapshot.earfcn?.let { earfcn ->
-                when {
-                    snapshot.rat.startsWith("4G") -> BandTableLte.map(earfcn)?.number
-                    snapshot.rat.startsWith("5G") -> BandTableNr.map(earfcn)?.number
-                    snapshot.rat == "3G" -> BandTableWcdma.map(earfcn)?.number
-                    else -> null
-                }
-            }
-        return band?.let { "B$it" } ?: "---"
     }
 
     private fun formatCellId(snapshot: CellRecordSnapshot): String {

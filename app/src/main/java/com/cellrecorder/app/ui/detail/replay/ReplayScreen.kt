@@ -31,6 +31,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
+import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import org.osmdroid.config.Configuration
@@ -548,7 +549,7 @@ private fun StatsPanel(record: CellRecordEntity?) {
                     StatItem("#", "#${(record.simSlotIndex ?: 0) + 1}", weight = 0.6f, valueColor = ratColor(record.rat))
                     StatItem("PLMN", formatPlmn(record.mcc, record.mnc), weight = 1f)
                     StatItem("RAT", record.rat, weight = 0.7f, valueColor = ratColor(record.rat))
-                    StatItem("Band", record.bandNumber?.let { "B$it" } ?: "---", weight = 0.6f)
+                    StatItem("Band", BandResolver.formatBand(record.bandNumber, record.earfcn, record.rat), weight = 0.6f)
                     StatItem("ARFCN", record.earfcn?.toString() ?: "---", weight = 0.8f)
                     StatItem("Ping", record.avgLatencyMs?.let { String.format("%.0f ms", it) } ?: "---", weight = 0.8f)
                 }

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
+import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.usecase.ExportData
 import com.cellrecorder.app.ui.detail.analytics.AnalyticsPanel
 import com.cellrecorder.app.ui.map.SessionMapView
@@ -385,7 +386,7 @@ private fun SimRecordRow(
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = record.bandNumber?.let { "B$it" } ?: "---",
+            text = BandResolver.formatBand(record.bandNumber, record.earfcn, record.rat),
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.weight(1f)
         )

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.detail.MapDisplayMode
 import com.cellrecorder.app.ui.detail.formatCellId
 import com.cellrecorder.app.ui.detail.packetLossColorArgb
@@ -82,7 +83,7 @@ fun SessionMapView(
                 MapDisplayMode.PACKET_LOSS -> drawPacketLossTrails(mapView, records)
                 MapDisplayMode.CELL_ID -> drawMarkers(mapView, records, ctx, changeExtractor = { formatCellId(it) }, titlePrefix = "Cell ID")
                 MapDisplayMode.RAT -> drawMarkers(mapView, records, ctx, changeExtractor = { it.rat }, titlePrefix = "RAT")
-                MapDisplayMode.BAND -> drawMarkers(mapView, records, ctx, changeExtractor = { it.bandNumber?.toString() ?: "---" }, titlePrefix = "Band")
+                MapDisplayMode.BAND -> drawMarkers(mapView, records, ctx, changeExtractor = { BandResolver.formatBand(it.bandNumber, it.earfcn, it.rat) }, titlePrefix = "Band")
             }
         }
         mapView.invalidate()
@@ -224,7 +225,7 @@ private fun drawMarkers(
                 position = GeoPoint(record.latitude, record.longitude)
                 setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                 title = "$titlePrefix: $current"
-                snippet = "SIM${(record.simSlotIndex ?: 0) + 1} · ${record.bandNumber?.let { "B$it" } ?: "---"} · RSRP: ${record.rsrp ?: "---"}"
+                snippet = "SIM${(record.simSlotIndex ?: 0) + 1} · ${BandResolver.formatBand(record.bandNumber, record.earfcn, record.rat)} · RSRP: ${record.rsrp ?: "---"}"
                 icon = createDotDrawable(ctx, ratColorArgb(record.rat), 14)
             }
             mapView.overlays.add(marker)

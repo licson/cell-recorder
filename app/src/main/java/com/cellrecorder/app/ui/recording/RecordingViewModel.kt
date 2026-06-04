@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.local.entity.SessionEntity
 import com.cellrecorder.app.data.repository.ConfigRepository
 import com.cellrecorder.app.data.repository.SessionRepository
+import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.service.CellInfoCollector
 import com.cellrecorder.app.service.RecordingState
@@ -67,7 +68,7 @@ class RecordingViewModel @Inject constructor(
                                 plmn = formatPlmn(s.mcc, s.mnc),
                                 rat = s.rat,
                                 tac = s.tac?.toString() ?: "---",
-                                bandNumber = s.bandNumber?.let { "B$it" } ?: "---",
+                                bandNumber = BandResolver.formatBand(s.bandNumber, s.earfcn, s.rat),
                                 earfcn = s.earfcn?.toString() ?: "---",
                                 cellId = formatCellId(s),
                                 pci = s.pci?.toString() ?: "---",
