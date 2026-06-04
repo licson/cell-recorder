@@ -12,8 +12,9 @@ object BandResolver {
     }
 
     fun formatBand(bandNumber: Int?, earfcn: Int?, rat: String): String {
-        return resolveBandNumber(bandNumber, earfcn, rat)
-            ?.let { "B$it" } ?: "---"
+        val band = resolveBandNumber(bandNumber, earfcn, rat) ?: return "---"
+        val prefix = if (rat.startsWith("5G") && (earfcn == null || earfcn >= 82_000)) "n" else "B"
+        return "$prefix$band"
     }
 
     private fun mapEarfcn(earfcn: Int, rat: String): Int? = when {
