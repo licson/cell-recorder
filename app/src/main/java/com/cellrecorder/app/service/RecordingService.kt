@@ -214,7 +214,10 @@ class RecordingService : Service() {
                     recordingMutex.withLock {
                         if (gpsState.isFixLost(now, 3_000L)) {
                             gpsState.startExtrapolating(now)
-                            if (sensorFusion.isAvailable) sensorFusion.start()
+                            if (sensorFusion.isAvailable) sensorFusion.start(
+                                bearing = gpsState.lastKnownBearing,
+                                speedMps = gpsState.lastKnownSpeedMps
+                            )
                         }
 
                         if (gpsState.isExtrapolating) {
@@ -230,7 +233,9 @@ class RecordingService : Service() {
                             if (timeSinceLastRecorded < config.recordingIntervalMs) return@withLock
 
                             val elapsedSec = (now - pointRecorder.lastRecordedTime) / 1000f
-                            val distanceM = gpsState.lastKnownSpeedMps * elapsedSec
+                            val speedAdjust = if (sensorFusion.isAvailable) sensorFusion.speedDeltaMps.value else 0f
+                            val effectiveSpeed = (gpsState.lastKnownSpeedMps + speedAdjust).coerceAtLeast(0f)
+                            val distanceM = effectiveSpeed * elapsedSec
                             val headingDelta = if (sensorFusion.isAvailable) sensorFusion.headingDelta.value else 0f
                             val estimatedHeading = (gpsState.lastKnownBearing + headingDelta) % 360f
 
@@ -244,7 +249,7 @@ class RecordingService : Service() {
                                 latitude = estLat, longitude = estLon,
                                 altitude = gpsState.lastValidLocation?.altitude ?: 0.0,
                                 accuracy = gpsState.estimatedAccuracy(extrapolationAgeSec),
-                                timestamp = now, speed = gpsState.lastKnownSpeedMps,
+                                timestamp = now, speed = effectiveSpeed,
                                 bearing = estimatedHeading
                             )
 

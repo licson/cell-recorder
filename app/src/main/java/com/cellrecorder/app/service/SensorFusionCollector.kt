@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
 
 @Singleton
 class SensorFusionCollector @Inject constructor(
@@ -23,45 +26,102 @@ class SensorFusionCollector @Inject constructor(
         context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val gameRotation: Sensor? =
         sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+    private val linearAccel: Sensor? =
+        sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
 
     private var baselineYaw: Float? = null
     private var smoothedDelta: Float = 0f
     private val _headingDelta = MutableStateFlow(0f)
     val headingDelta: StateFlow<Float> = _headingDelta.asStateFlow()
 
+    private var initialBearing: Float = 0f
+    private var initialSpeedMps: Float = 0f
+    private val _speedDeltaMps = MutableStateFlow(0f)
+    val speedDeltaMps: StateFlow<Float> = _speedDeltaMps.asStateFlow()
+
+    private var rotationMatrix = FloatArray(9)
+    private var hasRotationMatrix = false
+    private var lastAccelTimestampNs: Long = 0L
+
     val isAvailable: Boolean get() = gameRotation != null
+    val hasLinearAccel: Boolean get() = linearAccel != null
 
     private val sensorCallback = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
-            if (event.sensor.type != Sensor.TYPE_GAME_ROTATION_VECTOR) return
-            val yaw = calculateYaw(event.values)
-            if (baselineYaw == null) {
-                baselineYaw = yaw
-                return
-            }
-            var rawDelta = yaw - baselineYaw!!
-            if (rawDelta > 180f) rawDelta -= 360f
-            if (rawDelta < -180f) rawDelta += 360f
-            smoothedDelta = 0.85f * smoothedDelta + 0.15f * rawDelta
-            if (_headingDelta.value != smoothedDelta) {
-                _headingDelta.value = smoothedDelta
+            when (event.sensor.type) {
+                Sensor.TYPE_GAME_ROTATION_VECTOR -> onGameRotationChanged(event)
+                Sensor.TYPE_LINEAR_ACCELERATION -> onLinearAccelChanged(event)
             }
         }
 
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     }
 
-    fun start() {
+    private fun onGameRotationChanged(event: SensorEvent) {
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+        hasRotationMatrix = true
+
+        val yaw = calculateYaw(event.values)
+        if (baselineYaw == null) {
+            baselineYaw = yaw
+            return
+        }
+        var rawDelta = yaw - baselineYaw!!
+        if (rawDelta > 180f) rawDelta -= 360f
+        if (rawDelta < -180f) rawDelta += 360f
+        smoothedDelta = 0.85f * smoothedDelta + 0.15f * rawDelta
+        if (_headingDelta.value != smoothedDelta) {
+            _headingDelta.value = smoothedDelta
+        }
+    }
+
+    private fun onLinearAccelChanged(event: SensorEvent) {
+        if (!hasRotationMatrix || initialSpeedMps <= 0f) return
+
+        if (lastAccelTimestampNs == 0L) {
+            lastAccelTimestampNs = event.timestamp
+            return
+        }
+
+        val dtSec = (event.timestamp - lastAccelTimestampNs) / 1_000_000_000f
+        lastAccelTimestampNs = event.timestamp
+        if (dtSec <= 0f || dtSec > 0.5f) return
+
+        val deviceAccel = floatArrayOf(event.values[0], event.values[1], event.values[2], 0f)
+        val worldAccel = FloatArray(4)
+        android.opengl.Matrix.multiplyMV(worldAccel, 0, rotationMatrix, 0, deviceAccel, 0)
+
+        val currentHeadingDeg = (initialBearing + smoothedDelta + 360f) % 360f
+        val headingRad = Math.toRadians(currentHeadingDeg.toDouble())
+        val forwardAccel = (worldAccel[0] * sin(headingRad) + worldAccel[1] * cos(headingRad)).toFloat()
+
+        val tau = 10f
+        val decay = exp(-dtSec / tau).toFloat()
+        val currentDelta = _speedDeltaMps.value
+        val newDelta = currentDelta * decay + forwardAccel * dtSec
+        val maxAdjust = 0.5f * initialSpeedMps
+        val clampedDelta = newDelta.coerceIn(-maxAdjust, maxAdjust)
+        _speedDeltaMps.value = clampedDelta
+    }
+
+    fun start(bearing: Float = 0f, speedMps: Float = 0f) {
         baselineYaw = null
         smoothedDelta = 0f
         _headingDelta.value = 0f
+        initialBearing = bearing
+        initialSpeedMps = speedMps
+        _speedDeltaMps.value = 0f
+        hasRotationMatrix = false
+        lastAccelTimestampNs = 0L
+
+        val handler = Handler(Looper.getMainLooper())
         gameRotation?.let {
-            sensorManager.registerListener(
-                sensorCallback,
-                it,
-                SensorManager.SENSOR_DELAY_GAME,
-                Handler(Looper.getMainLooper())
-            )
+            sensorManager.registerListener(sensorCallback, it, SensorManager.SENSOR_DELAY_GAME, handler)
+        }
+        if (initialSpeedMps > 0f) {
+            linearAccel?.let {
+                sensorManager.registerListener(sensorCallback, it, SensorManager.SENSOR_DELAY_GAME, handler)
+            }
         }
     }
 
@@ -70,6 +130,11 @@ class SensorFusionCollector @Inject constructor(
         baselineYaw = null
         smoothedDelta = 0f
         _headingDelta.value = 0f
+        initialBearing = 0f
+        initialSpeedMps = 0f
+        _speedDeltaMps.value = 0f
+        hasRotationMatrix = false
+        lastAccelTimestampNs = 0L
     }
 
     private fun calculateYaw(values: FloatArray): Float {
@@ -77,7 +142,7 @@ class SensorFusionCollector @Inject constructor(
         val x = values[0]
         val y = values[1]
         val z = values[2]
-        val yaw = atan2(
+        val yaw = -atan2(
             2.0 * (w.toDouble() * z.toDouble() + x.toDouble() * y.toDouble()),
             1.0 - 2.0 * (y.toDouble() * y.toDouble() + z.toDouble() * z.toDouble())
         )
