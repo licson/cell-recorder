@@ -28,8 +28,74 @@ class CellInfoCollector @Inject constructor(
         return cells.groupBy { it.subscriptionId }.map { (subId, subCells) ->
             val serving = subCells.firstOrNull { it.connectionStatus is PrimaryConnection }
             val networkType = netMonster.getNetworkType(subId)
-            buildSnapshot(subId, serving, subCells, networkType, config)
+            if (networkType is NetworkType.Nr.Nsa) {
+                buildNsaSnapshot(subId, subCells, config)
+            } else {
+                buildSnapshot(subId, serving, subCells, networkType, config)
+            }
         }
+    }
+
+    private fun buildNsaSnapshot(
+        subId: Int,
+        subCells: List<ICell>,
+        config: AppConfigEntity
+    ): CellRecordSnapshot {
+        val nrCell = subCells.firstOrNull { it is CellNr } as? CellNr
+        val lteAnchor = subCells.firstOrNull {
+            it is CellLte && it.connectionStatus is PrimaryConnection
+        } as? CellLte
+
+        if (nrCell == null) {
+            if (lteAnchor == null) {
+                return CellRecordSnapshot(subscriptionId = subId, rat = "UNKNOWN")
+            }
+            val caBands = extractCaBands(lteAnchor, subCells)
+            val lteRat = if (caBands.isNotEmpty()) "4G_CA" else "4G"
+            return CellRecordSnapshot(
+                subscriptionId = subId, rat = lteRat, caBands = caBands
+            )
+        }
+
+        val fullId = nrCell.nci
+        val shift = 36 - config.nrGnbBitLength
+        val caBands = lteAnchor?.let { extractCaBands(it, subCells) } ?: emptyList()
+
+        return CellRecordSnapshot(
+            subscriptionId = subId,
+            rat = "5G_NSA",
+            networkTypeCode = netMonster.getNetworkType(subId).technology,
+            fullCellIdentity = fullId,
+            enbOrGnbId = fullId?.shr(shift),
+            lcid = fullId?.and((1L shl shift) - 1)?.toInt(),
+            cellIdBitLength = fullId?.let { config.nrGnbBitLength },
+            pci = nrCell.pci,
+            tac = lteAnchor?.tac,
+            bandNumber = BandResolver.resolveBandNumber(
+                nrCell.band?.number, nrCell.band?.downlinkArfcn, "5G_NSA"
+            ),
+            earfcn = nrCell.band?.downlinkArfcn,
+            rsrp = nrCell.signal?.ssRsrp,
+            rsrq = nrCell.signal?.ssRsrq,
+            sinr = nrCell.signal?.ssSinr,
+            mcc = nrCell.network?.mcc ?: lteAnchor?.network?.mcc,
+            mnc = nrCell.network?.mnc ?: lteAnchor?.network?.mnc,
+            caBands = caBands,
+            anchorEnbOrGnbId = lteAnchor?.eci?.toLong()?.shr(8),
+            anchorLcid = lteAnchor?.eci?.toLong()?.and(0xFF)?.toInt(),
+            anchorPci = lteAnchor?.pci,
+            anchorTac = lteAnchor?.tac,
+            anchorBandNumber = lteAnchor?.band?.downlinkEarfcn?.let { BandTableLte.map(it).number }
+                ?: lteAnchor?.band?.number,
+            anchorEarfcn = lteAnchor?.band?.downlinkEarfcn,
+            anchorBandwidthKhz = lteAnchor?.bandwidth,
+            anchorRsrp = lteAnchor?.signal?.rsrp?.toInt(),
+            anchorRsrq = lteAnchor?.signal?.rsrq?.toInt(),
+            anchorSinr = lteAnchor?.signal?.snr?.toInt(),
+            anchorRssi = lteAnchor?.signal?.rssi,
+            anchorCqi = lteAnchor?.signal?.cqi,
+            anchorTimingAdvance = lteAnchor?.signal?.timingAdvance
+        )
     }
 
     private fun buildSnapshot(
@@ -69,10 +135,9 @@ class CellInfoCollector @Inject constructor(
             is CellNr -> {
                 val fullId = serving.nci
                 val shift = 36 - config.nrGnbBitLength
-                val nrRat = if (networkType is NetworkType.Nr.Nsa) "5G_NSA" else "5G_SA"
                 CellRecordSnapshot(
                     subscriptionId = subId,
-                    rat = nrRat,
+                    rat = "5G_SA",
                     networkTypeCode = networkType.technology,
                     fullCellIdentity = fullId,
                     enbOrGnbId = fullId?.shr(shift),
@@ -80,7 +145,7 @@ class CellInfoCollector @Inject constructor(
                     cellIdBitLength = config.nrGnbBitLength,
                     pci = serving.pci,
                     tac = serving.tac,
-                    bandNumber = BandResolver.resolveBandNumber(serving.band?.number, serving.band?.downlinkArfcn, nrRat),
+                    bandNumber = BandResolver.resolveBandNumber(serving.band?.number, serving.band?.downlinkArfcn, "5G_SA"),
                     earfcn = serving.band?.downlinkArfcn,
                     rsrp = serving.signal?.ssRsrp,
                     rsrq = serving.signal?.ssRsrq,

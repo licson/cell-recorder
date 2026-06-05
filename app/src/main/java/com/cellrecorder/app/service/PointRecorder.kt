@@ -83,7 +83,20 @@ class PointRecorder @Inject constructor(
                     avgLatencyMs = pingAvg,
                     packetLossPct = pingLoss,
                     isLocationEstimated = isEstimated,
-                    locationSource = source
+                    locationSource = source,
+                    anchorEnbOrGnbId = snapshot.anchorEnbOrGnbId,
+                    anchorLcid = snapshot.anchorLcid,
+                    anchorPci = snapshot.anchorPci,
+                    anchorTac = snapshot.anchorTac,
+                    anchorBandNumber = snapshot.anchorBandNumber,
+                    anchorEarfcn = snapshot.anchorEarfcn,
+                    anchorBandwidthKhz = snapshot.anchorBandwidthKhz,
+                    anchorRsrp = snapshot.anchorRsrp,
+                    anchorRsrq = snapshot.anchorRsrq,
+                    anchorSinr = snapshot.anchorSinr,
+                    anchorRssi = snapshot.anchorRssi,
+                    anchorCqi = snapshot.anchorCqi,
+                    anchorTimingAdvance = snapshot.anchorTimingAdvance
                 )
                 val recordId = cellRecordRepository.insert(record)
                 if (snapshot.caBands.isNotEmpty()) {

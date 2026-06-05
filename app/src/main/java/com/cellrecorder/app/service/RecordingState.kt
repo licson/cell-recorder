@@ -13,7 +13,8 @@ data class SimLiveState(
     val rsrp: String = "---",
     val rsrq: String = "---",
     val sinr: String = "---",
-    val caBands: List<String> = emptyList()
+    val caBands: List<String> = emptyList(),
+    val anchorInfo: String = ""
 )
 
 data class RecordingState(

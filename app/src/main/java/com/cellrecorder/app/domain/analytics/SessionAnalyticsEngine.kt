@@ -603,7 +603,7 @@ class SessionAnalyticsEngine {
         val cards = mutableListOf<InsightCard>()
 
         val intraSite5g = handoffEvents.count {
-            it.type == HandoffType.INTRA_SITE_PCI_CHANGE && it.rat == "5G_SA"
+            it.type == HandoffType.INTRA_SITE_PCI_CHANGE && it.rat.startsWith("5G")
         }
         val intraSite4g = handoffEvents.count {
             it.type == HandoffType.INTRA_SITE_PCI_CHANGE && (it.rat == "4G" || it.rat == "4G_CA")
