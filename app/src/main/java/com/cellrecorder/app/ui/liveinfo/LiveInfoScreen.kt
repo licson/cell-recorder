@@ -26,6 +26,8 @@ fun LiveInfoScreen(
     val liveSimStates by viewModel.liveSimStates.collectAsStateWithLifecycle()
     val rsrpHistory by viewModel.rsrpHistory.collectAsStateWithLifecycle()
     val sinrHistory by viewModel.sinrHistory.collectAsStateWithLifecycle()
+    val pingLatencyHistory by viewModel.pingLatencyHistory.collectAsStateWithLifecycle()
+    val packetLossHistory by viewModel.packetLossHistory.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -56,6 +58,12 @@ fun LiveInfoScreen(
                         sim = sim,
                         rsrpHistory = rsrpHistory[sim.subscriptionId] ?: emptyList(),
                         sinrHistory = sinrHistory[sim.subscriptionId] ?: emptyList()
+                    )
+                }
+                item {
+                    PingCard(
+                        pingLatencyHistory = pingLatencyHistory,
+                        packetLossHistory = packetLossHistory
                     )
                 }
             }
@@ -163,5 +171,53 @@ private fun LiveStatItem(
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             maxLines = 1
         )
+    }
+}
+
+@Composable
+private fun PingCard(
+    pingLatencyHistory: List<Float?>,
+    packetLossHistory: List<Float>
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "Ping",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                MetricChart(
+                    label = "Latency",
+                    values = pingLatencyHistory,
+                    unit = "ms",
+                    currentIndex = pingLatencyHistory.size - 1,
+                    color = Color(0xFFFF9800),
+                    fixedMin = 0f,
+                    modifier = Modifier.weight(1f)
+                )
+                MetricChart(
+                    label = "Packet Loss",
+                    values = packetLossHistory,
+                    unit = "%",
+                    currentIndex = packetLossHistory.size - 1,
+                    color = Color(0xFFF44336),
+                    fixedMin = 0f,
+                    fixedMax = 100f,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }

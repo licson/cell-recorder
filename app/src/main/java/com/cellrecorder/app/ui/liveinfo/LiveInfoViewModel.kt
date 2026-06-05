@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.repository.ConfigRepository
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
+import com.cellrecorder.app.domain.ping.PingEngine
+import com.cellrecorder.app.domain.ping.PingSlidingWindow
 import com.cellrecorder.app.service.CellInfoCollector
 import com.cellrecorder.app.service.SimLiveState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,6 +27,7 @@ import javax.inject.Inject
 class LiveInfoViewModel @Inject constructor(
     private val cellInfoCollector: CellInfoCollector,
     private val configRepository: ConfigRepository,
+    private val pingEngine: PingEngine,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -36,6 +39,14 @@ class LiveInfoViewModel @Inject constructor(
 
     private val _sinrHistory = MutableStateFlow<Map<Int, List<Int?>>>(emptyMap())
     val sinrHistory: StateFlow<Map<Int, List<Int?>>> = _sinrHistory
+
+    private val _pingLatencyHistory = MutableStateFlow<List<Float?>>(emptyList())
+    val pingLatencyHistory: StateFlow<List<Float?>> = _pingLatencyHistory
+
+    private val _packetLossHistory = MutableStateFlow<List<Float>>(emptyList())
+    val packetLossHistory: StateFlow<List<Float>> = _packetLossHistory
+
+    private val pingWindow = PingSlidingWindow()
 
     companion object {
         private const val MAX_HISTORY = 60
@@ -89,6 +100,28 @@ class LiveInfoViewModel @Inject constructor(
                 _sinrHistory.value = currentSinr
 
                 delay(config.cellInfoRefreshIntervalSec * 1000L)
+            }
+        }
+
+        viewModelScope.launch {
+            val config = configRepository.getConfig().first()
+            while (isActive) {
+                val result = withContext(Dispatchers.IO) {
+                    pingEngine.ping(config.pingDestination, config.pingTimeoutMs)
+                }
+                pingWindow.add(result)
+
+                val latency = _pingLatencyHistory.value.toMutableList()
+                latency.add(result.latencyMs?.toFloat())
+                if (latency.size > MAX_HISTORY) latency.removeFirst()
+                _pingLatencyHistory.value = latency
+
+                val loss = _packetLossHistory.value.toMutableList()
+                loss.add(pingWindow.packetLossPct().toFloat())
+                if (loss.size > MAX_HISTORY) loss.removeFirst()
+                _packetLossHistory.value = loss
+
+                delay(config.pingIntervalMs)
             }
         }
     }
