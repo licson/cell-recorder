@@ -1,10 +1,4 @@
-# Data Import and Export Specification
-
-## Purpose
-
-Defines the formats and behavior for exporting and importing session data via CSV and GeoJSON files.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: CSV Export
 
@@ -49,12 +43,6 @@ The system SHALL allow importing cell records from a CSV file. Anchor cell colum
 - GIVEN the import dialog is open
 - WHEN the user selects a CSV file that does not include anchor columns
 - THEN anchor fields default to null and the import succeeds without error
-
-#### Scenario: Malformed lines skipped during import
-- GIVEN the import dialog is open
-- WHEN the user selects a CSV file
-- THEN malformed lines are skipped
-- AND a new session is created containing the successfully parsed records
 
 ### Requirement: GeoJSON Import
 

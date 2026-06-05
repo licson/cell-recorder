@@ -70,7 +70,7 @@ The system SHALL display an analytics panel alongside the map.
 
 ### Requirement: Session Replay
 
-The system SHALL replay a session's recorded path with animated playback.
+The system SHALL replay a session's recorded path with animated playback. For `5G_NSA` records, the replay stats panel SHALL display both the NR cell data and the LTE anchor cell data.
 
 #### Scenario: Replay started
 - GIVEN a session with recorded points
@@ -85,6 +85,7 @@ The system SHALL replay a session's recorded path with animated playback.
 - GIVEN replay mode is active
 - WHEN the marker reaches a point
 - THEN the current point's RAT, PCI, RSRP, RSRQ, SINR, ping, and packet loss are shown in a stats panel
+- AND for `5G_NSA` records, the LTE anchor's band, PCI, and RSRP are also displayed
 
 #### Scenario: Timeline chart in replay
 - GIVEN replay mode is active
