@@ -21,7 +21,7 @@ class PingSlidingWindow(private val windowSize: Int = 5) {
     }
 
     fun packetLossPct(): Double {
-        if (buffer.isEmpty()) return 0.0
+        if (buffer.size < windowSize) return 0.0
         val lossCount = buffer.count { it.outcome != PingOutcome.SUCCESS }
         return (lossCount.toDouble() / buffer.size) * 100.0
     }

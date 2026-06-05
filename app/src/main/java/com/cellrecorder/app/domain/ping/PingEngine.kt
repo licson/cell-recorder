@@ -73,6 +73,7 @@ class PingEngine @Inject constructor() {
                         reader = process.inputStream.bufferedReader()
                         continue
                     }
+                    if (!line.contains("icmp_seq=")) continue
                     val parsed = parseLine(line)
                     trySend(PingResult(latencyMs = parsed.first, timestamp = System.currentTimeMillis(), outcome = parsed.second))
                 } catch (e: Exception) {

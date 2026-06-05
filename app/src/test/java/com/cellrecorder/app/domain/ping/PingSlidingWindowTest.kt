@@ -25,8 +25,8 @@ class PingSlidingWindowTest {
     }
 
     @Test
-    fun `mixed loss and success`() {
-        val window = PingSlidingWindow(5)
+    fun `mixed loss and success once window is full`() {
+        val window = PingSlidingWindow(3)
         window.add(PingResult(latencyMs = 10.0, timestamp = 1, outcome = PingOutcome.SUCCESS))
         window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.TIMEOUT))
         window.add(PingResult(latencyMs = 20.0, timestamp = 3, outcome = PingOutcome.SUCCESS))
@@ -59,18 +59,50 @@ class PingSlidingWindowTest {
 
     @Test
     fun `all nulls returns null avg and 100 pct loss`() {
-        val window = PingSlidingWindow(3)
+        val window = PingSlidingWindow(2)
         window.add(PingResult(latencyMs = null, timestamp = 1, outcome = PingOutcome.TIMEOUT))
         window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.HOST_UNREACHABLE))
         assertNull(window.avgLatencyMs())
         assertEquals(100.0, window.packetLossPct())
     }
 
+    // --- Partial window: no loss reported until window is full ---
+
+    @Test
+    fun `loss is zero when buffer not yet full`() {
+        val window = PingSlidingWindow(5)
+        window.add(PingResult(latencyMs = null, timestamp = 1, outcome = PingOutcome.TIMEOUT))
+        assertEquals(0.0, window.packetLossPct())
+    }
+
+    @Test
+    fun `loss zero until buffer reaches window size`() {
+        val window = PingSlidingWindow(3)
+        window.add(PingResult(latencyMs = null, timestamp = 1, outcome = PingOutcome.TIMEOUT))
+        window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.HOST_UNREACHABLE))
+        assertEquals(0.0, window.packetLossPct())
+
+        window.add(PingResult(latencyMs = null, timestamp = 3, outcome = PingOutcome.PROCESS_ERROR))
+        assertEquals(100.0, window.packetLossPct())
+    }
+
+    @Test
+    fun `loss reported once window slides past capacity`() {
+        val window = PingSlidingWindow(3)
+        window.add(PingResult(latencyMs = 10.0, timestamp = 1, outcome = PingOutcome.SUCCESS))
+        window.add(PingResult(latencyMs = 10.0, timestamp = 2, outcome = PingOutcome.SUCCESS))
+        window.add(PingResult(latencyMs = 10.0, timestamp = 3, outcome = PingOutcome.SUCCESS))
+        assertEquals(0.0, window.packetLossPct())
+
+        window.add(PingResult(latencyMs = null, timestamp = 4, outcome = PingOutcome.TIMEOUT))
+        assertEquals(33.333, window.packetLossPct(), 0.01)
+    }
+
     // --- Outcome-based tests ---
 
     @Test
     fun `TIMEOUT counts as packet loss`() {
-        val window = PingSlidingWindow(4)
+        val window = PingSlidingWindow(2)
         window.add(PingResult(latencyMs = 10.0, timestamp = 1, outcome = PingOutcome.SUCCESS))
         window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.TIMEOUT))
         assertEquals(50.0, window.packetLossPct(), 0.01)
@@ -78,7 +110,7 @@ class PingSlidingWindowTest {
 
     @Test
     fun `HOST_UNREACHABLE counts as packet loss`() {
-        val window = PingSlidingWindow(4)
+        val window = PingSlidingWindow(2)
         window.add(PingResult(latencyMs = 10.0, timestamp = 1, outcome = PingOutcome.SUCCESS))
         window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.HOST_UNREACHABLE))
         assertEquals(50.0, window.packetLossPct(), 0.01)
@@ -86,7 +118,7 @@ class PingSlidingWindowTest {
 
     @Test
     fun `PROCESS_ERROR counts as packet loss`() {
-        val window = PingSlidingWindow(4)
+        val window = PingSlidingWindow(2)
         window.add(PingResult(latencyMs = 10.0, timestamp = 1, outcome = PingOutcome.SUCCESS))
         window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.PROCESS_ERROR))
         assertEquals(50.0, window.packetLossPct(), 0.01)
@@ -94,7 +126,7 @@ class PingSlidingWindowTest {
 
     @Test
     fun `all non-SUCCESS outcomes count as loss`() {
-        val window = PingSlidingWindow(5)
+        val window = PingSlidingWindow(4)
         window.add(PingResult(latencyMs = null, timestamp = 1, outcome = PingOutcome.TIMEOUT))
         window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.HOST_UNREACHABLE))
         window.add(PingResult(latencyMs = null, timestamp = 3, outcome = PingOutcome.PROCESS_ERROR))
