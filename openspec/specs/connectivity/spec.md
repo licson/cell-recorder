@@ -8,32 +8,39 @@ Defines how the system measures network connectivity through ICMP ping during ac
 
 ### Requirement: Continuous Ping During Recording
 
-The system SHALL continuously ping a configurable destination while a recording is active.
+The system SHALL continuously ping a configurable destination while a recording is active, using a single long-running ping process.
 
-#### Scenario: Ping loop starts
+#### Scenario: Ping process starts
 - GIVEN a recording session has started
 - WHEN the recording begins
-- THEN a continuous ping loop begins
-- AND pings are dispatched at `pingIntervalMs` intervals
+- THEN a single long-running `ping -i <interval>` process is started
+- AND ping results are streamed continuously via a `Flow<PingResult>`
 
-#### Scenario: Ping loop stops
-- GIVEN an active recording with running pings
+#### Scenario: Ping process stops
+- GIVEN an active recording with a running ping process
 - WHEN the recording is stopped
-- THEN the ping loop is terminated
+- THEN the ping process is terminated and the flow completes
+
+#### Scenario: Ping process restart on failure
+- GIVEN an active recording with a running ping process
+- WHEN the ping process dies unexpectedly
+- THEN the ping process is automatically restarted
+- AND a null latency result is emitted for any gap period
 
 ### Requirement: Ping Timeout
 
-The system SHALL apply a configurable timeout to each ping attempt.
+The system SHALL apply a configurable timeout to the overall ping process communication.
 
 #### Scenario: Ping response within timeout
-- GIVEN a running ping loop
-- WHEN a ping response is received within `pingTimeoutMs`
-- THEN the latency is recorded
+- GIVEN a running ping process
+- WHEN a ping response line is parsed from the process output
+- THEN the latency is extracted and recorded
 
-#### Scenario: Ping timeout exceeded
-- GIVEN a running ping loop
-- WHEN no response is received within `pingTimeoutMs`
-- THEN the ping is recorded as lost (null)
+#### Scenario: No response from ping process
+- GIVEN a running ping process
+- WHEN no output is received from the process for an extended period
+- THEN the process is considered dead and is restarted
+- AND a null latency result is emitted for the gap
 
 ### Requirement: Sliding Window Latency
 
