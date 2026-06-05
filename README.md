@@ -19,11 +19,46 @@ Cell Recorder is an Android app that records cellular tower information (signal 
 
 ## Screenshots
 
-![Session List](https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013955.png)
-![Recording Screen](https://s3.licson.net/licson/attachment/hkepc-t2769578-1/Screenshot_20260524-180152.png)
-![Live Cell Info](https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-014604.png)
-![Global Statistics](https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013939.png)
-![Session Analytics](https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013842.png)
+<details>
+<summary><strong>Screenshots</strong></summary>
+
+### Home &amp; Recording
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013955.png" width="200" alt="Session List"><br>
+      <em>Session List</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="https://s3.licson.net/licson/attachment/hkepc-t2769578-1/Screenshot_20260524-180152.png" width="200" alt="Recording Screen"><br>
+      <em>Recording Screen</em>
+    </td>
+  </tr>
+</table>
+
+### Live Info &amp; Analytics
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-014604.png" width="200" alt="Live Cell Info"><br>
+      <em>Live Cell Info</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013939.png" width="200" alt="Global Statistics"><br>
+      <em>Global Statistics</em>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <img src="https://s3.licson.net/licson/attachment/hkepc-t2769578-2/Screenshot_20260529-013842.png" width="200" alt="Session Analytics"><br>
+      <em>Session Analytics</em>
+    </td>
+  </tr>
+</table>
+
+</details>
 
 ## Video Demo
 
