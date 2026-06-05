@@ -48,9 +48,10 @@ After completing any task that modifies files:
 When the user asks for a version bump or release:
 1. Update `CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 2. Add a new `## [X.Y.Z] - YYYY-MM-DD` section with categories: `Added`, `Changed`, `Fixed`, etc.
-3. Update `versionName` and `versionCode` in `app/build.gradle.kts`.
-4. Commit the changes locally.
-5. Create the git tag **only if the user explicitly requests it**.
+3. Write each entry from the user's perspective — describe **what** changed functionally and **why it matters**, not how it was coded. Use plain language, avoiding class names, field names, or other implementation jargon.
+4. Update `versionName` and `versionCode` in `app/build.gradle.kts`.
+5. Commit the changes locally.
+6. Create the git tag **only if the user explicitly requests it**.
 
 ---
 
