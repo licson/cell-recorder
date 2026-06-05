@@ -81,7 +81,10 @@ class LiveInfoViewModel @Inject constructor(
                         sinr = s.sinr?.toString() ?: "---",
                         caBands = s.caBands.map { ca ->
                             "B${ca.bandNumber ?: "?"} (PCI ${ca.pci ?: "?"})"
-                        }
+                        },
+                        anchorInfo = if (s.rat.startsWith("5G_NSA") && s.anchorPci != null) {
+                            "B${s.anchorBandNumber ?: "?"} PCI ${s.anchorPci} RSRP ${s.anchorRsrp ?: "---"}"
+                        } else ""
                     )
                 }
 

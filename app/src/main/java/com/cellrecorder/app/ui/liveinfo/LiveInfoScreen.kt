@@ -117,6 +117,11 @@ private fun LiveSimCard(
                 LiveStatItem("CA Bands", sim.caBands.joinToString(", "), Modifier.fillMaxWidth())
             }
 
+            if (sim.anchorInfo.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                LiveStatItem("Anchor", sim.anchorInfo, Modifier.fillMaxWidth(), valueColor = MaterialTheme.colorScheme.primary)
+            }
+
             if (rsrpHistory.isNotEmpty() || sinrHistory.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider()

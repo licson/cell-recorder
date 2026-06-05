@@ -395,13 +395,20 @@ private fun SimRecordRow(
             style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
             modifier = Modifier.weight(1f)
         )
-        Text(
-            text = record.avgLatencyMs?.let { String.format("%.0f ms", it) } ?: "---",
-            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-            modifier = Modifier.weight(1f)
-        )
+Text(
+                text = record.avgLatencyMs?.let { String.format("%.0f ms", it) } ?: "---",
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (record.rat.startsWith("5G_NSA") && record.anchorPci != null) {
+            Text(
+                text = "Anchor: B${record.anchorBandNumber ?: "?"} PCI ${record.anchorPci} RSRP ${record.anchorRsrp?.toString() ?: "---"}",
+                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.primary),
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
     }
-}
 
 private fun formatPlmn(mcc: String?, mnc: String?): String = com.cellrecorder.app.ui.shared.formatPlmn(mcc, mnc)
 

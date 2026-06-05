@@ -562,6 +562,15 @@ private fun StatsPanel(record: CellRecordEntity?) {
                     StatItem("RSRQ", record.rsrq?.toString() ?: "---", weight = 0.6f)
                     StatItem("SINR", record.sinr?.toString() ?: "---", weight = 0.6f)
                 }
+                if (record.rat.startsWith("5G_NSA") && record.anchorPci != null) {
+                    Spacer(Modifier.height(2.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                        Box(Modifier.weight(0.6f)) { }
+                        StatItem("Anchor", record.anchorPci?.let {
+                            "B${record.anchorBandNumber ?: "?"} PCI $it RSRP ${record.anchorRsrp ?: "---"}"
+                        } ?: "---", weight = 2.5f, valueColor = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
         } else {
             Text(
