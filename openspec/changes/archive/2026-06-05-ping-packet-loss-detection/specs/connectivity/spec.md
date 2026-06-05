@@ -1,10 +1,4 @@
-# Connectivity Specification
-
-## Purpose
-
-Defines how the system measures network connectivity through ICMP ping during active recording sessions, including latency and packet loss calculation.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Continuous Ping During Recording
 
@@ -42,40 +36,6 @@ The system SHALL continuously ping a configurable destination while a recording 
 - WHEN the ping process dies unexpectedly (readLine returns null or exception)
 - THEN a `PingResult` with `outcome=PROCESS_ERROR` and `latencyMs=null` is emitted
 - AND the ping process is automatically restarted after a delay
-
-### Requirement: Ping Timeout
-
-The system SHALL apply a configurable timeout to the overall ping process communication.
-
-#### Scenario: Ping response within timeout
-- GIVEN a running ping process
-- WHEN a ping response line is parsed from the process output
-- THEN the latency is extracted and recorded
-
-#### Scenario: No response from ping process
-- GIVEN a running ping process
-- WHEN no output is received from the process for an extended period
-- THEN the process is considered dead and is restarted
-- AND a null latency result is emitted for the gap
-
-### Requirement: Sliding Window Latency
-
-The system SHALL maintain a sliding window of recent ping results.
-
-#### Scenario: Window maintained
-- GIVEN a running ping loop
-- WHEN pings complete
-- THEN the last N ping results are maintained in memory
-- AND the default window size is 5
-
-### Requirement: Latency Aggregation
-
-The system SHALL compute the average latency from the sliding window at each recording point.
-
-#### Scenario: Latency recorded per point
-- GIVEN an active recording with a ping window
-- WHEN a recording point is triggered
-- THEN `avgLatencyMs` is computed as the mean of all non-null values in the window
 
 ### Requirement: Packet Loss Calculation
 

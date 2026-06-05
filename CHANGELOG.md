@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-06-05
+
+### Added
+
+- Ping engine now uses the `-O` (outstanding) flag for immediate packet loss detection — dropped ICMP packets are identified as soon as they happen, not when the next successful reply arrives
+- Ping results now carry an outcome classification (success, timeout, host unreachable, process error) for richer diagnostics
+- Host unreachable and network unreachable errors are now properly detected and classified
+
+### Changed
+
+- Packet loss calculation now uses the ping outcome instead of null latency — more accurate and self-documenting
+- Live cell info screen's ping loop migrated from per-ping processes (`ping()` deprecation path) to the same continuous flow used during recording sessions
+
+### Fixed
+
+- Fixed packet loss being underreported — dropped packets were previously invisible because `ping -i` doesn't output timeout lines without the `-O` flag
+- Fixed process-death events being incorrectly counted as individual dropped packets — they now carry a separate "process error" outcome
+
 ## [1.1.0] - 2026-06-05
 
 ### Added

@@ -1,5 +1,6 @@
 package com.cellrecorder.app.domain.ping
 
+import com.cellrecorder.app.domain.model.PingOutcome
 import com.cellrecorder.app.domain.model.PingResult
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.Dispatchers
@@ -33,13 +34,13 @@ class PingEngine @Inject constructor() {
             val finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS)
             if (!finished) {
                 process.destroyForcibly()
-                return PingResult(latencyMs = null, timestamp = timestamp)
+                return PingResult(latencyMs = null, timestamp = timestamp, outcome = PingOutcome.TIMEOUT)
             }
             val output = process.inputStream.bufferedReader().readText()
-            val latency = parsePingOutput(output)
-            PingResult(latencyMs = latency, timestamp = timestamp)
+            val parsed = parseLine(output)
+            PingResult(latencyMs = parsed.first, timestamp = timestamp, outcome = parsed.second)
         } catch (_: Exception) {
-            PingResult(latencyMs = null, timestamp = timestamp)
+            PingResult(latencyMs = null, timestamp = timestamp, outcome = PingOutcome.PROCESS_ERROR)
         }
     }
 
@@ -51,7 +52,7 @@ class PingEngine @Inject constructor() {
         val timeoutSec = (timeoutMs / 1000).coerceAtLeast(1L)
 
         fun startProcess(): Process {
-            return ProcessBuilder("ping", "-i", intervalSec.toString(), "-W", timeoutSec.toString(), host)
+            return ProcessBuilder("ping", "-O", "-i", intervalSec.toString(), "-W", timeoutSec.toString(), host)
                 .redirectErrorStream(true)
                 .start()
         }
@@ -64,7 +65,7 @@ class PingEngine @Inject constructor() {
                 try {
                     val line = reader.readLine()
                     if (line == null) {
-                        trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis()))
+                        trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis(), outcome = PingOutcome.PROCESS_ERROR))
                         delay(1000)
                         if (!isActive) break
                         process.destroyForcibly()
@@ -72,11 +73,11 @@ class PingEngine @Inject constructor() {
                         reader = process.inputStream.bufferedReader()
                         continue
                     }
-                    val latency = parsePingOutput(line)
-                    trySend(PingResult(latencyMs = latency, timestamp = System.currentTimeMillis()))
+                    val parsed = parseLine(line)
+                    trySend(PingResult(latencyMs = parsed.first, timestamp = System.currentTimeMillis(), outcome = parsed.second))
                 } catch (e: Exception) {
                     if (!isActive) break
-                    trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis()))
+                    trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis(), outcome = PingOutcome.PROCESS_ERROR))
                     delay(1000)
                     if (!isActive) break
                     process.destroyForcibly()
@@ -91,8 +92,26 @@ class PingEngine @Inject constructor() {
         }
     }
 
-    private fun parsePingOutput(output: String): Double? {
+    internal fun parseLine(line: String): Pair<Double?, PingOutcome> {
+        val latency = extractLatency(line)
+        if (latency != null) return latency to PingOutcome.SUCCESS
+        if (parseNoAnswerLine(line)) return null to PingOutcome.TIMEOUT
+        if (parseErrorLine(line)) return null to PingOutcome.HOST_UNREACHABLE
+        return null to PingOutcome.PROCESS_ERROR
+    }
+
+    internal fun extractLatency(line: String): Double? {
         val regex = Regex("""time[=<]\s*(\d+\.?\d*)\s*ms""")
-        return regex.find(output)?.groupValues?.get(1)?.toDoubleOrNull()
+        return regex.find(line)?.groupValues?.get(1)?.toDoubleOrNull()
+    }
+
+    internal fun parseNoAnswerLine(line: String): Boolean {
+        return line.contains("no answer yet for icmp_seq")
+    }
+
+    internal fun parseErrorLine(line: String): Boolean {
+        return line.contains("Destination Host Unreachable") ||
+                line.contains("Network Unreachable") ||
+                line.contains("No route to host")
     }
 }

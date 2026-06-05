@@ -108,10 +108,11 @@ class LiveInfoViewModel @Inject constructor(
 
         viewModelScope.launch {
             val config = configRepository.getConfig().first()
-            while (isActive) {
-                val result = withContext(Dispatchers.IO) {
-                    pingEngine.ping(config.pingDestination, config.pingTimeoutMs)
-                }
+            pingEngine.pingFlow(
+                host = config.pingDestination,
+                intervalSec = config.pingIntervalMs / 1000f,
+                timeoutMs = config.pingTimeoutMs
+            ).collect { result ->
                 pingWindow.add(result)
 
                 val latency = _pingLatencyHistory.value.toMutableList()
@@ -123,8 +124,6 @@ class LiveInfoViewModel @Inject constructor(
                 loss.add(pingWindow.packetLossPct().toFloat())
                 if (loss.size > MAX_HISTORY) loss.removeFirst()
                 _packetLossHistory.value = loss
-
-                delay(config.pingIntervalMs)
             }
         }
     }
