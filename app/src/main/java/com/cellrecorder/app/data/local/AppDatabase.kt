@@ -90,6 +90,11 @@ abstract class AppDatabase : RoomDatabase() {
                                5000, 15, 10000, 3.0, 30000, 3, 30000, 5.0, 15.0, 30.0, 10000)"""
                 )
             }
+
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                super.onOpen(db)
+                db.execSQL("PRAGMA foreign_keys = ON")
+            }
         }
     }
 }

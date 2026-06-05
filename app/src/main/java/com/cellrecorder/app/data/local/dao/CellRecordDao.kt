@@ -21,12 +21,14 @@ interface CellRecordDao {
     @Insert
     suspend fun insert(record: CellRecordEntity): Long
 
+    @Transaction
     @Insert
     suspend fun insertAll(records: List<CellRecordEntity>): List<Long>
 
     @Insert
     suspend fun insertCaBand(caBand: CellRecordCaBandEntity)
 
+    @Transaction
     @Insert
     suspend fun insertCaBands(caBands: List<CellRecordCaBandEntity>)
 

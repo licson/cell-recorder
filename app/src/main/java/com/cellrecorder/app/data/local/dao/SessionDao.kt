@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import com.cellrecorder.app.data.local.entity.SessionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -37,6 +38,7 @@ interface SessionDao {
     @Delete
     suspend fun delete(session: SessionEntity)
 
+    @Transaction
     @Query("DELETE FROM sessions WHERE id = :id")
     suspend fun deleteById(id: Long)
 

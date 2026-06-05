@@ -62,7 +62,7 @@ class RecordingService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 sessionId = intent.getLongExtra(EXTRA_SESSION_ID, -1L)
-                if (sessionId != -1L) {
+                if (sessionId > 0) {
                     startRecording()
                 }
             }

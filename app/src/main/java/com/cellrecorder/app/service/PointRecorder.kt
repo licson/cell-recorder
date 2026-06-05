@@ -51,56 +51,60 @@ class PointRecorder @Inject constructor(
         val pingLoss = pingWindow.packetLossPct()
 
         for (snapshot in snapshots) {
-            val record = CellRecordEntity(
-                sessionId = sessionId,
-                timestamp = System.currentTimeMillis(),
-                latitude = location.latitude,
-                longitude = location.longitude,
-                altitude = location.altitude,
-                accuracy = location.accuracy,
-                rat = snapshot.rat,
-                networkTypeCode = snapshot.networkTypeCode,
-                fullCellIdentity = snapshot.fullCellIdentity,
-                enbOrGnbId = snapshot.enbOrGnbId,
-                lcid = snapshot.lcid,
-                cellIdBitLength = snapshot.cellIdBitLength,
-                pci = snapshot.pci,
-                tac = snapshot.tac,
-                bandNumber = snapshot.bandNumber,
-                earfcn = snapshot.earfcn,
-                bandwidthKhz = snapshot.bandwidthKhz,
-                rsrp = snapshot.rsrp,
-                rsrq = snapshot.rsrq,
-                sinr = snapshot.sinr,
-                rssi = snapshot.rssi,
-                cqi = snapshot.cqi,
-                timingAdvance = snapshot.timingAdvance,
-                mcc = snapshot.mcc,
-                mnc = snapshot.mnc,
-                subscriptionId = snapshot.subscriptionId,
-                simSlotIndex = activeSubs[snapshot.subscriptionId]?.simSlotIndex,
-                avgLatencyMs = pingAvg,
-                packetLossPct = pingLoss,
-                isLocationEstimated = isEstimated,
-                locationSource = source
-            )
-            val recordId = cellRecordRepository.insert(record)
-            if (snapshot.caBands.isNotEmpty()) {
-                val caEntities = snapshot.caBands.map { ca ->
-                    CellRecordCaBandEntity(
-                        cellRecordId = recordId,
-                        bandNumber = ca.bandNumber,
-                        earfcn = ca.earfcn,
-                        pci = ca.pci,
-                        rsrp = ca.rsrp,
-                        rsrq = ca.rsrq,
-                        sinr = ca.sinr,
-                        rssi = ca.rssi,
-                        cqi = ca.cqi,
-                        timingAdvance = ca.timingAdvance
-                    )
+            try {
+                val record = CellRecordEntity(
+                    sessionId = sessionId,
+                    timestamp = System.currentTimeMillis(),
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    altitude = location.altitude,
+                    accuracy = location.accuracy,
+                    rat = snapshot.rat,
+                    networkTypeCode = snapshot.networkTypeCode,
+                    fullCellIdentity = snapshot.fullCellIdentity,
+                    enbOrGnbId = snapshot.enbOrGnbId,
+                    lcid = snapshot.lcid,
+                    cellIdBitLength = snapshot.cellIdBitLength,
+                    pci = snapshot.pci,
+                    tac = snapshot.tac,
+                    bandNumber = snapshot.bandNumber,
+                    earfcn = snapshot.earfcn,
+                    bandwidthKhz = snapshot.bandwidthKhz,
+                    rsrp = snapshot.rsrp,
+                    rsrq = snapshot.rsrq,
+                    sinr = snapshot.sinr,
+                    rssi = snapshot.rssi,
+                    cqi = snapshot.cqi,
+                    timingAdvance = snapshot.timingAdvance,
+                    mcc = snapshot.mcc,
+                    mnc = snapshot.mnc,
+                    subscriptionId = snapshot.subscriptionId,
+                    simSlotIndex = activeSubs[snapshot.subscriptionId]?.simSlotIndex,
+                    avgLatencyMs = pingAvg,
+                    packetLossPct = pingLoss,
+                    isLocationEstimated = isEstimated,
+                    locationSource = source
+                )
+                val recordId = cellRecordRepository.insert(record)
+                if (snapshot.caBands.isNotEmpty()) {
+                    val caEntities = snapshot.caBands.map { ca ->
+                        CellRecordCaBandEntity(
+                            cellRecordId = recordId,
+                            bandNumber = ca.bandNumber,
+                            earfcn = ca.earfcn,
+                            pci = ca.pci,
+                            rsrp = ca.rsrp,
+                            rsrq = ca.rsrq,
+                            sinr = ca.sinr,
+                            rssi = ca.rssi,
+                            cqi = ca.cqi,
+                            timingAdvance = ca.timingAdvance
+                        )
+                    }
+                    cellRecordRepository.insertCaBands(caEntities)
                 }
-                cellRecordRepository.insertCaBands(caEntities)
+            } catch (e: Exception) {
+                continue
             }
         }
         sessionRepository.incrementPointCount(sessionId)
