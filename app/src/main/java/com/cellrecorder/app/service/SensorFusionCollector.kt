@@ -87,9 +87,14 @@ class SensorFusionCollector @Inject constructor(
         lastAccelTimestampNs = event.timestamp
         if (dtSec <= 0f || dtSec > 0.5f) return
 
-        val deviceAccel = floatArrayOf(event.values[0], event.values[1], event.values[2], 0f)
-        val worldAccel = FloatArray(4)
-        android.opengl.Matrix.multiplyMV(worldAccel, 0, rotationMatrix, 0, deviceAccel, 0)
+        val ax = event.values[0]
+        val ay = event.values[1]
+        val az = event.values[2]
+        val worldAccel = floatArrayOf(
+            rotationMatrix[0] * ax + rotationMatrix[3] * ay + rotationMatrix[6] * az,
+            rotationMatrix[1] * ax + rotationMatrix[4] * ay + rotationMatrix[7] * az,
+            rotationMatrix[2] * ax + rotationMatrix[5] * ay + rotationMatrix[8] * az
+        )
 
         val currentHeadingDeg = (initialBearing + smoothedDelta + 360f) % 360f
         val headingRad = Math.toRadians(currentHeadingDeg.toDouble())
