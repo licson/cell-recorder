@@ -1,11 +1,11 @@
 package com.cellrecorder.app.service
 
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
+import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.model.CaBandSnapshot
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import cz.mroczis.netmonster.core.INetMonster
 import cz.mroczis.netmonster.core.db.BandTableLte
-import cz.mroczis.netmonster.core.db.BandTableNr
 import cz.mroczis.netmonster.core.db.BandTableWcdma
 import cz.mroczis.netmonster.core.db.model.NetworkType
 import cz.mroczis.netmonster.core.model.cell.CellGsm
@@ -69,9 +69,10 @@ class CellInfoCollector @Inject constructor(
             is CellNr -> {
                 val fullId = serving.nci
                 val shift = 36 - config.nrGnbBitLength
+                val nrRat = if (networkType is NetworkType.Nr.Nsa) "5G_NSA" else "5G_SA"
                 CellRecordSnapshot(
                     subscriptionId = subId,
-                    rat = if (networkType is NetworkType.Nr.Nsa) "5G_NSA" else "5G_SA",
+                    rat = nrRat,
                     networkTypeCode = networkType.technology,
                     fullCellIdentity = fullId,
                     enbOrGnbId = fullId?.shr(shift),
@@ -79,7 +80,7 @@ class CellInfoCollector @Inject constructor(
                     cellIdBitLength = config.nrGnbBitLength,
                     pci = serving.pci,
                     tac = serving.tac,
-                    bandNumber = serving.band?.downlinkArfcn?.let { BandTableNr.map(it).number } ?: serving.band?.number,
+                    bandNumber = BandResolver.resolveBandNumber(serving.band?.number, serving.band?.downlinkArfcn, nrRat),
                     earfcn = serving.band?.downlinkArfcn,
                     rsrp = serving.signal?.ssRsrp,
                     rsrq = serving.signal?.ssRsrq,

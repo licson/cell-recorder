@@ -29,6 +29,8 @@ object BandResolver {
         earfcn in 653_334..680_000 -> 77
         earfcn in 499_200..537_999 -> 41
         earfcn in 151_600..153_600 -> 28
+        earfcn in 422_000..434_000 -> 1
+        earfcn in 434_001..435_000 -> 65
         else -> null
     }
 }
