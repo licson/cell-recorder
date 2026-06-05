@@ -289,26 +289,23 @@ class SessionAnalyticsEngine {
     ): List<AnomalyFlag> {
         val result = mutableListOf<AnomalyFlag>()
         val withRsrp = records.filter { it.rsrp != null }
-        for (i in withRsrp.indices) {
+        for (i in 0 until withRsrp.size - 1) {
             val cur = withRsrp[i]
-            val windowEnd = cur.timestamp + config.rsrpDropTimeWindowMs
-            for (j in i + 1 until withRsrp.size) {
-                val next = withRsrp[j]
-                if (next.timestamp > windowEnd) break
-                val drop = cur.rsrp!! - next.rsrp!!
-                if (drop >= config.rsrpDropThresholdDbm) {
-                    result.add(
-                        AnomalyFlag(
-                            timestamp = cur.timestamp,
-                            endTimestamp = next.timestamp,
-                            simSlot = next.simSlotIndex ?: 0,
-                            type = AnomalyType.RSRP_DROP,
-                            severity = if (drop >= config.rsrpDropThresholdDbm * 1.5) Severity.CRITICAL else Severity.WARNING,
-                            description = "RSRP dropped ${drop}dBm (${cur.rsrp} → ${next.rsrp})"
-                        )
+            val next = withRsrp[i + 1]
+            val timeDelta = next.timestamp - cur.timestamp
+            if (timeDelta > config.rsrpDropTimeWindowMs) continue
+            val drop = cur.rsrp!! - next.rsrp!!
+            if (drop >= config.rsrpDropThresholdDbm) {
+                result.add(
+                    AnomalyFlag(
+                        timestamp = cur.timestamp,
+                        endTimestamp = next.timestamp,
+                        simSlot = next.simSlotIndex ?: 0,
+                        type = AnomalyType.RSRP_DROP,
+                        severity = if (drop >= config.rsrpDropThresholdDbm * 1.5) Severity.CRITICAL else Severity.WARNING,
+                        description = "RSRP dropped ${drop}dBm (${cur.rsrp} → ${next.rsrp})"
                     )
-                    break
-                }
+                )
             }
         }
         return result
@@ -367,36 +364,46 @@ class SessionAnalyticsEngine {
 
         for ((sim, recs) in bySim) {
             val sorted = recs.filter { it.pci != null }.sortedBy { it.timestamp }
-            var i = 0
-            while (i < sorted.size) {
-                val windowEnd = sorted[i].timestamp + config.pciFlapWindowMs
-                val distinctPcis = mutableSetOf<Int>()
-                val distinctSiteIds = mutableSetOf<Long>()
-                var j = i
-                while (j < sorted.size && sorted[j].timestamp <= windowEnd) {
-                    distinctPcis.add(sorted[j].pci!!)
-                    sorted[j].enbOrGnbId?.let { distinctSiteIds.add(it) }
-                    j++
+            if (sorted.size < config.pciFlapCountThreshold) continue
+
+            val window = ArrayDeque<Pair<Long, Int>>()
+            val pciCounts = mutableMapOf<Int, Int>()
+            val siteIds = mutableSetOf<Long>()
+
+            for (record in sorted) {
+                val ts = record.timestamp
+                val pci = record.pci!!
+
+                while (window.isNotEmpty() && window.first().first + config.pciFlapWindowMs < ts) {
+                    val (_, expiredPci) = window.removeFirst()
+                    val count = pciCounts.getValue(expiredPci)
+                    if (count == 1) pciCounts.remove(expiredPci)
+                    else pciCounts[expiredPci] = count - 1
                 }
-                if (distinctPcis.size >= config.pciFlapCountThreshold) {
-                    val isIntraSite = distinctSiteIds.size <= 1
+
+                window.addLast(ts to pci)
+                pciCounts[pci] = (pciCounts[pci] ?: 0) + 1
+                record.enbOrGnbId?.let { siteIds.add(it) }
+
+                if (pciCounts.size >= config.pciFlapCountThreshold) {
+                    val isIntraSite = siteIds.size <= 1
                     result.add(
                         AnomalyFlag(
-                            timestamp = sorted[i].timestamp,
-                            endTimestamp = windowEnd,
+                            timestamp = window.first().first,
+                            endTimestamp = ts,
                             simSlot = sim,
                             type = AnomalyType.PCI_FLAP,
                             severity = if (isIntraSite) Severity.INFO else Severity.WARNING,
                             description = if (isIntraSite) {
-                                "Intra-site PCI changes: ${distinctPcis.size} distinct PCIs — likely engineered"
+                                "Intra-site PCI changes: ${pciCounts.size} distinct PCIs — likely engineered"
                             } else {
-                                "PCI flapping: ${distinctPcis.size} distinct PCI values across ${distinctSiteIds.size} sites"
+                                "PCI flapping: ${pciCounts.size} distinct PCI values across ${siteIds.size} sites"
                             }
                         )
                     )
-                    i = j
-                } else {
-                    i++
+                    window.clear()
+                    pciCounts.clear()
+                    siteIds.clear()
                 }
             }
         }

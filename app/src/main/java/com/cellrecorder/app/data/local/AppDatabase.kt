@@ -19,7 +19,7 @@ import com.cellrecorder.app.data.local.entity.SessionEntity
         CellRecordCaBandEntity::class,
         AppConfigEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -88,6 +88,11 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL("ALTER TABLE app_config ADD COLUMN mobilityWalkingKmh REAL NOT NULL DEFAULT 15.0")
             db.execSQL("ALTER TABLE app_config ADD COLUMN indoorAccuracyThresholdM REAL NOT NULL DEFAULT 30.0")
             db.execSQL("ALTER TABLE app_config ADD COLUMN tunnelSignalLossThresholdMs INTEGER NOT NULL DEFAULT 10000")
+        }
+
+        val MIGRATION_8_9 = Migration(8, 9) { db ->
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_cell_records_simSlotIndex_rat` ON `cell_records` (`simSlotIndex`, `rat`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_cell_records_bandNumber` ON `cell_records` (`bandNumber`)")
         }
 
         val CALLBACK = object : Callback() {

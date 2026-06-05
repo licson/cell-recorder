@@ -171,8 +171,7 @@ class RecordingService : Service() {
                                 lastLocation = location
                                 pointRecorder.recordPoint(
                                     location, isEstimated = false, source = "GPS",
-                                    sessionId, config, activeSubs, pingWindow,
-                                    notificationHelper, this@RecordingService
+                                    sessionId, config, activeSubs, pingWindow
                                 )
                                 return@collect
                             }
@@ -190,11 +189,10 @@ class RecordingService : Service() {
                             val shouldRecord = distance >= config.locationChangeThresholdM ||
                                     elapsedSinceLast >= config.recordingIntervalMs
 
-                            if (shouldRecord) {
+if (shouldRecord) {
                                 pointRecorder.recordPoint(
                                     location, isEstimated = false, source = "GPS",
-                                    sessionId, config, activeSubs, pingWindow,
-                                    notificationHelper, this@RecordingService
+                                    sessionId, config, activeSubs, pingWindow
                                 )
                             }
                         }
@@ -262,11 +260,10 @@ class RecordingService : Service() {
                                 bearing = estimatedHeading
                             )
 
-                            pointRecorder.recordPoint(
-                                estimatedLocation, isEstimated = true, source = "SENSOR_FUSION",
-                                sessionId, config, activeSubs, pingWindow,
-                                notificationHelper, this@RecordingService
-                            )
+pointRecorder.recordPoint(
+                                    estimatedLocation, isEstimated = true, source = "SENSOR_FUSION",
+                                    sessionId, config, activeSubs, pingWindow
+                                )
                         }
                     }
 
@@ -279,14 +276,12 @@ class RecordingService : Service() {
             }
 
             pingJob = launch {
-                while (isActive) {
-                    try {
-                        val result = pingEngine.ping(config.pingDestination, config.pingTimeoutMs)
-                        pingWindow.add(result)
-                    } catch (_: Exception) {
-                        pingWindow.add(PingResult(latencyMs = null, timestamp = System.currentTimeMillis()))
-                    }
-                    delay(config.pingIntervalMs)
+                pingEngine.pingFlow(
+                    host = config.pingDestination,
+                    intervalSec = config.pingIntervalMs / 1000f,
+                    timeoutMs = config.pingTimeoutMs
+                ).collect { result ->
+                    pingWindow.add(result)
                 }
             }
 
@@ -295,31 +290,29 @@ class RecordingService : Service() {
                     delay(1000)
                     val elapsed = System.currentTimeMillis() - startTime
 
-                    recordingMutex.withLock {
-                        val loc = pointRecorder.lastRecordedLocation ?: lastLocation
-                        val currentStatus = when {
-                            gpsState.isExtrapolating -> "EXTRAPOLATING"
-                            gpsState.hasGpsFix -> "OK"
-                            else -> "Searching..."
-                        }
-                        stateManager.update { it?.copy(
-                            elapsedMs = elapsed,
-                            pointCount = pointRecorder.totalPointCount,
-                            gpsStatus = currentStatus,
-                            isExtrapolatingGps = gpsState.isExtrapolating,
-                            recordedPath = pointRecorder.recordedPathSnapshot,
-                            currentLatitude = loc?.latitude ?: 0.0,
-                            currentLongitude = loc?.longitude ?: 0.0,
-                            currentAltitude = loc?.altitude ?: 0.0
-                        ) }
-                        notificationHelper.notify(this@RecordingService, notificationHelper.buildNotification(
-                            this@RecordingService, sessionId,
-                            elapsedMs = elapsed,
-                            pointCount = pointRecorder.totalPointCount,
-                            isExtrapolating = gpsState.isExtrapolating,
-                            hasGpsFix = gpsState.hasGpsFix
-                        ))
+                    val loc = pointRecorder.lastRecordedLocation ?: lastLocation
+                    val currentStatus = when {
+                        gpsState.isExtrapolating -> "EXTRAPOLATING"
+                        gpsState.hasGpsFix -> "OK"
+                        else -> "Searching..."
                     }
+                    stateManager.update { it?.copy(
+                        elapsedMs = elapsed,
+                        pointCount = pointRecorder.totalPointCount,
+                        gpsStatus = currentStatus,
+                        isExtrapolatingGps = gpsState.isExtrapolating,
+                        recordedPath = pointRecorder.recordedPathSnapshot,
+                        currentLatitude = loc?.latitude ?: 0.0,
+                        currentLongitude = loc?.longitude ?: 0.0,
+                        currentAltitude = loc?.altitude ?: 0.0
+                    ) }
+                    notificationHelper.notify(this@RecordingService, notificationHelper.buildNotification(
+                        this@RecordingService, sessionId,
+                        elapsedMs = elapsed,
+                        pointCount = pointRecorder.totalPointCount,
+                        isExtrapolating = gpsState.isExtrapolating,
+                        hasGpsFix = gpsState.hasGpsFix
+                    ))
                 }
             }
         }

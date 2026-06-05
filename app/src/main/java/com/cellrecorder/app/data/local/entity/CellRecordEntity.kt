@@ -15,7 +15,12 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("sessionId"), Index("timestamp")]
+    indices = [
+        Index("sessionId"),
+        Index("timestamp"),
+        Index("simSlotIndex", "rat"),
+        Index("bandNumber")
+    ]
 )
 data class CellRecordEntity(
     @PrimaryKey(autoGenerate = true)

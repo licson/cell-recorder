@@ -33,6 +33,25 @@ interface CellRecordDao {
     suspend fun insertCaBands(caBands: List<CellRecordCaBandEntity>)
 
     @Transaction
+    suspend fun insertRecordBatch(
+        records: List<CellRecordEntity>,
+        caBandsByRecord: List<List<CellRecordCaBandEntity>>
+    ): List<Long> {
+        val ids = insertAll(records)
+        val allCaBands = mutableListOf<CellRecordCaBandEntity>()
+        for (i in ids.indices) {
+            val recordCaBands = caBandsByRecord[i]
+            for (ca in recordCaBands) {
+                allCaBands.add(ca.copy(cellRecordId = ids[i]))
+            }
+        }
+        if (allCaBands.isNotEmpty()) {
+            insertCaBands(allCaBands)
+        }
+        return ids
+    }
+
+    @Transaction
     @Query("SELECT * FROM cell_records WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun getBySessionIdWithCaBands(sessionId: Long): Flow<List<CellRecordWithCaBands>>
 

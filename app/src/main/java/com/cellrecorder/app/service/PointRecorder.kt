@@ -25,7 +25,7 @@ class PointRecorder @Inject constructor(
     var lastRecordedTime: Long = 0L
         internal set
 
-    private val _recordedPath = mutableListOf<Pair<Double, Double>>()
+    private val _recordedPath = ArrayDeque<Pair<Double, Double>>(MAX_PATH_SIZE)
     val recordedPathSnapshot: List<Pair<Double, Double>> get() = _recordedPath.toList()
 
     fun reset() {
@@ -42,17 +42,35 @@ class PointRecorder @Inject constructor(
         sessionId: Long,
         config: AppConfigEntity,
         activeSubs: Map<Int, SubscriptionInfo>,
-        pingWindow: PingSlidingWindow,
-        notificationHelper: RecordingNotificationHelper,
-        notificationContext: Context
+        pingWindow: PingSlidingWindow
     ) {
         val snapshots = cellInfoCollector.snapshots(config)
         val pingAvg = pingWindow.avgLatencyMs()
         val pingLoss = pingWindow.packetLossPct()
 
+        val records = mutableListOf<CellRecordEntity>()
+        val caBandsByRecord = mutableListOf<List<CellRecordCaBandEntity>>()
+
         for (snapshot in snapshots) {
             try {
-                val record = CellRecordEntity(
+                val caEntities = if (snapshot.caBands.isNotEmpty()) {
+                    snapshot.caBands.map { ca ->
+                        CellRecordCaBandEntity(
+                            cellRecordId = 0,
+                            bandNumber = ca.bandNumber,
+                            earfcn = ca.earfcn,
+                            pci = ca.pci,
+                            rsrp = ca.rsrp,
+                            rsrq = ca.rsrq,
+                            sinr = ca.sinr,
+                            rssi = ca.rssi,
+                            cqi = ca.cqi,
+                            timingAdvance = ca.timingAdvance
+                        )
+                    }
+                } else emptyList()
+
+                records.add(CellRecordEntity(
                     sessionId = sessionId,
                     timestamp = System.currentTimeMillis(),
                     latitude = location.latitude,
@@ -97,48 +115,28 @@ class PointRecorder @Inject constructor(
                     anchorRssi = snapshot.anchorRssi,
                     anchorCqi = snapshot.anchorCqi,
                     anchorTimingAdvance = snapshot.anchorTimingAdvance
-                )
-                val recordId = cellRecordRepository.insert(record)
-                if (snapshot.caBands.isNotEmpty()) {
-                    val caEntities = snapshot.caBands.map { ca ->
-                        CellRecordCaBandEntity(
-                            cellRecordId = recordId,
-                            bandNumber = ca.bandNumber,
-                            earfcn = ca.earfcn,
-                            pci = ca.pci,
-                            rsrp = ca.rsrp,
-                            rsrq = ca.rsrq,
-                            sinr = ca.sinr,
-                            rssi = ca.rssi,
-                            cqi = ca.cqi,
-                            timingAdvance = ca.timingAdvance
-                        )
-                    }
-                    cellRecordRepository.insertCaBands(caEntities)
-                }
+                ))
+                caBandsByRecord.add(caEntities)
             } catch (e: Exception) {
                 continue
             }
         }
+
+        if (records.isNotEmpty()) {
+            cellRecordRepository.insertRecordBatch(records, caBandsByRecord)
+        }
+
         sessionRepository.incrementPointCount(sessionId)
         totalPointCount++
 
-        _recordedPath.add(location.latitude to location.longitude)
+        _recordedPath.addLast(location.latitude to location.longitude)
         if (_recordedPath.size > MAX_PATH_SIZE) {
-            _recordedPath.removeAt(0)
+            _recordedPath.removeFirst()
         }
         lastRecordedLocation = location
         lastRecordedTime = System.currentTimeMillis()
 
         updateLiveState(pingAvg, location, isExtrapolatingParam = isEstimated)
-        notificationHelper.notify(notificationContext, notificationHelper.buildNotification(
-            context = notificationContext,
-            sessionId = sessionId,
-            elapsedMs = lastRecordedTime,
-            pointCount = totalPointCount,
-            isExtrapolating = isEstimated,
-            hasGpsFix = true
-        ))
     }
 
     fun updateLiveState(
