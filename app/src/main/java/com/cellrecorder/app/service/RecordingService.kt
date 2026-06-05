@@ -62,7 +62,7 @@ class RecordingService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 sessionId = intent.getLongExtra(EXTRA_SESSION_ID, -1L)
-                if (sessionId > 0) {
+                if (sessionId > 0 && recordingJob?.isActive != true) {
                     startRecording()
                 }
             }
@@ -83,6 +83,15 @@ class RecordingService : Service() {
     }
 
     private fun startRecording() {
+        recordingJob?.cancel()
+        recordingJob = null
+        fallbackRecordingJob?.cancel()
+        fallbackRecordingJob = null
+        pingJob?.cancel()
+        pingJob = null
+        stateUpdateJob?.cancel()
+        stateUpdateJob = null
+
         startTime = System.currentTimeMillis()
         pointRecorder.reset()
         gpsState.reset()

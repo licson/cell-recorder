@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+import android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
 import androidx.core.app.NotificationCompat
 import com.cellrecorder.app.R
 import com.cellrecorder.app.ui.MainActivity
@@ -43,6 +45,7 @@ class RecordingNotificationHelper @Inject constructor() {
         val openIntent = PendingIntent.getActivity(
             context, 0, Intent(context, MainActivity::class.java).apply {
                 putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)
+                addFlags(FLAG_ACTIVITY_CLEAR_TOP or FLAG_ACTIVITY_SINGLE_TOP)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
