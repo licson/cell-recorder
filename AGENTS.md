@@ -55,16 +55,20 @@ When the user asks for a version bump or release:
 
 ---
 
-## Spec Policy — Keep `openspec.md` in Sync
+## Spec Policy — Update OpenSpec Specs
 
-After any **major functional change** (new feature, removed feature, altered behavior, new screen, data model change, architecture change, permission change), update `openspec.md` to match the latest code.
+After any **major functional change** (new feature, removed feature, altered behavior, new screen, data model change, architecture change, permission change), update the relevant specs in `openspec/specs/<domain>/spec.md`.
 
-Key sections to keep current:
-- **Core Stack** — libraries, versions, dependencies
-- **Data Model** — Room entities, fields, relationships
-- **Screens & Navigation** — Composables, routes, UI flows
-- **Architecture & Layers** — repositories, use cases, ViewModels
-- **Permissions** — any changes to Android permissions
-- **Services** — foreground service behavior, notification channels
+Behavioral requirements live in spec files under:
+- `recording/` — recording lifecycle, triggers, GPS, multi-SIM
+- `cell-info/` — cell info collection, CA bands, cell ID split
+- `connectivity/` — ping engine, latency measurement
+- `analytics/` — session analytics, anomaly detection, handoff
+- `sessions/` — session management, detail, replay
+- `data/` — import/export formats (CSV, GeoJSON)
+- `ui/` — screens, navigation, interactions
+- `service/` — background service, notifications, permissions
+
+Implementation details and architecture decisions go in `openspec/design.md`.
 
 Skip trivial changes (typos, pure refactors, UI-only styling). If unsure whether a change qualifies, update the spec.
