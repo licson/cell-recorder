@@ -23,5 +23,18 @@ data class CellRecordSnapshot(
     val timingAdvance: Int? = null,
     val mcc: String? = null,
     val mnc: String? = null,
-    val caBands: List<CaBandSnapshot> = emptyList()
+    val caBands: List<CaBandSnapshot> = emptyList(),
+    val anchorEnbOrGnbId: Long? = null,
+    val anchorLcid: Int? = null,
+    val anchorPci: Int? = null,
+    val anchorTac: Int? = null,
+    val anchorBandNumber: Int? = null,
+    val anchorEarfcn: Int? = null,
+    val anchorBandwidthKhz: Int? = null,
+    val anchorRsrp: Int? = null,
+    val anchorRsrq: Int? = null,
+    val anchorSinr: Int? = null,
+    val anchorRssi: Int? = null,
+    val anchorCqi: Int? = null,
+    val anchorTimingAdvance: Int? = null
 )

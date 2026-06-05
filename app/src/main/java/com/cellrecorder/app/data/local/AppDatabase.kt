@@ -19,7 +19,7 @@ import com.cellrecorder.app.data.local.entity.SessionEntity
         CellRecordCaBandEntity::class,
         AppConfigEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -58,6 +58,22 @@ abstract class AppDatabase : RoomDatabase() {
             )""")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_cell_record_ca_bands_cellRecordId` ON `cell_record_ca_bands` (`cellRecordId`)")
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_cell_record_ca_bands_bandNumber` ON `cell_record_ca_bands` (`bandNumber`)")
+        }
+
+        val MIGRATION_7_8 = Migration(7, 8) { db ->
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorEnbOrGnbId INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorLcid INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorPci INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorTac INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorBandNumber INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorEarfcn INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorBandwidthKhz INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorRsrp INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorRsrq INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorSinr INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorRssi INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorCqi INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN anchorTimingAdvance INTEGER")
         }
 
         val MIGRATION_5_6 = Migration(5, 6) { db ->

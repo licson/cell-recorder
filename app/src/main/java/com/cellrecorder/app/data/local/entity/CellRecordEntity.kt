@@ -50,5 +50,18 @@ data class CellRecordEntity(
     val avgLatencyMs: Double? = null,
     val packetLossPct: Double? = null,
     val isLocationEstimated: Boolean = false,
-    val locationSource: String = "GPS"
+    val locationSource: String = "GPS",
+    val anchorEnbOrGnbId: Long? = null,
+    val anchorLcid: Int? = null,
+    val anchorPci: Int? = null,
+    val anchorTac: Int? = null,
+    val anchorBandNumber: Int? = null,
+    val anchorEarfcn: Int? = null,
+    val anchorBandwidthKhz: Int? = null,
+    val anchorRsrp: Int? = null,
+    val anchorRsrq: Int? = null,
+    val anchorSinr: Int? = null,
+    val anchorRssi: Int? = null,
+    val anchorCqi: Int? = null,
+    val anchorTimingAdvance: Int? = null
 )
