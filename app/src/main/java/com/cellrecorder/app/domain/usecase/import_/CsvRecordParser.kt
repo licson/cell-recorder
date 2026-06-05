@@ -43,7 +43,20 @@ class CsvRecordParser @Inject constructor() {
         "band" to "bandNumber",
         "earfcn" to "earfcn",
         "tac" to "tac",
-        "ca_bands" to "caBands"
+        "ca_bands" to "caBands",
+        "anchor_enb_gnb_id" to "anchorEnbOrGnbId",
+        "anchor_lcid" to "anchorLcid",
+        "anchor_pci" to "anchorPci",
+        "anchor_tac" to "anchorTac",
+        "anchor_band" to "anchorBandNumber",
+        "anchor_earfcn" to "anchorEarfcn",
+        "anchor_bandwidth" to "anchorBandwidthKhz",
+        "anchor_rsrp" to "anchorRsrp",
+        "anchor_rsrq" to "anchorRsrq",
+        "anchor_sinr" to "anchorSinr",
+        "anchor_rssi" to "anchorRssi",
+        "anchor_cqi" to "anchorCqi",
+        "anchor_timing_advance" to "anchorTimingAdvance"
     )
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -148,7 +161,20 @@ class CsvRecordParser @Inject constructor() {
             mnc = str("mnc"),
             bandNumber = int("band"),
             earfcn = int("earfcn"),
-            tac = int("tac")
+            tac = int("tac"),
+            anchorEnbOrGnbId = long("anchorEnbOrGnbId"),
+            anchorLcid = int("anchorLcid"),
+            anchorPci = int("anchorPci"),
+            anchorTac = int("anchorTac"),
+            anchorBandNumber = int("anchorBandNumber"),
+            anchorEarfcn = int("anchorEarfcn"),
+            anchorBandwidthKhz = int("anchorBandwidthKhz"),
+            anchorRsrp = int("anchorRsrp"),
+            anchorRsrq = int("anchorRsrq"),
+            anchorSinr = int("anchorSinr"),
+            anchorRssi = int("anchorRssi"),
+            anchorCqi = int("anchorCqi"),
+            anchorTimingAdvance = int("anchorTimingAdvance")
         ) to caBands
     }
 

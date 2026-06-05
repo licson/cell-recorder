@@ -30,7 +30,7 @@ class ExportSessionUseCase @Inject constructor() {
 
     fun exportCsv(session: SessionEntity, records: List<CellRecordWithCaBands>): ExportData {
         val sb = StringBuilder()
-        sb.appendLine("timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source,ca_bands")
+        sb.appendLine("timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source,ca_bands,anchor_enb_gnb_id,anchor_lcid,anchor_pci,anchor_tac,anchor_band,anchor_earfcn,anchor_bandwidth,anchor_rsrp,anchor_rsrq,anchor_sinr,anchor_rssi,anchor_cqi,anchor_timing_advance")
         for (wrapper in records) {
             val r = wrapper.record
             val caJson = if (wrapper.caBands.isNotEmpty()) {
@@ -75,7 +75,20 @@ class ExportSessionUseCase @Inject constructor() {
                     append(csvField(r.tac)); append(',')
                     append(r.isLocationEstimated); append(',')
                     append(csvField(r.locationSource)); append(',')
-                    append(csvField(caJson))
+                    append(csvField(caJson)); append(',')
+                    append(csvField(r.anchorEnbOrGnbId)); append(',')
+                    append(csvField(r.anchorLcid)); append(',')
+                    append(csvField(r.anchorPci)); append(',')
+                    append(csvField(r.anchorTac)); append(',')
+                    append(csvField(r.anchorBandNumber)); append(',')
+                    append(csvField(r.anchorEarfcn)); append(',')
+                    append(csvField(r.anchorBandwidthKhz)); append(',')
+                    append(csvField(r.anchorRsrp)); append(',')
+                    append(csvField(r.anchorRsrq)); append(',')
+                    append(csvField(r.anchorSinr)); append(',')
+                    append(csvField(r.anchorRssi)); append(',')
+                    append(csvField(r.anchorCqi)); append(',')
+                    append(csvField(r.anchorTimingAdvance))
                 }
             )
         }
@@ -139,6 +152,19 @@ class ExportSessionUseCase @Inject constructor() {
                                     }
                                 })
                             }
+                            r.anchorEnbOrGnbId?.let { put("anchorEnbGnbId", it) }
+                            r.anchorLcid?.let { put("anchorLcid", it) }
+                            r.anchorPci?.let { put("anchorPci", it) }
+                            r.anchorTac?.let { put("anchorTac", it) }
+                            r.anchorBandNumber?.let { put("anchorBand", it) }
+                            r.anchorEarfcn?.let { put("anchorEarfcn", it) }
+                            r.anchorBandwidthKhz?.let { put("anchorBandwidth", it) }
+                            r.anchorRsrp?.let { put("anchorRsrp", it) }
+                            r.anchorRsrq?.let { put("anchorRsrq", it) }
+                            r.anchorSinr?.let { put("anchorSinr", it) }
+                            r.anchorRssi?.let { put("anchorRssi", it) }
+                            r.anchorCqi?.let { put("anchorCqi", it) }
+                            r.anchorTimingAdvance?.let { put("anchorTimingAdvance", it) }
                         })
                     })
                 }

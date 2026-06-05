@@ -108,7 +108,20 @@ class GeoJsonRecordParser @Inject constructor() {
                     mnc = str("mnc"),
                     bandNumber = int("band"),
                     earfcn = int("earfcn"),
-                    tac = int("tac")
+                    tac = int("tac"),
+                    anchorEnbOrGnbId = long("anchorEnbGnbId") ?: long("anchor_enb_gnb_id"),
+                    anchorLcid = int("anchorLcid"),
+                    anchorPci = int("anchorPci"),
+                    anchorTac = int("anchorTac"),
+                    anchorBandNumber = int("anchorBand") ?: int("anchor_band"),
+                    anchorEarfcn = int("anchorEarfcn"),
+                    anchorBandwidthKhz = int("anchorBandwidth") ?: int("anchor_bandwidth"),
+                    anchorRsrp = int("anchorRsrp"),
+                    anchorRsrq = int("anchorRsrq"),
+                    anchorSinr = int("anchorSinr"),
+                    anchorRssi = int("anchorRssi"),
+                    anchorCqi = int("anchorCqi"),
+                    anchorTimingAdvance = int("anchorTimingAdvance")
                 ))
                 caBandsList.add(caBands)
             } catch (e: Exception) {
