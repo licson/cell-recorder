@@ -16,11 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CA bands exported in CSV (`ca_bands` JSON column) and GeoJSON (`caBands` array)
 - CA bands parsed on import for round-trip fidelity
 - Room migration 6→7 with `MIGRATION_6_7`
+- Accelerometer-based speed adjustment during GPS loss: sensor fusion now subscribes to `TYPE_LINEAR_ACCELERATION`, transforms acceleration to world frame, and projects onto the heading direction to estimate speed changes; adjustment decays exponentially (τ=10s) and clamps at ±50% of initial GPS speed to limit drift
 
 ### Changed
 
 - Data collector now extracts secondary cells (`SecondaryConnection`) in addition to the primary serving cell
 - Session Detail and Replay use `CellRecordWithCaBands` wrapper for full cell data
+- `SensorFusionCollector.start()` now accepts `bearing` and `speedMps` parameters to initialize accelerometer processing
+
+### Fixed
+
+- Flipped heading direction in dead reckoning: sensor yaw now correctly follows clockwise-positive (navigational) convention instead of counterclockwise-positive (Euler)
 
 ## [1.0.3] - 2026-06-03
 

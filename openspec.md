@@ -237,7 +237,7 @@ app/
 │   ├── PointRecorder.kt           (recordPoint logic, path tracking, live state)
 │   ├── LocationCollector.kt       (FusedLocation + GPS fallback + distance check)
 │   ├── CellInfoCollector.kt       (NetMonster Core wrapper)
-│   └── SensorFusionCollector.kt   (Game Rotation Vector heading tracking)
+│   └── SensorFusionCollector.kt   (Game Rotation Vector heading + Linear Acceleration speed adjustment)
 ├── ui/
 │   ├── MainActivity.kt
 │   ├── CellRecorderApp.kt
@@ -318,7 +318,8 @@ app/
 **GPS Loss Extrapolation:**
 - If no accurate GPS fix for > 3s and a fix was previously acquired, service enters extrapolation mode
 - `SensorFusionCollector` uses `TYPE_GAME_ROTATION_VECTOR` to track heading changes relative to baseline
-- Estimated position calculated from last known speed, bearing, and heading delta: `movePoint(lat, lon, bearing + headingDelta, speed * elapsed)`
+- `SensorFusionCollector` also subscribes to `TYPE_LINEAR_ACCELERATION` when initial speed > 0: transforms device-frame acceleration to world frame (ENU) using the rotation matrix, projects onto the current heading direction, and integrates into a speed delta with exponential decay (τ=10s) and clamping (±50% of initial GPS speed) to limit drift
+- Estimated position calculated from last known speed (+ speed delta), bearing, and heading delta: `effectiveSpeed = (lastKnownSpeedMps + speedDelta).coerceAtLeast(0); movePoint(lat, lon, bearing + headingDelta, effectiveSpeed * elapsed)`
 - Estimated accuracy degrades over time (`50m + 3m * elapsedSec`)
 - Extrapolation stops after `maxGpsLossExtrapolationSec` (default 120s) or when GPS fix returns
 - On GPS recovery, a 5s settling delay is applied before resuming normal recording
@@ -548,7 +549,7 @@ The bottom bar is only shown on these three top-level destinations.
 - Notification includes "Stop" action and opens MainActivity on tap
 - State managed by `RecordingStateManager` (Hilt `@Singleton`), injectable into both `RecordingService` and `RecordingViewModel`
 - Auto-stops on: user "Stop", max duration reached, or system kill (`START_STICKY` restarts but checks `isRecording` flag)
-- GPS extrapolation fallback via `SensorFusionCollector` when fix is lost
+- GPS extrapolation fallback via `SensorFusionCollector` (heading delta + linear acceleration speed adjustment) when fix is lost
 
 ## 8. Permissions
 
@@ -562,7 +563,7 @@ The bottom bar is only shown on these three top-level destinations.
 | `POST_NOTIFICATIONS` | runtime (API 33+) |
 | `INTERNET` | manifest |
 
-Optional hardware feature: `android.hardware.sensor.gyroscope` (`required="false"`) — used by SensorFusionCollector when available.
+Optional hardware features: `android.hardware.sensor.gyroscope` (`required="false"`) — used by SensorFusionCollector for heading tracking; `TYPE_LINEAR_ACCELERATION` (available on virtually all devices) used for speed adjustment during dead reckoning. No additional permissions required beyond the manifest declarations — motion/orientation sensors do not need runtime permission on Android.
 
 ## 9. Import & Export
 
@@ -639,7 +640,7 @@ The `ca_bands` column contains a JSON array string (empty when no CA is active):
 - **Room schema**: version 6 with explicit migrations (3→4, 4→5, 5→6); `fallbackToDestructiveMigration()` NOT used; single-row `AppConfig` table seeded via `RoomDatabase.Callback.onCreate`
 - **Multi-SIM**: `SubscriptionManager` used to enumerate active subscriptions and identify the default data SIM for ping attribution; `READ_PHONE_STATE` permission is sufficient for API 30+
 - **Viewport rendering**: Session Detail data table renders only visible rows; off-screen rows replaced by measured-height `Spacer` boxes for scroll state preservation
-- **Sensor fusion**: `SensorFusionCollector` uses `TYPE_GAME_ROTATION_VECTOR` (no magnetometer needed); fallback heading is 0 when sensor unavailable. GPS extrapolation uses `movePoint(lat, lon, bearing, distance)` Haversine calculation.
+- **Sensor fusion**: `SensorFusionCollector` uses `TYPE_GAME_ROTATION_VECTOR` (no magnetometer needed) for heading delta tracking and `TYPE_LINEAR_ACCELERATION` for speed adjustment during GPS loss. Yaw is negated to convert from counterclockwise-positive (Euler) to clockwise-positive (navigational) convention. Linear acceleration is transformed from device frame to world frame (ENU) via the rotation matrix, projected onto the current heading, and integrated into a speed delta with exponential decay (τ=10s) and ±50% clamping. Fallback heading is 0 and speed delta is 0 when sensors are unavailable. GPS extrapolation uses `movePoint(lat, lon, bearing, distance)` Haversine calculation.
 
 ### 10.3 Gradle Dependencies
 
