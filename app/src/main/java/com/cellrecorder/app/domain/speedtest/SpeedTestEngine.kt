@@ -136,7 +136,6 @@ class SpeedTestEngine @Inject constructor(
             conn.connectTimeout = 10_000
             conn.readTimeout = 10_000
             conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android; en-us) (KHTML, like Gecko) speedtest-cli/2.1.4")
-            conn.setRequestProperty("Accept-Encoding", "gzip")
             if (conn.responseCode == 200) {
                 val config = SpeedTestConfigParser.parse(conn.inputStream)
                 conn.disconnect()

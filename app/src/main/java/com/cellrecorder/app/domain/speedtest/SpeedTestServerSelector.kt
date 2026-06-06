@@ -5,8 +5,6 @@ import com.cellrecorder.app.domain.speedtest.model.SpeedTestServerInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.xmlpull.v1.XmlPullParser
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.math.*
@@ -132,33 +130,35 @@ object SpeedTestServerSelector {
             try {
                 val latencies = mutableListOf<Double>()
                 val baseUrl = server.url.substringBeforeLast("/")
-                val scheme = if (secure && baseUrl.startsWith("http:")) "https" else if (!secure && baseUrl.startsWith("https:")) "http" else ""
 
                 for (i in 0 until PING_SAMPLES) {
-                    val latencyUrl = if (scheme.isNotEmpty()) {
-                        "$scheme://${baseUrl.substringAfter("://")}/latency.txt?x=${System.currentTimeMillis()}.$i"
-                    } else {
-                        "$baseUrl/latency.txt?x=${System.currentTimeMillis()}.$i"
-                    }
-
+                    val latencyUrl = "$baseUrl/latency.txt?x=${System.currentTimeMillis()}.$i"
                     try {
                         val start = System.nanoTime()
                         val conn = URL(latencyUrl).openConnection() as HttpURLConnection
                         conn.connectTimeout = LATENCY_PING_TIMEOUT_MS
                         conn.readTimeout = LATENCY_PING_TIMEOUT_MS
                         conn.setRequestProperty("User-Agent", buildUserAgent())
+                        conn.setRequestProperty("Accept-Encoding", "identity")
 
                         val responseCode = conn.responseCode
                         if (responseCode == 200) {
-                            val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                            val text = reader.readText()
+                            val input = conn.inputStream
+                            val bytes = ByteArray(9)
+                            var total = 0
+                            while (total < 9) {
+                                val count = input.read(bytes, total, 9 - total)
+                                if (count == -1) break
+                                total += count
+                            }
                             val elapsed = (System.nanoTime() - start) / 1_000_000.0
-                            if (text.startsWith("test=test") && elapsed < LATENCY_PING_TIMEOUT_MS) {
+                            val text = String(bytes, 0, total, Charsets.US_ASCII)
+                            if (text == "test=test" && elapsed < LATENCY_PING_TIMEOUT_MS) {
                                 latencies.add(elapsed)
                             } else {
                                 latencies.add(3600.0)
                             }
-                            reader.close()
+                            input.close()
                         } else {
                             latencies.add(3600.0)
                         }

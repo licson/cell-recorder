@@ -162,16 +162,10 @@ object SpeedTestMeasurer {
     }
 
     private fun buildUploadPayload(size: Int): ByteArray {
-        val data = StringBuilder("content1=")
         val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        val remaining = size - 9
-        if (remaining > 0) {
-            val repeats = remaining / chars.length
-            val extra = remaining % chars.length
-            repeat(repeats) { data.append(chars) }
-            data.append(chars.substring(0, extra))
-        }
-        return data.toString().toByteArray(Charsets.UTF_8)
+        val multiplier = kotlin.math.round(size.toDouble() / chars.length).toInt()
+        val content = "content1=" + (chars.repeat(multiplier)).substring(0, size - 9)
+        return content.toByteArray(Charsets.UTF_8)
     }
 
     private fun buildUserAgent(): String {
