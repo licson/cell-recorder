@@ -229,7 +229,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateSpeedTestServerId(value: String) {
-        val sanitized = value.filter { it.isDigit() || it == ',' || it == ' ' }
+        val sanitized = value.filter { it.isDigit() }
         _config.value = _config.value.copy(speedTestServerId = sanitized.ifBlank { null })
         debouncedSave()
     }

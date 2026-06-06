@@ -37,10 +37,10 @@ object SpeedTestAnalyticsEngine {
             avgUploadBps = uploadValues.average().toLong().takeIf { uploadValues.isNotEmpty() },
             p95UploadBps = percentile(uploadValues, 0.95),
             serverName = succeeded.firstOrNull()?.serverName,
-            downloadByRsrp = computeRsrpCorrelation(succeeded),
+            downloadByRsrp = computeRsrpCorrelation(succeeded) { it.downloadBps },
             downloadByRat = computeRatCorrelation(succeeded),
             downloadBySim = computeSimCorrelation(succeeded),
-            uploadByRsrp = computeRsrpCorrelation(uploadRecords(succeeded)).takeIf { it.isNotEmpty() },
+            uploadByRsrp = computeRsrpCorrelation(uploadRecords(succeeded)) { it.uploadBps }.takeIf { it.isNotEmpty() },
             downloadHistogram = computeDownloadHistogram(downloadValues)
         )
     }
@@ -49,7 +49,10 @@ object SpeedTestAnalyticsEngine {
         return records.filter { it.uploadBps != null }
     }
 
-    private fun computeRsrpCorrelation(records: List<SpeedTestRecordEntity>): List<CorrelationBin> {
+    private fun computeRsrpCorrelation(
+        records: List<SpeedTestRecordEntity>,
+        valueSelector: (SpeedTestRecordEntity) -> Long?
+    ): List<CorrelationBin> {
         return RSRP_BINS.map { (label, range) ->
             val matching = records.filter { r -> r.rsrpAtTest != null && r.rsrpAtTest!! in range }
             CorrelationBin(
@@ -57,7 +60,7 @@ object SpeedTestAnalyticsEngine {
                 values = listOf(
                     SimValue(
                         simSlotIndex = 0,
-                        value = matching.mapNotNull { it.downloadBps }.average().takeIf { it > 0 }
+                        value = matching.mapNotNull(valueSelector).average().takeIf { it > 0 }
                     )
                 )
             )

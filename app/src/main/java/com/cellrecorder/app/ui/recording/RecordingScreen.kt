@@ -426,10 +426,10 @@ private fun LiveStatsBar(
                     "Uploading" -> "Speed: Testing ↑..."
                     "Completed" -> {
                         val dl = state.lastSpeedTestDownloadBps?.let {
-                            String.format(Locale.US, "%.0f", it / 1_000_000.0)
+                            String.format(Locale.US, "%.1f", it / 1_000_000.0)
                         } ?: "?"
                         val ul = state.lastSpeedTestUploadBps?.let {
-                            String.format(Locale.US, "%.0f", it / 1_000_000.0)
+                            String.format(Locale.US, "%.1f", it / 1_000_000.0)
                         } ?: "?"
                         "Speed: ↓$dl ↑$ul Mbps"
                     }

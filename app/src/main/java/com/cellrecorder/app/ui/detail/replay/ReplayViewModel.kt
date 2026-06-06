@@ -76,12 +76,12 @@ class ReplayViewModel @Inject constructor(
     }
 
     private fun recomputeMarkers() {
-        val cellRecords = _records.value
         val speedRecords = _speedTestRecords.value
-        if (cellRecords.isEmpty() || speedRecords.isEmpty()) {
+        if (speedRecords.isEmpty()) {
             _speedTestMarkers.value = emptyList()
             return
         }
+        val cellRecords = _filteredRecords.value
         val markers = speedRecords.map { speedRec ->
             val index = cellRecords.indexOfLast { it.record.timestamp <= speedRec.timestamp }
                 .coerceAtLeast(0)
@@ -107,6 +107,7 @@ class ReplayViewModel @Inject constructor(
             _records.value.filter { it.record.simSlotIndex == sim }
         }
         _currentIndex.value = 0
+        recomputeMarkers()
         if (_isPlaying.value) {
             pause()
         }

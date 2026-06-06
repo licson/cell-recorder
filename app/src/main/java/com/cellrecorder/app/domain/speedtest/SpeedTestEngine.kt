@@ -21,7 +21,8 @@ class SpeedTestEngine @Inject constructor(
 
     suspend fun runTest(
         preferredServerId: Int? = null,
-        uploadEnabled: Boolean = true
+        uploadEnabled: Boolean = true,
+        onStatus: (String) -> Unit = {}
     ): SpeedTestResult = withContext(Dispatchers.IO) {
         try {
             if (isWifiActive()) {
@@ -44,6 +45,7 @@ class SpeedTestEngine @Inject constructor(
             )
 
             if (cachedServer == null) {
+                onStatus("Discovering")
                 cachedServer = SpeedTestServerSelector.fetchAndSelect(
                     clientLat = config.client.lat,
                     clientLon = config.client.lon,
@@ -62,6 +64,7 @@ class SpeedTestEngine @Inject constructor(
 
             val serverBaseUrl = server.url.substringBeforeLast("/")
 
+            onStatus("Downloading")
             val downloadResult = SpeedTestMeasurer.measureDownload(
                 serverBaseUrl = serverBaseUrl,
                 threadsPerUrl = config.download.threadsPerUrl,
@@ -76,6 +79,7 @@ class SpeedTestEngine @Inject constructor(
 
             var uploadBps: Long? = null
             if (uploadEnabled) {
+                onStatus("Uploading")
                 val uploadResult = SpeedTestMeasurer.measureUpload(
                     serverUrl = server.url,
                     uploadSizes = config.uploadSizes,
@@ -90,6 +94,7 @@ class SpeedTestEngine @Inject constructor(
                 } else null
             }
 
+            onStatus("Completed")
             SpeedTestResult(
                 downloadBps = downloadBps,
                 uploadBps = uploadBps,
@@ -101,8 +106,6 @@ class SpeedTestEngine @Inject constructor(
                 errorMessage = null
             )
         } catch (e: Exception) {
-            cachedServer = null
-            cachedConfig = null
             SpeedTestResult(
                 downloadBps = null, uploadBps = null,
                 serverId = null, serverName = null,

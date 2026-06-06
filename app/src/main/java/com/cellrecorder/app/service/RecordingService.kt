@@ -311,13 +311,22 @@ pointRecorder.recordPoint(
 
                         val result = speedTestEngine.runTest(
                             preferredServerId = config.speedTestServerId?.toIntOrNull(),
-                            uploadEnabled = config.speedTestUploadEnabled
+                            uploadEnabled = config.speedTestUploadEnabled,
+                            onStatus = { status -> stateManager.update { it?.copy(speedTestStatus = status) } }
                         )
 
                         if (!result.succeeded && result.errorMessage == "SKIPPED_WIFI") {
-                            stateManager.update { it?.copy(speedTestStatus = "SkippedWiFi") }
+                            stateManager.update { it?.copy(
+                                speedTestStatus = "SkippedWiFi",
+                                lastSpeedTestDownloadBps = null,
+                                lastSpeedTestUploadBps = null
+                            ) }
                         } else if (!result.succeeded) {
-                            stateManager.update { it?.copy(speedTestStatus = "Failed") }
+                            stateManager.update { it?.copy(
+                                speedTestStatus = "Failed",
+                                lastSpeedTestDownloadBps = null,
+                                lastSpeedTestUploadBps = null
+                            ) }
                         } else {
                             stateManager.update { it?.copy(
                                 speedTestStatus = "Completed",

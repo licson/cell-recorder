@@ -492,7 +492,7 @@ private fun SpeedTestOverviewCard(stats: SpeedTestGlobalStats) {
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = stats.avgDownloadBps?.let { String.format(Locale.US, "%.0f", it / 1_000_000.0) + " Mbps" } ?: "---",
+                        text = stats.avgDownloadBps?.let { String.format(Locale.US, "%.1f", it / 1_000_000.0) + " Mbps" } ?: "---",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF2196F3)
@@ -501,7 +501,7 @@ private fun SpeedTestOverviewCard(stats: SpeedTestGlobalStats) {
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = stats.avgUploadBps?.let { String.format(Locale.US, "%.0f", it / 1_000_000.0) + " Mbps" } ?: "---",
+                        text = stats.avgUploadBps?.let { String.format(Locale.US, "%.1f", it / 1_000_000.0) + " Mbps" } ?: "---",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF00BCD4)
