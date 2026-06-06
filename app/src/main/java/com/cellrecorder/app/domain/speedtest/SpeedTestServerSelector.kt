@@ -1,5 +1,6 @@
 package com.cellrecorder.app.domain.speedtest
 
+import android.util.Log
 import android.util.Xml
 import com.cellrecorder.app.domain.speedtest.model.SpeedTestServerInfo
 import kotlinx.coroutines.Dispatchers
@@ -11,6 +12,7 @@ import kotlin.math.*
 
 object SpeedTestServerSelector {
 
+    private const val TAG = "SpeedTestServerSelector"
     private const val SERVER_LIST_TIMEOUT_MS = 10_000
     private const val LATENCY_PING_TIMEOUT_MS = 5_000
     private const val CLOSEST_COUNT = 5
@@ -129,7 +131,10 @@ object SpeedTestServerSelector {
         for (server in servers) {
             try {
                 val latencies = mutableListOf<Double>()
-                val baseUrl = server.url.substringBeforeLast("/")
+                var baseUrl = server.url.substringBeforeLast("/")
+                if (secure && baseUrl.startsWith("http:")) {
+                    baseUrl = "https://${baseUrl.substring(7)}"
+                }
 
                 for (i in 0 until PING_SAMPLES) {
                     val latencyUrl = "$baseUrl/latency.txt?x=${System.currentTimeMillis()}.$i"
@@ -163,7 +168,8 @@ object SpeedTestServerSelector {
                             latencies.add(3600.0)
                         }
                         conn.disconnect()
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Latency ping failed for ${server.host}: ${e.message}")
                         latencies.add(3600.0)
                     }
                 }
@@ -175,7 +181,8 @@ object SpeedTestServerSelector {
                         best = server.copy(latencyMs = avgLatency)
                     }
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.w(TAG, "Ping server failed: ${e.message}")
                 continue
             }
         }

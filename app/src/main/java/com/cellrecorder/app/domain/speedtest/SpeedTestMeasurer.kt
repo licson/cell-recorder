@@ -1,5 +1,6 @@
 package com.cellrecorder.app.domain.speedtest
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
@@ -9,9 +10,11 @@ import kotlinx.coroutines.withContext
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicLong
 
 object SpeedTestMeasurer {
 
+    private const val TAG = "SpeedTestMeasurer"
     private const val CHUNK_SIZE = 10240
     private const val CONNECT_TIMEOUT_MS = 10_000
     private const val READ_TIMEOUT_MS = 30_000
@@ -29,17 +32,21 @@ object SpeedTestMeasurer {
         testLengthSec: Int,
         secure: Boolean
     ): MeasurementResult = withContext(Dispatchers.IO) {
+        val baseUrl = if (secure && serverBaseUrl.startsWith("http:")) {
+            "https://${serverBaseUrl.substring(7)}"
+        } else serverBaseUrl
+
         val urls = mutableListOf<String>()
         for (size in DOWNLOAD_SIZES) {
             repeat(threadsPerUrl) { i ->
-                urls.add("${serverBaseUrl}/random${size}x${size}.jpg?x=${System.currentTimeMillis()}.$i")
+                urls.add("${baseUrl}/random${size}x${size}.jpg?x=${System.currentTimeMillis()}.$i")
             }
         }
 
         val semaphore = Semaphore(downloadThreads.coerceAtLeast(1))
         val startTime = System.nanoTime()
         val deadlineNs = startTime + testLengthSec * 1_000_000_000L
-        var totalBytes = 0L
+        val totalBytes = AtomicLong(0)
 
         coroutineScope {
             val jobs = urls.map { url ->
@@ -63,11 +70,12 @@ object SpeedTestMeasurer {
                             while (isActive && System.nanoTime() < deadlineNs) {
                                 bytesRead = input.read(buffer)
                                 if (bytesRead == -1) break
-                                totalBytes += bytesRead
+                                totalBytes.addAndGet(bytesRead.toLong())
                             }
 
                             input.close()
-                        } catch (_: Exception) {
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Download chunk failed: ${e.message}")
                         } finally {
                             conn.disconnect()
                         }
@@ -81,7 +89,7 @@ object SpeedTestMeasurer {
 
         val elapsedNs = System.nanoTime() - startTime
         MeasurementResult(
-            bytesTransferred = totalBytes,
+            bytesTransferred = totalBytes.get(),
             elapsedMs = elapsedNs / 1_000_000
         )
     }
@@ -95,10 +103,14 @@ object SpeedTestMeasurer {
         testLengthSec: Int,
         secure: Boolean
     ): MeasurementResult = withContext(Dispatchers.IO) {
+        val url = if (secure && serverUrl.startsWith("http:")) {
+            "https://${serverUrl.substring(7)}"
+        } else serverUrl
+
         val requests = mutableListOf<Pair<String, Int>>()
         for (size in uploadSizes) {
             repeat(uploadCount) {
-                requests.add(serverUrl to size)
+                requests.add(url to size)
             }
         }
         val actualRequests = requests.take(uploadMax)
@@ -106,17 +118,17 @@ object SpeedTestMeasurer {
         val semaphore = Semaphore(uploadThreads.coerceAtLeast(1))
         val startTime = System.nanoTime()
         val deadlineNs = startTime + testLengthSec * 1_000_000_000L
-        var totalBytes = 0L
+        val totalBytes = AtomicLong(0)
 
         coroutineScope {
-            val jobs = actualRequests.map { (url, size) ->
+            val jobs = actualRequests.map { (reqUrl, size) ->
                 launch {
                     semaphore.acquire()
                     try {
                         if (System.nanoTime() >= deadlineNs || !isActive) return@launch
 
                         val payload = buildUploadPayload(size)
-                        val conn = URL(url).openConnection() as HttpURLConnection
+                        val conn = URL(reqUrl).openConnection() as HttpURLConnection
                         conn.connectTimeout = CONNECT_TIMEOUT_MS
                         conn.readTimeout = READ_TIMEOUT_MS
                         conn.doOutput = true
@@ -141,8 +153,9 @@ object SpeedTestMeasurer {
 
                             output.close()
                             conn.inputStream.use { it.read(ByteArray(11)) }
-                            totalBytes += written
-                        } catch (_: Exception) {
+                            totalBytes.addAndGet(written)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Upload chunk failed: ${e.message}")
                         } finally {
                             conn.disconnect()
                         }
@@ -156,7 +169,7 @@ object SpeedTestMeasurer {
 
         val elapsedNs = System.nanoTime() - startTime
         MeasurementResult(
-            bytesTransferred = totalBytes,
+            bytesTransferred = totalBytes.get(),
             elapsedMs = elapsedNs / 1_000_000
         )
     }
