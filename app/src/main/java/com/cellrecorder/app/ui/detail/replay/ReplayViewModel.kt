@@ -3,6 +3,8 @@ package com.cellrecorder.app.ui.detail.replay
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
+import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
+import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -12,9 +14,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class SpeedTestMarker(
+    val record: SpeedTestRecordEntity,
+    val timelineIndex: Int
+)
+
 @HiltViewModel
 class ReplayViewModel @Inject constructor(
-    private val getSessionPointsUseCase: GetSessionPointsUseCase
+    private val getSessionPointsUseCase: GetSessionPointsUseCase,
+    private val speedTestRecordRepository: SpeedTestRecordRepository
 ) : ViewModel() {
 
     private val _records = MutableStateFlow<List<CellRecordWithCaBands>>(emptyList())
@@ -38,6 +46,15 @@ class ReplayViewModel @Inject constructor(
     private val _availableSimSlots = MutableStateFlow<List<Int>>(emptyList())
     val availableSimSlots: StateFlow<List<Int>> = _availableSimSlots
 
+    private val _speedTestRecords = MutableStateFlow<List<SpeedTestRecordEntity>>(emptyList())
+    val speedTestRecords: StateFlow<List<SpeedTestRecordEntity>> = _speedTestRecords
+
+    private val _speedTestMarkers = MutableStateFlow<List<SpeedTestMarker>>(emptyList())
+    val speedTestMarkers: StateFlow<List<SpeedTestMarker>> = _speedTestMarkers
+
+    private val _selectedSpeedTestMarker = MutableStateFlow<SpeedTestRecordEntity?>(null)
+    val selectedSpeedTestMarker: StateFlow<SpeedTestRecordEntity?> = _selectedSpeedTestMarker
+
     private var playbackJob: Job? = null
 
     fun loadSession(sessionId: Long) {
@@ -50,6 +67,31 @@ class ReplayViewModel @Inject constructor(
                 applyFilter()
             }
         }
+        viewModelScope.launch {
+            speedTestRecordRepository.getBySessionId(sessionId).collect { records ->
+                _speedTestRecords.value = records
+                recomputeMarkers()
+            }
+        }
+    }
+
+    private fun recomputeMarkers() {
+        val cellRecords = _records.value
+        val speedRecords = _speedTestRecords.value
+        if (cellRecords.isEmpty() || speedRecords.isEmpty()) {
+            _speedTestMarkers.value = emptyList()
+            return
+        }
+        val markers = speedRecords.map { speedRec ->
+            val index = cellRecords.indexOfLast { it.record.timestamp <= speedRec.timestamp }
+                .coerceAtLeast(0)
+            SpeedTestMarker(record = speedRec, timelineIndex = index)
+        }
+        _speedTestMarkers.value = markers
+    }
+
+    fun selectSpeedTestMarker(record: SpeedTestRecordEntity?) {
+        _selectedSpeedTestMarker.value = record
     }
 
     fun setSimFilter(simSlotIndex: Int?) {

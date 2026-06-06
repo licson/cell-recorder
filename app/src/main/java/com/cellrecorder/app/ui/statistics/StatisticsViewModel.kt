@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.SessionRepository
+import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.model.BandDistribution
 import com.cellrecorder.app.domain.model.RatDistribution
 import com.cellrecorder.app.domain.model.Sim5GTime
@@ -45,10 +46,18 @@ data class SimOnNetwork(
         get() = if (totalRecords > 0) onNetworkCount.toFloat() / totalRecords * 100f else 0f
 }
 
+data class SpeedTestGlobalStats(
+    val totalTests: Int,
+    val avgDownloadBps: Double?,
+    val avgUploadBps: Double?,
+    val successRate: Double?
+)
+
 @HiltViewModel
 class StatisticsViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
-    private val cellRecordRepository: CellRecordRepository
+    private val cellRecordRepository: CellRecordRepository,
+    private val speedTestRecordRepository: SpeedTestRecordRepository
 ) : ViewModel() {
 
     val stats: StateFlow<GlobalStats> = combine(
@@ -111,4 +120,18 @@ class StatisticsViewModel @Inject constructor(
             )
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val speedTestGlobalStats: StateFlow<SpeedTestGlobalStats?> = combine(
+        speedTestRecordRepository.getTotalCount(),
+        speedTestRecordRepository.getAvgDownloadBps(),
+        speedTestRecordRepository.getAvgUploadBps(),
+        speedTestRecordRepository.getSuccessRate()
+    ) { total, avgDl, avgUl, rate ->
+        if (total > 0) SpeedTestGlobalStats(
+            totalTests = total,
+            avgDownloadBps = avgDl,
+            avgUploadBps = avgUl,
+            successRate = rate
+        ) else null
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 }

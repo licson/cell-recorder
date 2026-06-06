@@ -30,5 +30,8 @@ data class RecordingState(
     val currentLongitude: Double = 0.0,
     val currentAltitude: Double = 0.0,
     val errorMessage: String? = null,
-    val isExtrapolatingGps: Boolean = false
+    val isExtrapolatingGps: Boolean = false,
+    val speedTestStatus: String = "Idle",
+    val lastSpeedTestDownloadBps: Long? = null,
+    val lastSpeedTestUploadBps: Long? = null
 )

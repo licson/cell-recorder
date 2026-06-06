@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Report
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
@@ -37,6 +38,7 @@ fun SettingsScreen(
 ) {
     val config by viewModel.config.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var showSpeedTestEula by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -76,6 +78,59 @@ fun SettingsScreen(
             SettingsCard(title = "Cell ID") {
                 SettingsRow("NR gNB Bit-Length", config.nrGnbBitLength.toString(), viewModel::updateNrGnbBitLength, keyboardType = KeyboardType.Number)
                 SettingsRow("Cell Info Refresh Interval (s)", config.cellInfoRefreshIntervalSec.toString(), viewModel::updateCellInfoRefreshInterval, keyboardType = KeyboardType.Number)
+            }
+
+            SettingsCard(title = "Speed Test") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Enable Speed Test", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = config.speedTestEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled) {
+                                showSpeedTestEula = true
+                            } else {
+                                viewModel.toggleSpeedTest(false)
+                            }
+                        }
+                    )
+                }
+                if (config.speedTestEnabled) {
+                    HorizontalDivider()
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Upload Test", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = config.speedTestUploadEnabled,
+                            onCheckedChange = { viewModel.toggleSpeedTestUpload(it) }
+                        )
+                    }
+                    SettingsRow("Interval (ms)", config.speedTestIntervalMs.toString(), viewModel::updateSpeedTestInterval, keyboardType = KeyboardType.Number)
+                    SettingsRow("Server ID (optional)", config.speedTestServerId ?: "", viewModel::updateSpeedTestServerId, keyboardType = KeyboardType.Number)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Leave blank for auto-select. Each test uses ~5-30 MB of data.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (showSpeedTestEula) {
+                SpeedTestEulaDialog(
+                    onAccept = {
+                        showSpeedTestEula = false
+                        viewModel.toggleSpeedTest(true)
+                    },
+                    onDecline = {
+                        showSpeedTestEula = false
+                    }
+                )
             }
 
             SettingsCard(title = "GPS Loss Fallback") {

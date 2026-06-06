@@ -63,6 +63,35 @@ data class CellRecordCaBandEntity(
     val timingAdvance: Int?
 )
 
+@Entity(
+    tableName = "speed_test_records",
+    foreignKeys = [ForeignKey(
+        entity = SessionEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["sessionId"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("sessionId"), Index("timestamp")]
+)
+data class SpeedTestRecordEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sessionId: Long,
+    val timestamp: Long,
+    val downloadBps: Long?,
+    val uploadBps: Long?,
+    val serverName: String?,
+    val serverHost: String?,
+    val serverLocation: String?,
+    val serverId: Long?,
+    val dataSimSlotIndex: Int?,
+    val ratAtTest: String?,
+    val rsrpAtTest: Int?,
+    val bandAtTest: Int?,
+    val succeeded: Boolean,
+    val errorMessage: String?,
+    val networkType: String?
+)
+
 @Entity(tableName = "app_config")
 data class AppConfigEntity(
     @PrimaryKey val id: Int = 1,
@@ -86,7 +115,12 @@ data class AppConfigEntity(
     val mobilityStationaryKmh: Float = 5f,
     val mobilityWalkingKmh: Float = 15f,
     val indoorAccuracyThresholdM: Float = 30f,
-    val tunnelSignalLossThresholdMs: Long = 10000
+    val tunnelSignalLossThresholdMs: Long = 10000,
+    val speedTestEnabled: Boolean = false,
+    val speedTestIntervalMs: Long = 60000L,
+    val speedTestUploadEnabled: Boolean = true,
+    val speedTestSecure: Boolean = true,
+    val speedTestServerId: String? = null
 )
 ```
 
@@ -100,15 +134,19 @@ app/
 │   │   ├── dao/
 │   │   │   ├── SessionDao.kt
 │   │   │   ├── CellRecordDao.kt
-│   │   │   └── ConfigDao.kt
+│   │   │   ├── ConfigDao.kt
+│   │   │   └── SpeedTestRecordDao.kt
 │   │   └── entity/
 │   │       ├── SessionEntity.kt
 │   │       ├── CellRecordEntity.kt
-│   │       └── AppConfigEntity.kt
+│   │       ├── CellRecordCaBandEntity.kt
+│   │       ├── AppConfigEntity.kt
+│   │       └── SpeedTestRecordEntity.kt
 │   └── repository/
 │       ├── SessionRepository.kt
 │       ├── CellRecordRepository.kt
-│       └── ConfigRepository.kt
+│       ├── ConfigRepository.kt
+│       └── SpeedTestRecordRepository.kt
 ├── domain/
 │   ├── model/
 │   │   ├── SessionSummary.kt
@@ -124,16 +162,26 @@ app/
 │   │   ├── GetConfigUseCase.kt
 │   │   ├── UpdateConfigUseCase.kt
 │   │   ├── ExportSessionUseCase.kt
+│   │   ├── ExportSpeedTestUseCase.kt
 │   │   ├── BatchResplitUseCase.kt
 │   │   └── import_/
 │   │       ├── CsvRecordParser.kt
 │   │       ├── GeoJsonRecordParser.kt
 │   │       └── ImportSessionUseCase.kt
+│   ├── speedtest/
+│   │   ├── SpeedTestEngine.kt
+│   │   ├── SpeedTestConfigParser.kt
+│   │   ├── SpeedTestServerSelector.kt
+│   │   ├── SpeedTestMeasurer.kt
+│   │   └── model/
+│   │       ├── SpeedTestResult.kt
+│   │       └── SpeedTestServerInfo.kt
 │   ├── ping/
 │   │   ├── PingEngine.kt
 │   │   └── PingSlidingWindow.kt
 │   └── analytics/
 │       ├── SessionAnalyticsEngine.kt
+│       ├── SpeedTestAnalyticsEngine.kt
 │       └── model/
 │           ├── SessionAnalytics.kt
 │           ├── RatCoverage.kt
@@ -148,7 +196,8 @@ app/
 │           ├── CoverageGap.kt
 │           ├── TimelineSegment.kt
 │           ├── RatDistItem.kt
-│           └── InsightCard.kt
+│           ├── InsightCard.kt
+│           └── SpeedTestSessionAnalytics.kt
 ├── service/
 │   ├── RecordingService.kt
 │   ├── RecordingState.kt
@@ -202,7 +251,8 @@ app/
 │   │   └── CoverageBar.kt
 │   ├── settings/
 │   │   ├── SettingsScreen.kt
-│   │   └── SettingsViewModel.kt
+│   │   ├── SettingsViewModel.kt
+│   │   └── SpeedTestEulaDialog.kt
 │   ├── map/
 │   │   └── SessionMapView.kt
 │   ├── shared/
@@ -242,7 +292,7 @@ app/
 - **Import** uses `ActivityResultContracts.OpenDocument`; `CsvRecordParser` and `GeoJsonRecordParser` handle parsing
 - **JUnit 5** configured via `tasks.withType<Test> { useJUnitPlatform() }` in `build.gradle.kts`
 - **`kotlinx-coroutines-play-services`** dependency for `Task.await()` on `FusedLocationProviderClient`
-- **Room schema**: version 6 with explicit migrations (3→4, 4→5, 5→6); `fallbackToDestructiveMigration()` NOT used; single-row `AppConfig` table seeded via `RoomDatabase.Callback.onCreate`
+- **Room schema**: version 10 with explicit migrations (3→4, 4→5, 5→6, 6→7, 7→8, 8→9, 9→10); `fallbackToDestructiveMigration()` NOT used; single-row `AppConfig` table seeded via `RoomDatabase.Callback.onCreate`
 - **Foreign key constraints**: Enabled via `PRAGMA foreign_keys = ON` in `AppDatabase.CALLBACK.onOpen()`. All FK declarations with `ON DELETE CASCADE` are enforced at runtime
 - **Multi-SIM**: `SubscriptionManager` used to enumerate active subscriptions and identify the default data SIM for ping attribution
 - **Viewport rendering**: Session Detail data table renders only visible rows; off-screen rows replaced by measured-height `Spacer` boxes for scroll state preservation
@@ -250,6 +300,11 @@ app/
 - **RecordingService idempotency**: `startRecording()` cancels existing jobs before creating new ones; `onStartCommand` guards against calling `startRecording()` when `recordingJob.isActive == true`; session ID guard uses `> 0` to reject default of 0
 - **Notification content intent**: Uses `FLAG_ACTIVITY_CLEAR_TOP \| FLAG_ACTIVITY_SINGLE_TOP`; `MainActivity` uses `launchMode="singleTop"` to prevent duplicate Activity instances
 - **Point recording resilience**: `PointRecorder.recordPoint()` wraps per-snapshot database operations in try-catch — a single failed insert skips that snapshot and continues
+- **Speedtest engine**: Custom Kotlin implementation of Speedtest.net HTTP protocol (not Ookla binary — binary fails on Android due to `SO_BINDTODEVICE` syscall restriction). Uses `java.net.HttpURLConnection` (no external HTTP dependencies). Coroutine-based with `Semaphore` for concurrency limiting. Pure Kotlin, no native code, works on all Android ABIs
+- **Server selection**: Fetched from `speedtest-servers-static.php` XML, Haversine-sorted by distance, top 5 candidates pinged via HTTP `latency.txt`, lowest latency selected. Cached per recording session; invalidated on test failure
+- **WiFi skip**: Tests skip when WiFi is active (`ConnectivityManager.getActiveNetwork()` has `TRANSPORT_WIFI`). Records `SKIPPED_WIFI` error so analytics can distinguish skipped vs failed tests
+- **Correlation snapshot**: `CellInfoCollector.snapshots()` called at test start to capture `ratAtTest`, `rsrpAtTest`, `bandAtTest`, `dataSimSlotIndex`. No temporal join needed — snapshot is deterministic point-in-time
+- **Replay display**: Speedtest markers are colored dots on the RAT timeline bar (green=fast, yellow=moderate, red=slow). A summary card shows total/completed tests and latest result. No sparse line chart (cell records are dense, speedtests are sparse — markers avoid visual degradation)
 
 ## Gradle Dependencies
 

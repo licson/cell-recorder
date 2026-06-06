@@ -6,6 +6,7 @@ import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.local.dao.CellRecordDao
 import com.cellrecorder.app.data.local.dao.ConfigDao
 import com.cellrecorder.app.data.local.dao.SessionDao
+import com.cellrecorder.app.data.local.dao.SpeedTestRecordDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,7 +26,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             AppDatabase.DATABASE_NAME
         ).addCallback(AppDatabase.CALLBACK)
-         .addMigrations(AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9)
+         .addMigrations(AppDatabase.MIGRATION_3_4, AppDatabase.MIGRATION_4_5, AppDatabase.MIGRATION_5_6, AppDatabase.MIGRATION_6_7, AppDatabase.MIGRATION_7_8, AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10)
          .build()
     }
 
@@ -37,4 +38,7 @@ object DatabaseModule {
 
     @Provides
     fun provideConfigDao(db: AppDatabase): ConfigDao = db.configDao()
+
+    @Provides
+    fun provideSpeedTestRecordDao(db: AppDatabase): SpeedTestRecordDao = db.speedTestRecordDao()
 }

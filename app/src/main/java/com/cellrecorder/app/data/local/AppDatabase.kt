@@ -7,19 +7,22 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cellrecorder.app.data.local.dao.CellRecordDao
 import com.cellrecorder.app.data.local.dao.ConfigDao
 import com.cellrecorder.app.data.local.dao.SessionDao
+import com.cellrecorder.app.data.local.dao.SpeedTestRecordDao
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 
 @Database(
     entities = [
         SessionEntity::class,
         CellRecordEntity::class,
         CellRecordCaBandEntity::class,
-        AppConfigEntity::class
+        AppConfigEntity::class,
+        SpeedTestRecordEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionDao(): SessionDao
     abstract fun cellRecordDao(): CellRecordDao
     abstract fun configDao(): ConfigDao
+    abstract fun speedTestRecordDao(): SpeedTestRecordDao
 
     companion object {
         const val DATABASE_NAME = "cell_recorder.db"
@@ -95,6 +99,35 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_cell_records_bandNumber` ON `cell_records` (`bandNumber`)")
         }
 
+        val MIGRATION_9_10 = Migration(9, 10) { db ->
+            db.execSQL("""CREATE TABLE IF NOT EXISTS `speed_test_records` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `sessionId` INTEGER NOT NULL,
+                `timestamp` INTEGER NOT NULL,
+                `downloadBps` INTEGER,
+                `uploadBps` INTEGER,
+                `serverName` TEXT,
+                `serverHost` TEXT,
+                `serverLocation` TEXT,
+                `serverId` INTEGER,
+                `dataSimSlotIndex` INTEGER,
+                `ratAtTest` TEXT,
+                `rsrpAtTest` INTEGER,
+                `bandAtTest` INTEGER,
+                `succeeded` INTEGER NOT NULL,
+                `errorMessage` TEXT,
+                `networkType` TEXT,
+                FOREIGN KEY (`sessionId`) REFERENCES `sessions`(`id`) ON DELETE CASCADE
+            )""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_speed_test_records_sessionId` ON `speed_test_records` (`sessionId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_speed_test_records_timestamp` ON `speed_test_records` (`timestamp`)")
+            db.execSQL("ALTER TABLE app_config ADD COLUMN speedTestEnabled INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE app_config ADD COLUMN speedTestIntervalMs INTEGER NOT NULL DEFAULT 60000")
+            db.execSQL("ALTER TABLE app_config ADD COLUMN speedTestUploadEnabled INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE app_config ADD COLUMN speedTestSecure INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE app_config ADD COLUMN speedTestServerId TEXT")
+        }
+
         val CALLBACK = object : Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
@@ -106,9 +139,11 @@ abstract class AppDatabase : RoomDatabase() {
                         handoffTimeWindowMs, rsrpDropThresholdDbm, rsrpDropTimeWindowMs,
                         latencySpikeSigma, pciFlapWindowMs, pciFlapCountThreshold,
                         coverageGapThresholdMs, mobilityStationaryKmh, mobilityWalkingKmh,
-                        indoorAccuracyThresholdM, tunnelSignalLossThresholdMs)
+                        indoorAccuracyThresholdM, tunnelSignalLossThresholdMs,
+                        speedTestEnabled, speedTestIntervalMs, speedTestUploadEnabled, speedTestSecure)
                        VALUES (1, '8.8.8.8', 1000, 3000, 5000, 10.0, 50.0, 120, 24, 5, 120,
-                               5000, 15, 10000, 3.0, 30000, 3, 30000, 5.0, 15.0, 30.0, 10000)"""
+                               5000, 15, 10000, 3.0, 30000, 3, 30000, 5.0, 15.0, 30.0, 10000,
+                               0, 60000, 1, 1)"""
                 )
             }
 

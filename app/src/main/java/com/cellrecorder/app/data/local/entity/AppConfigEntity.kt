@@ -27,5 +27,10 @@ data class AppConfigEntity(
     val mobilityStationaryKmh: Float = 5f,
     val mobilityWalkingKmh: Float = 15f,
     val indoorAccuracyThresholdM: Float = 30f,
-    val tunnelSignalLossThresholdMs: Long = 10000
+    val tunnelSignalLossThresholdMs: Long = 10000,
+    val speedTestEnabled: Boolean = false,
+    val speedTestIntervalMs: Long = 60000L,
+    val speedTestUploadEnabled: Boolean = true,
+    val speedTestSecure: Boolean = true,
+    val speedTestServerId: String? = null
 )

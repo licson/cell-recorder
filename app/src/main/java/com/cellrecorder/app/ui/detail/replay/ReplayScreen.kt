@@ -31,9 +31,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
+import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.TooltipIconButton
+import java.util.Locale
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -56,6 +58,8 @@ fun ReplayScreen(
     val speed by viewModel.speed.collectAsStateWithLifecycle()
     val selectedSim by viewModel.selectedSim.collectAsStateWithLifecycle()
     val availableSimSlots by viewModel.availableSimSlots.collectAsStateWithLifecycle()
+    val speedTestMarkers by viewModel.speedTestMarkers.collectAsStateWithLifecycle()
+    val selectedSpeedTestMarker by viewModel.selectedSpeedTestMarker.collectAsStateWithLifecycle()
 
     LaunchedEffect(sessionId) {
         viewModel.loadSession(sessionId)
@@ -106,8 +110,13 @@ fun ReplayScreen(
 
                     RatTimelineBar(
                         records = entities,
-                        currentIndex = currentIndex
+                        currentIndex = currentIndex,
+                        speedTestMarkers = speedTestMarkers
                     )
+
+                    if (speedTestMarkers.isNotEmpty()) {
+                        SpeedTestSummaryCard(markers = speedTestMarkers)
+                    }
 
                     ChartGrid(
                         records = entities,
@@ -181,8 +190,15 @@ fun ReplayScreen(
                     item {
                         RatTimelineBar(
                             records = entities,
-                            currentIndex = currentIndex
+                            currentIndex = currentIndex,
+                            speedTestMarkers = speedTestMarkers
                         )
+                    }
+
+                    if (speedTestMarkers.isNotEmpty()) {
+                        item {
+                            SpeedTestSummaryCard(markers = speedTestMarkers)
+                        }
                     }
 
                     item {
@@ -269,7 +285,9 @@ private fun ratDisplayLabel(rat: String): String = when (rat) {
 @Composable
 private fun RatTimelineBar(
     records: List<CellRecordEntity>,
-    currentIndex: Int
+    currentIndex: Int,
+    speedTestMarkers: List<SpeedTestMarker> = emptyList(),
+    onMarkerClick: (SpeedTestRecordEntity) -> Unit = {}
 ) {
     val segments = remember(records) {
         if (records.isEmpty()) return@remember emptyList()
@@ -318,6 +336,20 @@ private fun RatTimelineBar(
                     val cx = stepX * currentIndex
                     drawLine(Color.White, Offset(cx, 0f), Offset(cx, size.height), strokeWidth = 2f)
                 }
+                speedTestMarkers.forEach { marker ->
+                    val x = stepX * marker.timelineIndex.coerceIn(0, (total - 1).coerceAtLeast(0))
+                    val speed = marker.record.downloadBps
+                    val color = when {
+                        speed == null -> Color(0xFF9E9E9E)
+                        speed > 200_000_000 -> Color(0xFF4CAF50)
+                        speed > 100_000_000 -> Color(0xFF8BC34A)
+                        speed > 50_000_000 -> Color(0xFFFFEB3B)
+                        speed > 10_000_000 -> Color(0xFFFF9800)
+                        else -> Color(0xFFF44336)
+                    }
+                    drawCircle(color = color, radius = 6f, center = Offset(x, size.height / 2f))
+                    drawCircle(color = Color.White, radius = 3f, center = Offset(x, size.height / 2f))
+                }
             }
         }
         Spacer(Modifier.height(4.dp))
@@ -335,6 +367,51 @@ private fun RatTimelineBar(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SpeedTestSummaryCard(markers: List<SpeedTestMarker>) {
+    val latestSucceeded = markers.lastOrNull { it.record.succeeded }
+    val total = markers.size
+    val succeeded = markers.count { it.record.succeeded }
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(6.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Speed Tests: $total ($succeeded OK)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                latestSucceeded?.let { rec ->
+                    Text(
+                        text = "Latest: ↓${formatBps(rec.record.downloadBps)} ↑${formatBps(rec.record.uploadBps)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun formatBps(bps: Long?): String {
+    if (bps == null) return "?"
+    return when {
+        bps >= 1_000_000_000 -> String.format(Locale.US, "%.1fG", bps / 1_000_000_000.0)
+        bps >= 1_000_000 -> String.format(Locale.US, "%.0fM", bps / 1_000_000.0)
+        bps >= 1_000 -> String.format(Locale.US, "%.0fk", bps / 1_000.0)
+        else -> "${bps}b"
     }
 }
 

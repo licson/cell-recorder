@@ -32,6 +32,7 @@ import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.SimLiveState
 import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.PermissionDeniedDialog
+import java.util.Locale
 import com.cellrecorder.app.ui.shared.PermissionHelper
 import com.cellrecorder.app.ui.shared.PermissionRationaleDialog
 import com.cellrecorder.app.ui.shared.PermissionUiState
@@ -417,6 +418,29 @@ private fun LiveStatsBar(
                     text = "Ping: ${state.currentLatency} ms $dataSimLabel  |  $gpsStr  |  $latStr, $lonStr  |  Alt: $altStr",
                     style = MaterialTheme.typography.bodySmall,
                     color = gpsColor,
+                    maxLines = 1
+                )
+                val speedText = when (state.speedTestStatus) {
+                    "Discovering" -> "Speed: Selecting server..."
+                    "Downloading" -> "Speed: Testing ↓..."
+                    "Uploading" -> "Speed: Testing ↑..."
+                    "Completed" -> {
+                        val dl = state.lastSpeedTestDownloadBps?.let {
+                            String.format(Locale.US, "%.0f", it / 1_000_000.0)
+                        } ?: "?"
+                        val ul = state.lastSpeedTestUploadBps?.let {
+                            String.format(Locale.US, "%.0f", it / 1_000_000.0)
+                        } ?: "?"
+                        "Speed: ↓$dl ↑$ul Mbps"
+                    }
+                    "Failed" -> "Speed: Failed"
+                    "SkippedWiFi" -> "Speed: (WiFi)"
+                    else -> "Speed: ---"
+                }
+                Text(
+                    text = speedText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
                 )
             }

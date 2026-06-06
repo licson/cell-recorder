@@ -210,6 +210,30 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun toggleSpeedTest(enabled: Boolean) {
+        _config.value = _config.value.copy(speedTestEnabled = enabled)
+        debouncedSave()
+    }
+
+    fun toggleSpeedTestUpload(enabled: Boolean) {
+        _config.value = _config.value.copy(speedTestUploadEnabled = enabled)
+        debouncedSave()
+    }
+
+    fun updateSpeedTestInterval(value: String) {
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 10_000..300_000) {
+            _config.value = _config.value.copy(speedTestIntervalMs = parsed)
+            debouncedSave()
+        }
+    }
+
+    fun updateSpeedTestServerId(value: String) {
+        val sanitized = value.filter { it.isDigit() || it == ',' || it == ' ' }
+        _config.value = _config.value.copy(speedTestServerId = sanitized.ifBlank { null })
+        debouncedSave()
+    }
+
     fun getVersionDisplay(): String {
         return "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}, ${BuildConfig.GIT_HASH})"
     }

@@ -22,6 +22,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.domain.model.BandDistribution
 import com.cellrecorder.app.domain.model.RatDistribution
 import com.cellrecorder.app.ui.detail.ratColor
+import java.util.Locale
 
 private val bandColors = listOf(
     Color(0xFF1565C0), Color(0xFF7B1FA2), Color(0xFFC62828), Color(0xFF2E7D32),
@@ -39,6 +40,7 @@ fun StatisticsScreen(
     val simSlotDist by viewModel.simSlotDistribution.collectAsStateWithLifecycle()
     val fiveGPercent by viewModel.fiveGPercentPerSim.collectAsStateWithLifecycle()
     val onNetworkPerSim by viewModel.onNetworkPerSim.collectAsStateWithLifecycle()
+    val speedTestStats by viewModel.speedTestGlobalStats.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -54,6 +56,12 @@ fun StatisticsScreen(
         ) {
             item {
                 SummaryCards(stats = stats)
+            }
+
+            if (speedTestStats != null) {
+                item(key = "speedtest_overview") {
+                    SpeedTestOverviewCard(stats = speedTestStats!!)
+                }
             }
 
             if (ratDistributionPerSim.isNotEmpty()) {
@@ -453,6 +461,60 @@ private fun FiveGPercentCard(item: Sim5GPercent) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpeedTestOverviewCard(stats: SpeedTestGlobalStats) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "Speed Test Overview",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "${stats.totalTests}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("Tests", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = stats.avgDownloadBps?.let { String.format(Locale.US, "%.0f", it / 1_000_000.0) + " Mbps" } ?: "---",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2196F3)
+                    )
+                    Text("Avg Download", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = stats.avgUploadBps?.let { String.format(Locale.US, "%.0f", it / 1_000_000.0) + " Mbps" } ?: "---",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00BCD4)
+                    )
+                    Text("Avg Upload", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (stats.successRate != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Success Rate: ${"%.0f".format(stats.successRate!! * 100)}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

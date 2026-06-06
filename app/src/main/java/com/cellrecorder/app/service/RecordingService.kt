@@ -9,12 +9,15 @@ import android.os.IBinder
 import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
+import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.ConfigRepository
 import com.cellrecorder.app.data.repository.SessionRepository
+import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.model.PingResult
 import com.cellrecorder.app.domain.ping.PingEngine
 import com.cellrecorder.app.domain.ping.PingSlidingWindow
+import com.cellrecorder.app.domain.speedtest.SpeedTestEngine
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -36,11 +39,14 @@ class RecordingService : Service() {
     @Inject lateinit var stateManager: RecordingStateManager
     @Inject lateinit var notificationHelper: RecordingNotificationHelper
     @Inject lateinit var pointRecorder: PointRecorder
+    @Inject lateinit var speedTestEngine: SpeedTestEngine
+    @Inject lateinit var speedTestRecordRepository: SpeedTestRecordRepository
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val recordingMutex = Mutex()
     private var recordingJob: Job? = null
     private var pingJob: Job? = null
+    private var speedTestJob: Job? = null
     private val pingWindow = PingSlidingWindow()
     private val gpsState = GpsStateMachine()
 
@@ -89,6 +95,8 @@ class RecordingService : Service() {
         fallbackRecordingJob = null
         pingJob?.cancel()
         pingJob = null
+        speedTestJob?.cancel()
+        speedTestJob = null
         stateUpdateJob?.cancel()
         stateUpdateJob = null
 
@@ -285,6 +293,66 @@ pointRecorder.recordPoint(
                 }
             }
 
+            if (config.speedTestEnabled) {
+                speedTestJob = launch {
+                    speedTestEngine.invalidateCache()
+                    while (isActive) {
+                        val testStart = System.currentTimeMillis()
+                        stateManager.update { it?.copy(speedTestStatus = "Discovering") }
+
+                        val snapshots = try {
+                            cellInfoCollector.snapshots(config)
+                        } catch (_: Exception) { emptyList() }
+                        val dataSnapshot = snapshots.firstOrNull { s ->
+                            s.subscriptionId == defaultDataSubId
+                        } ?: snapshots.firstOrNull()
+                        val dataSimSlot = activeSubs[defaultDataSubId]?.simSlotIndex
+                            ?: dataSnapshot?.simSlotIndex
+
+                        val result = speedTestEngine.runTest(
+                            preferredServerId = config.speedTestServerId?.toIntOrNull(),
+                            uploadEnabled = config.speedTestUploadEnabled
+                        )
+
+                        if (!result.succeeded && result.errorMessage == "SKIPPED_WIFI") {
+                            stateManager.update { it?.copy(speedTestStatus = "SkippedWiFi") }
+                        } else if (!result.succeeded) {
+                            stateManager.update { it?.copy(speedTestStatus = "Failed") }
+                        } else {
+                            stateManager.update { it?.copy(
+                                speedTestStatus = "Completed",
+                                lastSpeedTestDownloadBps = result.downloadBps,
+                                lastSpeedTestUploadBps = result.uploadBps
+                            ) }
+                        }
+
+                        try {
+                            speedTestRecordRepository.insert(SpeedTestRecordEntity(
+                                sessionId = sessionId,
+                                timestamp = testStart,
+                                downloadBps = result.downloadBps,
+                                uploadBps = result.uploadBps,
+                                serverName = result.serverName,
+                                serverHost = result.serverHost,
+                                serverLocation = result.serverLocation,
+                                serverId = result.serverId?.toLong(),
+                                dataSimSlotIndex = dataSimSlot,
+                                ratAtTest = dataSnapshot?.rat,
+                                rsrpAtTest = dataSnapshot?.rsrp,
+                                bandAtTest = dataSnapshot?.bandNumber,
+                                succeeded = result.succeeded,
+                                errorMessage = result.errorMessage,
+                                networkType = if (result.errorMessage == "SKIPPED_WIFI") "WIFI" else "CELLULAR"
+                            ))
+                        } catch (_: Exception) { }
+
+                        val elapsed = System.currentTimeMillis() - testStart
+                        val delayMs = (config.speedTestIntervalMs - elapsed).coerceAtLeast(0L)
+                        if (delayMs > 0) delay(delayMs)
+                    }
+                }
+            }
+
             stateUpdateJob = launch {
                 while (isActive) {
                     delay(1000)
@@ -325,6 +393,8 @@ pointRecorder.recordPoint(
         fallbackRecordingJob = null
         pingJob?.cancel()
         pingJob = null
+        speedTestJob?.cancel()
+        speedTestJob = null
         stateUpdateJob?.cancel()
         stateUpdateJob = null
         sensorFusion.stop()
