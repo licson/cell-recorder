@@ -90,9 +90,7 @@ The system SHALL replay a session's recorded path with animated playback. For `5
 #### Scenario: Timeline chart in replay
 - GIVEN replay mode is active
 - THEN RSRP and latency curves are displayed over time
-- AND a vertical cursor is synced to the replay position# Sessions Specification (Delta)
-
-## ADDED Requirements
+- AND a vertical cursor is synced to the replay position
 
 ### Requirement: Session Replay — Speedtest Markers
 

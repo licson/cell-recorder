@@ -89,32 +89,7 @@ The system SHALL compute the packet loss percentage from the sliding window at e
 #### Scenario: All outcomes count as loss
 - GIVEN a ping window containing results with outcomes TIMEOUT, HOST_UNREACHABLE, and PROCESS_ERROR
 - WHEN packet loss is calculated
-- THEN all non-SUCCESS outcomes are included in the loss count# Connectivity Specification (Delta)
-
-## MODIFIED Requirements
-
-### Requirement: Continuous Ping During Recording
-
-The system SHALL continuously ping a configurable destination while a recording is active, using a single long-running ping process.
-
-#### Scenario: Ping process starts
-- GIVEN a recording session has started
-- WHEN the recording begins
-- THEN a single long-running `ping -i <interval>` process is started
-- AND ping results are streamed continuously via a `Flow<PingResult>`
-
-#### Scenario: Ping process stops
-- GIVEN an active recording with a running ping process
-- WHEN the recording is stopped
-- THEN the ping process is terminated and the flow completes
-
-#### Scenario: Ping process restart on failure
-- GIVEN an active recording with a running ping process
-- WHEN the ping process dies unexpectedly
-- THEN the ping process is automatically restarted
-- AND a null latency result is emitted for any gap period
-
-## ADDED Requirements
+- THEN all non-SUCCESS outcomes are included in the loss count
 
 ### Requirement: Speedtest as Separate Measurement
 

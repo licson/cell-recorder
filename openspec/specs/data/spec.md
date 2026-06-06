@@ -68,9 +68,7 @@ The system SHALL allow importing cell records from a GeoJSON FeatureCollection f
 #### Scenario: Import from GeoJSON without anchor properties
 - GIVEN the import dialog is open
 - WHEN the user selects a GeoJSON file that does not include anchor properties
-- THEN anchor fields default to null and the import succeeds without error# Data Import and Export Specification (Delta)
-
-## ADDED Requirements
+- THEN anchor fields default to null and the import succeeds without error
 
 ### Requirement: Speedtest Record Entity
 

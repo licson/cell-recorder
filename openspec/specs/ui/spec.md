@@ -63,6 +63,10 @@ The system SHALL provide a screen for controlling and monitoring an active recor
 - WHEN the user taps a point marker
 - THEN a tooltip with all point attributes is displayed
 
+#### Scenario: Speedtest status in live stats
+- GIVEN an active recording with speedtest enabled
+- THEN the live stats bar displays speedtest status in the format: idle (`Speed: ---`), discovering (`Speed: Selecting server...`), downloading (`Speed: Testing ↓...`), uploading (`Speed: Testing ↑...`), completed (`Speed: ↓156 ↑42 Mbps`), failed (`Speed: Failed`), or skipped on WiFi (`Speed: (WiFi)`)
+
 ### Requirement: Settings Screen
 
 The system SHALL provide a settings screen for configuring recording and analytics parameters.
@@ -70,46 +74,6 @@ The system SHALL provide a settings screen for configuring recording and analyti
 #### Scenario: Settings sections
 - GIVEN the Settings screen
 - THEN the following sections are displayed: Ping, Recording, Cell ID, GPS Loss Fallback, Analytics Thresholds
-
-### Requirement: Global Statistics Screen
-
-The system SHALL display aggregate statistics across all sessions.
-
-#### Scenario: Statistics displayed
-- GIVEN the Statistics tab is selected
-- THEN summary cards show total sessions, total points, total duration, and on-network percentage
-- AND RAT distribution per SIM is shown as stacked horizontal bars
-- AND band distribution per SIM is shown as stacked bars# User Interface Specification (Delta)
-
-## MODIFIED Requirements
-
-### Requirement: Recording Screen
-
-The system SHALL provide a screen for controlling and monitoring an active recording.
-
-#### Scenario: Recording screen layout
-- GIVEN a session has been created
-- WHEN the user navigates to recording
-- THEN the screen displays a top bar with session name, elapsed timer, and point counter
-- AND an OSM map is shown
-- AND a Start/Stop button is centered at the bottom
-- AND a live stats panel shows per-SIM cell data
-
-#### Scenario: Map markers and path
-- GIVEN an active recording
-- THEN recorded points are shown as RAT-colored markers on the map
-- AND a path polyline connects the markers
-
-#### Scenario: GPS status indicator
-- GIVEN an active recording
-- THEN a GPS status indicator is shown with one of: "OK", "Searching...", or "EXTRAPOLATING"
-- AND the current GPS accuracy is displayed
-
-#### Scenario: Speedtest status in live stats
-- GIVEN an active recording with speedtest enabled
-- THEN the live stats bar displays speedtest status in the format: idle (`Speed: ---`), discovering (`Speed: Selecting server...`), downloading (`Speed: Testing ↓...`), uploading (`Speed: Testing ↑...`), completed (`Speed: ↓156 ↑42 Mbps`), failed (`Speed: Failed`), or skipped on WiFi (`Speed: (WiFi)`)
-
-## ADDED Requirements
 
 ### Requirement: Settings Screen — Speed Test Section
 
@@ -133,6 +97,16 @@ The system SHALL provide a "Speed Test" settings section for configuring continu
 - GIVEN the user has previously accepted the EULA
 - WHEN the user toggles speed tests OFF and ON again
 - THEN the EULA dialog is not shown again (toggle activates immediately)
+
+### Requirement: Global Statistics Screen
+
+The system SHALL display aggregate statistics across all sessions.
+
+#### Scenario: Statistics displayed
+- GIVEN the Statistics tab is selected
+- THEN summary cards show total sessions, total points, total duration, and on-network percentage
+- AND RAT distribution per SIM is shown as stacked horizontal bars
+- AND band distribution per SIM is shown as stacked bars
 
 ### Requirement: Statistics Screen — Speedtest Overview
 

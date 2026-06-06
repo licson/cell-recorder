@@ -92,9 +92,7 @@ The system SHALL require the following Android permissions for full functionalit
 #### Scenario: Notifications permission (API 33+)
 - GIVEN the user starts recording on API 33+
 - WHEN `POST_NOTIFICATIONS` is not granted
-- THEN a permission request is shown# Background Service Specification (Delta)
-
-## ADDED Requirements
+- THEN a permission request is shown
 
 ### Requirement: Speedtest in Notification
 
