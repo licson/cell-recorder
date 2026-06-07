@@ -5,12 +5,17 @@ import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.data.repository.SessionRepository
+import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.analytics.SessionAnalyticsEngine
+import com.cellrecorder.app.domain.analytics.SpeedTestAnalyticsEngine
 import com.cellrecorder.app.domain.analytics.model.SessionAnalytics
+import com.cellrecorder.app.domain.analytics.model.SpeedTestSessionAnalytics
 import com.cellrecorder.app.domain.usecase.BatchResplitUseCase
 import com.cellrecorder.app.domain.usecase.ExportData
 import com.cellrecorder.app.domain.usecase.ExportSessionUseCase
+import com.cellrecorder.app.domain.usecase.ExportSpeedTestUseCase
 import com.cellrecorder.app.domain.usecase.GetConfigUseCase
 import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,7 +38,9 @@ class SessionDetailViewModel @Inject constructor(
     private val getSessionPointsUseCase: GetSessionPointsUseCase,
     private val exportSessionUseCase: ExportSessionUseCase,
     private val batchResplitUseCase: BatchResplitUseCase,
-    private val getConfigUseCase: GetConfigUseCase
+    private val getConfigUseCase: GetConfigUseCase,
+    private val speedTestRecordRepository: SpeedTestRecordRepository,
+    private val exportSpeedTestUseCase: ExportSpeedTestUseCase
 ) : ViewModel() {
 
     private val _session = MutableStateFlow<SessionEntity?>(null)
@@ -71,6 +78,15 @@ class SessionDetailViewModel @Inject constructor(
 
     private val _availableSimSlots = MutableStateFlow<List<Int>>(emptyList())
     val availableSimSlots: StateFlow<List<Int>> = _availableSimSlots
+
+    private val _speedTestRecords = MutableStateFlow<List<SpeedTestRecordEntity>>(emptyList())
+    val speedTestRecords: StateFlow<List<SpeedTestRecordEntity>> = _speedTestRecords
+
+    private val _speedTestAnalytics = MutableStateFlow<SpeedTestSessionAnalytics?>(null)
+    val speedTestAnalytics: StateFlow<SpeedTestSessionAnalytics?> = _speedTestAnalytics
+
+    private val _speedTestExportData = MutableStateFlow<ExportData?>(null)
+    val speedTestExportData: StateFlow<ExportData?> = _speedTestExportData
 
     private val engine = SessionAnalyticsEngine()
     private var config: AppConfigEntity = AppConfigEntity()
@@ -114,6 +130,14 @@ class SessionDetailViewModel @Inject constructor(
         viewModelScope.launch {
             getConfigUseCase().collect { config = it }
         }
+        viewModelScope.launch {
+            speedTestRecordRepository.getBySessionId(sessionId).collect { list ->
+                _speedTestRecords.value = list
+                _speedTestAnalytics.value = withContext(Dispatchers.Default) {
+                    SpeedTestAnalyticsEngine.analyze(list)
+                }
+            }
+        }
     }
 
     fun selectRecord(record: CellRecordWithCaBands?) {
@@ -144,6 +168,19 @@ class SessionDetailViewModel @Inject constructor(
 
     fun clearExportData() {
         _exportData.value = null
+        val sessionName = _session.value?.name ?: "session"
+        val stRecords = _speedTestRecords.value
+        if (stRecords.isNotEmpty()) {
+            viewModelScope.launch {
+                _speedTestExportData.value = withContext(Dispatchers.IO) {
+                    exportSpeedTestUseCase.exportCsv(sessionName, stRecords)
+                }
+            }
+        }
+    }
+
+    fun clearSpeedTestExportData() {
+        _speedTestExportData.value = null
     }
 
     fun batchResplit(sessionId: Long) {

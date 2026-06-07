@@ -39,8 +39,8 @@
 
 - [x] 6.1 Create `SpeedTestSessionAnalytics` data class (avgDownloadBps, p95DownloadBps, avgUploadBps, p95UploadBps, successRate, downloadByRsrp, downloadByRat, downloadBySim, downloadHistogram)
 - [x] 6.2 Create `SpeedTestAnalyticsEngine` — pure computation over `List<SpeedTestRecordEntity>` producing `SpeedTestSessionAnalytics`; group by RSRP bins, RAT, and SIM
-- [ ] 6.3 Add `SpeedTestSessionAnalytics?` to `SessionDetailViewModel` — load speedtest records per session and compute analytics alongside cell record analytics
-- [ ] 6.4 Add conditional "Speed Test" section to `AnalyticsPanel` showing summary card + correlation bars + histogram
+- [x] 6.3 Add `SpeedTestSessionAnalytics?` to `SessionDetailViewModel` — load speedtest records per session and compute analytics alongside cell record analytics
+- [x] 6.4 Add conditional "Speed Test" section to `AnalyticsPanel` showing summary card + correlation bars + histogram
 - [x] 6.5 Add `rsrpDownload`, `ratDownload`, `simDownload`, `rsrpUpload` fields to `CorrelationBins` data class
 - [x] 6.6 Add speedtest global stats (`StateFlow<SpeedTestGlobalStats?>`) to `StatisticsViewModel` with conditional "Speed Test Overview" card in `StatisticsScreen`
 
@@ -53,7 +53,7 @@
 ## 8. Export
 
 - [x] 8.1 Create `ExportSpeedTestUseCase` — generate `session_name_speedtest.csv` with columns per spec
-- [ ] 8.2 Integrate into session export flow — include speedtest CSV when records exist
+- [x] 8.2 Integrate into session export flow — include speedtest CSV when records exist
 
 ## 9. Spec Sync
 
@@ -64,4 +64,4 @@
 - [x] 9.5 Update `openspec/specs/service/spec.md` with speedtest notification requirements
 - [x] 9.6 Update `openspec/specs/ui/spec.md` with speedtest settings and live stats requirements
 - [x] 9.7 Update `openspec/specs/data/spec.md` with speedtest entity and export requirements
-- [ ] 9.8 Update `openspec/design.md` with speedtest architecture and data model
+- [x] 9.8 Update `openspec/design.md` with speedtest architecture and data model

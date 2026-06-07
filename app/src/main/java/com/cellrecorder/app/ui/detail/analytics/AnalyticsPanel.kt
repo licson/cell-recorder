@@ -15,7 +15,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.cellrecorder.app.domain.analytics.model.CorrelationBin
 import com.cellrecorder.app.domain.analytics.model.SessionAnalytics
+import com.cellrecorder.app.domain.analytics.model.SpeedTestSessionAnalytics
 import com.cellrecorder.app.ui.analytics.components.AnomalyInspectorSheet
 import com.cellrecorder.app.ui.analytics.components.AnomalyList
 import com.cellrecorder.app.ui.analytics.components.CoverageBar
@@ -31,6 +33,7 @@ import com.cellrecorder.app.ui.detail.ratColor
 @Composable
 fun AnalyticsPanel(
     analytics: SessionAnalytics,
+    speedTestAnalytics: SpeedTestSessionAnalytics? = null,
     modifier: Modifier = Modifier
 ) {
     val totalRecords = analytics.timelineSegments.sumOf { it.recordCount }
@@ -170,6 +173,61 @@ fun AnalyticsPanel(
             InsightCard()
         }
 
+        // Section 8: Speed Test (if data exists)
+        val st = speedTestAnalytics
+        if (st != null && st.sampleCount > 0) {
+            item(key = "st_header") {
+                SectionHeader("Speed Tests")
+            }
+            item(key = "st_summary") {
+                SpeedTestSummary(analytics = st)
+            }
+            if (st.downloadHistogram.isNotEmpty()) {
+                item(key = "st_histo") {
+                    SignalHistogram(
+                        title = "Download Speed Distribution",
+                        bins = st.downloadHistogram
+                    )
+                }
+            }
+            if (st.downloadByRsrp.isNotEmpty()) {
+                item(key = "st_rsrp_corr") {
+                    CorrelationChart(
+                        title = "Download Speed vs RSRP",
+                        yAxisUnit = "Mbps",
+                        bins = st.downloadByRsrp
+                    )
+                }
+            }
+            if (st.downloadByRat.isNotEmpty()) {
+                item(key = "st_rat_corr") {
+                    CorrelationChart(
+                        title = "Download Speed per RAT",
+                        yAxisUnit = "Mbps",
+                        bins = st.downloadByRat
+                    )
+                }
+            }
+            if (st.downloadBySim.isNotEmpty()) {
+                item(key = "st_sim_corr") {
+                    CorrelationChart(
+                        title = "Download Speed per SIM",
+                        yAxisUnit = "Mbps",
+                        bins = st.downloadBySim
+                    )
+                }
+            }
+            if (!st.uploadByRsrp.isNullOrEmpty()) {
+                item(key = "st_upload_corr") {
+                    CorrelationChart(
+                        title = "Upload Speed vs RSRP",
+                        yAxisUnit = "Mbps",
+                        bins = st.uploadByRsrp
+                    )
+                }
+            }
+        }
+
         // Empty state
         if (!hasAnyData) {
             item {
@@ -203,6 +261,64 @@ private fun SectionHeader(title: String) {
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(top = 4.dp)
     )
+}
+
+@Composable
+private fun SpeedTestSummary(analytics: SpeedTestSessionAnalytics) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                MetricItem("Tests", "${analytics.sampleCount}")
+                MetricItem("Failed", "${analytics.failureCount}")
+                MetricItem("Rate", "${"%.0f".format(analytics.successRate * 100)}%")
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                MetricItem("Avg DL", analytics.avgDownloadBps?.let { formatBps(it) } ?: "---")
+                MetricItem("P95 DL", analytics.p95DownloadBps?.let { formatBps(it) } ?: "---")
+                MetricItem("Avg UL", analytics.avgUploadBps?.let { formatBps(it) } ?: "---")
+                MetricItem("P95 UL", analytics.p95UploadBps?.let { formatBps(it) } ?: "---")
+            }
+            if (analytics.serverName != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Server: ${analytics.serverName}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricItem(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+private fun formatBps(bps: Long): String = when {
+    bps >= 1_000_000_000 -> "${"%.1f".format(bps / 1_000_000_000.0)}G"
+    bps >= 1_000_000 -> "${"%.1f".format(bps / 1_000_000.0)}M"
+    bps >= 1_000 -> "${bps / 1_000}k"
+    else -> "${bps}b"
 }
 
 @Composable

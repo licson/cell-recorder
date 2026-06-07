@@ -72,6 +72,8 @@ fun SessionDetailScreen(
     val selectedRecord by viewModel.selectedRecord.collectAsStateWithLifecycle()
     val exportData by viewModel.exportData.collectAsStateWithLifecycle()
     val analytics by viewModel.analytics.collectAsStateWithLifecycle()
+    val speedTestAnalytics by viewModel.speedTestAnalytics.collectAsStateWithLifecycle()
+    val speedTestExportData by viewModel.speedTestExportData.collectAsStateWithLifecycle()
     val mapDisplayMode by viewModel.mapDisplayMode.collectAsStateWithLifecycle()
     val showAnalytics by viewModel.showAnalytics.collectAsStateWithLifecycle()
     val selectedSim by viewModel.selectedSim.collectAsStateWithLifecycle()
@@ -100,6 +102,28 @@ fun SessionDetailScreen(
     LaunchedEffect(exportData) {
         exportData?.let { data ->
             exportLauncher.launch(data.suggestedFilename)
+        }
+    }
+
+    val speedTestExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*")
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                context.contentResolver.openOutputStream(it)?.use { stream ->
+                    stream.write((speedTestExportData?.content ?: "").toByteArray())
+                }
+                Toast.makeText(context, "Speedtest data exported", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Speedtest export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        viewModel.clearSpeedTestExportData()
+    }
+
+    LaunchedEffect(speedTestExportData) {
+        speedTestExportData?.let { data ->
+            speedTestExportLauncher.launch(data.suggestedFilename)
         }
     }
 
@@ -235,6 +259,7 @@ fun SessionDetailScreen(
             if (showAnalytics) {
                 AnalyticsPanel(
                     analytics = analytics,
+                    speedTestAnalytics = speedTestAnalytics,
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             } else {
