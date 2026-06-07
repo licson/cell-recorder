@@ -108,6 +108,28 @@ The system SHALL display aggregate statistics across all sessions.
 - AND RAT distribution per SIM is shown as stacked horizontal bars
 - AND band distribution per SIM is shown as stacked bars
 
+### Requirement: Replay Screen — Speedtest Summary
+
+The system SHALL display a dynamic speedtest summary card during session replay that updates based on the current playback position.
+
+#### Scenario: Auto-updating speedtest summary
+- GIVEN replay mode is active
+- WHEN the current playback position passes a speedtest marker
+- THEN the speedtest summary card shows the most recent speedtest result before the current position
+- AND the card shows "Position" as the label for auto-updated markers
+
+#### Scenario: Manual marker selection
+- GIVEN the replay timeline with speedtest markers
+- WHEN a user taps a marker
+- THEN the tapped marker's result is shown in the summary card
+- AND the card shows "Selected" as the label for manually tapped markers
+- AND the card uses the primary color to distinguish selected from auto-updated markers
+
+#### Scenario: No speedtest at position
+- GIVEN replay mode is active
+- WHEN the current position is before the first speedtest marker
+- THEN the speedtest summary card shows "No test at this position"
+
 ### Requirement: Statistics Screen — Speedtest Overview
 
 The system SHALL display a conditional speedtest overview card on the global statistics screen.

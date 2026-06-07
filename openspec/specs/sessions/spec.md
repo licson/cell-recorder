@@ -107,3 +107,10 @@ The system SHALL display speedtest markers on the replay timeline when speedtest
 - WHEN a user taps a marker
 - THEN a detail card is shown below the timeline
 - AND the card displays: timestamp, download speed, upload speed, server name/ID, RSRP at test, RAT at test, and band at test
+
+#### Scenario: Speedtest card auto-updates during playback
+- GIVEN replay mode is active and the user is scrubbing or playing
+- WHEN the current position passes a speedtest marker
+- THEN the speedtest detail card updates to show the last speedtest result at or before the current position
+- AND the card continues showing that result until the next marker is passed
+- AND the card shows "Position" label for auto-updated markers and "Selected" label for manually tapped markers

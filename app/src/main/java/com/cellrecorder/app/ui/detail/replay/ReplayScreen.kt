@@ -72,6 +72,18 @@ fun ReplayScreen(
     val entities = remember(filteredRecords) { filteredRecords.map { it.record } }
     val currentEntity = remember(currentRecord) { currentRecord?.record }
 
+    val positionSpeedTestMarker = remember(currentIndex, speedTestMarkers) {
+        speedTestMarkers.lastOrNull { it.timelineIndex <= currentIndex }
+    }
+
+    val highlightedMarker = remember(selectedSpeedTestMarker, positionSpeedTestMarker, speedTestMarkers) {
+        if (selectedSpeedTestMarker != null) {
+            speedTestMarkers.firstOrNull { it.record == selectedSpeedTestMarker } ?: positionSpeedTestMarker
+        } else {
+            positionSpeedTestMarker
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -111,11 +123,16 @@ fun ReplayScreen(
                     RatTimelineBar(
                         records = entities,
                         currentIndex = currentIndex,
-                        speedTestMarkers = speedTestMarkers
+                        speedTestMarkers = speedTestMarkers,
+                        onMarkerClick = { viewModel.selectSpeedTestMarker(it) }
                     )
 
                     if (speedTestMarkers.isNotEmpty()) {
-                        SpeedTestSummaryCard(markers = speedTestMarkers)
+                        SpeedTestSummaryCard(
+                            markers = speedTestMarkers,
+                            highlightedMarker = highlightedMarker,
+                            isSelected = selectedSpeedTestMarker != null
+                        )
                     }
 
                     ChartGrid(
@@ -191,13 +208,18 @@ fun ReplayScreen(
                         RatTimelineBar(
                             records = entities,
                             currentIndex = currentIndex,
-                            speedTestMarkers = speedTestMarkers
+                            speedTestMarkers = speedTestMarkers,
+                            onMarkerClick = { viewModel.selectSpeedTestMarker(it) }
                         )
                     }
 
                     if (speedTestMarkers.isNotEmpty()) {
                         item {
-                            SpeedTestSummaryCard(markers = speedTestMarkers)
+                            SpeedTestSummaryCard(
+                                markers = speedTestMarkers,
+                                highlightedMarker = highlightedMarker,
+                                isSelected = selectedSpeedTestMarker != null
+                            )
                         }
                     }
 
@@ -371,8 +393,11 @@ private fun RatTimelineBar(
 }
 
 @Composable
-private fun SpeedTestSummaryCard(markers: List<SpeedTestMarker>) {
-    val latestSucceeded = markers.lastOrNull { it.record.succeeded }
+private fun SpeedTestSummaryCard(
+    markers: List<SpeedTestMarker>,
+    highlightedMarker: SpeedTestMarker? = null,
+    isSelected: Boolean = false
+) {
     val total = markers.size
     val succeeded = markers.count { it.record.succeeded }
     Card(
@@ -392,11 +417,18 @@ private fun SpeedTestSummaryCard(markers: List<SpeedTestMarker>) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                latestSucceeded?.let { rec ->
+                if (highlightedMarker != null) {
+                    val label = if (isSelected) "Selected" else "Position"
                     Text(
-                        text = "Latest: ↓${formatBps(rec.record.downloadBps)} ↑${formatBps(rec.record.uploadBps)}",
+                        text = "$label: ↓${formatBps(highlightedMarker.record.downloadBps)} ↑${formatBps(highlightedMarker.record.uploadBps)}",
                         style = MaterialTheme.typography.labelSmall,
                         fontFamily = FontFamily.Monospace,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "No test at this position",
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
