@@ -6,7 +6,7 @@ import javax.inject.Inject
 class CreateSessionUseCase @Inject constructor(
     private val sessionRepository: SessionRepository
 ) {
-    suspend operator fun invoke(name: String): Long {
-        return sessionRepository.create(name = name)
+    suspend operator fun invoke(name: String, recordingMode: String = "OUTDOOR"): Long {
+        return sessionRepository.create(name = name, recordingMode = recordingMode)
     }
 }

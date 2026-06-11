@@ -231,8 +231,8 @@ fun SessionListScreen(
         CreateSessionDialog(
             suggestedName = generatePresetName(sessions),
             onDismiss = { showCreateDialog = false },
-            onConfirm = { name ->
-                viewModel.createSession(name)
+            onConfirm = { name, recordingMode ->
+                viewModel.createSession(name, recordingMode)
                 showCreateDialog = false
             }
         )
@@ -536,25 +536,51 @@ private fun generatePresetName(sessions: List<SessionSummary>): String {
 private fun CreateSessionDialog(
     suggestedName: String,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String, String) -> Unit
 ) {
     var name by remember(suggestedName) { mutableStateOf(suggestedName) }
+    var recordingMode by remember { mutableStateOf("OUTDOOR") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("New Session") },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Session Name") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Column {
+                Text("Recording Mode", style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = recordingMode == "OUTDOOR",
+                        onClick = { recordingMode = "OUTDOOR" },
+                        label = { Text("Outdoor") }
+                    )
+                    FilterChip(
+                        selected = recordingMode == "INDOOR",
+                        onClick = { recordingMode = "INDOOR" },
+                        label = { Text("Indoor") }
+                    )
+                }
+                if (recordingMode == "INDOOR") {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Indoor mode uses step detection instead of GPS. Best for sessions under 5 minutes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Session Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name.ifBlank { "Session ${System.currentTimeMillis() % 10000}" }) },
+                onClick = { onConfirm(name.ifBlank { "Session ${System.currentTimeMillis() % 10000}" }, recordingMode) },
                 enabled = name.isNotBlank()
             ) {
                 Text("Start Recording")

@@ -52,9 +52,9 @@ class SessionListViewModel @Inject constructor(
         selected.isNotEmpty() && list.any { it.id in selected }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    fun createSession(name: String) {
+    fun createSession(name: String, recordingMode: String = "OUTDOOR") {
         viewModelScope.launch {
-            val id = createSessionUseCase(name)
+            val id = createSessionUseCase(name, recordingMode)
             _createdSessionId.value = id
         }
     }
