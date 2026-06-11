@@ -31,7 +31,9 @@ import com.cellrecorder.app.service.RecordingService
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.SimLiveState
 import com.cellrecorder.app.ui.detail.ratColor
+import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.PermissionDeniedDialog
+import com.cellrecorder.app.ui.shared.TrackingConfidenceIndicator
 import java.util.Locale
 import com.cellrecorder.app.ui.shared.PermissionHelper
 import com.cellrecorder.app.ui.shared.PermissionRationaleDialog
@@ -56,6 +58,8 @@ fun RecordingScreen(
     val liveSimStates by viewModel.liveSimStates.collectAsStateWithLifecycle()
     val isRecording = serviceState?.isRecording == true && serviceState?.sessionId == sessionId
     val snackbarHostState = remember { SnackbarHostState() }
+    val recordingMode = session?.recordingMode ?: "OUTDOOR"
+    val isIndoor = recordingMode == "INDOOR"
 
     LaunchedEffect(sessionId) {
         viewModel.loadSession(sessionId)
@@ -88,7 +92,7 @@ fun RecordingScreen(
         permissionState = when {
             PermissionHelper.allGranted(context) -> {
                 if (!isRecording) {
-                    RecordingService.start(context, sessionId)
+                    RecordingService.start(context, sessionId, recordingMode)
                 }
                 null
             }
@@ -185,28 +189,59 @@ fun RecordingScreen(
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                OsmMapView(
-                    state = serviceState,
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                )
+                if (isIndoor) {
+                    IndoorPathCanvas(
+                        pathPoints = serviceState?.recordedPath ?: emptyList(),
+                        currentPosition = if (serviceState?.isRecording == true)
+                            Pair(serviceState?.currentRelativeX ?: 0.0, serviceState?.currentRelativeY ?: 0.0)
+                        else null,
+                        driftRadiusM = serviceState?.estimatedDriftM ?: 0.0,
+                        modifier = Modifier.weight(1f).fillMaxWidth()
+                    )
+                    if (isRecording) {
+                        TrackingConfidenceIndicator(
+                            trackingConfidence = viewModel.trackingConfidenceText(serviceState?.estimatedDriftM ?: 0.0),
+                            timeSinceResetMs = null,
+                            stepCount = serviceState?.currentStepCount,
+                            driftM = serviceState?.estimatedDriftM
+                        )
+                    }
+                } else {
+                    OsmMapView(
+                        state = serviceState,
+                        modifier = Modifier.weight(1f).fillMaxWidth()
+                    )
+                }
 
                 LiveStatsBar(
                     simStates = liveSimStates,
-                    state = serviceState
+                    state = serviceState,
+                    isIndoor = isIndoor
                 )
 
                 Box(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Button(
-                        onClick = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        if (isIndoor && isRecording) {
+                            OutlinedButton(
+                                onClick = { viewModel.resetOrigin() }
+                            ) {
+                                Text("Reset Origin", maxLines = 1)
+                            }
+                        }
+                        Button(
+                            onClick = {
                             if (isRecording) {
                                 showStopConfirm = true
                             } else {
                                 when {
                                     PermissionHelper.allGranted(context) -> {
-                                        RecordingService.start(context, sessionId)
+                                        RecordingService.start(context, sessionId, recordingMode)
                                     }
                                     hasAttemptedOnce -> {
                                         permissionState = PermissionUiState.ShowSettings
@@ -232,11 +267,12 @@ fun RecordingScreen(
                     ) {
                         Icon(
                             imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.PlayArrow,
-                            contentDescription = if (isRecording) "Stop" else "Start",
+contentDescription = if (isRecording) "Stop" else "Start",
                             modifier = Modifier.size(32.dp)
                         )
                     }
-                }
+                } // Row
+            }
             }
         }
 
@@ -390,7 +426,8 @@ private fun OsmMapView(
 @Composable
 private fun LiveStatsBar(
     simStates: List<SimLiveState>,
-    state: RecordingState?
+    state: RecordingState?,
+    isIndoor: Boolean = false
 ) {
     Surface(
         tonalElevation = 2.dp,
@@ -409,17 +446,19 @@ private fun LiveStatsBar(
                 val dataSimLabel = (state.dataSubId.takeIf { it >= 0 }?.let { id ->
                     simStates.find { it.subscriptionId == id }?.simSlotIndex?.let { it + 1 }
                 }?.let { "(via SIM $it)" } ?: "")
-                val latStr = String.format("%.5f", state.currentLatitude)
-                val lonStr = String.format("%.5f", state.currentLongitude)
-                val altStr = if (state.currentAltitude != 0.0) String.format("%.1f m", state.currentAltitude) else "---"
-                val gpsStr = if (state.gpsStatus == "OK") "GPS OK" else "GPS ${state.gpsStatus}"
-                val gpsColor = if (state.isExtrapolatingGps == true) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary
-                Text(
-                    text = "Ping: ${state.currentLatency} ms $dataSimLabel  |  $gpsStr  |  $latStr, $lonStr  |  Alt: $altStr",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = gpsColor,
-                    maxLines = 1
-                )
+                if (!isIndoor) {
+                    val latStr = String.format("%.5f", state.currentLatitude)
+                    val lonStr = String.format("%.5f", state.currentLongitude)
+                    val altStr = if (state.currentAltitude != 0.0) String.format("%.1f m", state.currentAltitude) else "---"
+                    val gpsStr = if (state.gpsStatus == "OK") "GPS OK" else "GPS ${state.gpsStatus}"
+                    val gpsColor = if (state.isExtrapolatingGps == true) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary
+                    Text(
+                        text = "Ping: ${state.currentLatency} ms $dataSimLabel  |  $gpsStr  |  $latStr, $lonStr  |  Alt: $altStr",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = gpsColor,
+                        maxLines = 1
+                    )
+                }
                 val speedText = when (state.speedTestStatus) {
                     "Discovering" -> "Speed: Selecting server..."
                     "Downloading" -> "Speed: Testing ↓..."

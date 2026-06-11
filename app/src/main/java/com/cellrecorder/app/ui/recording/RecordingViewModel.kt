@@ -10,6 +10,7 @@ import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.service.CellInfoCollector
+import com.cellrecorder.app.service.IndoorPositionCollector
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.RecordingStateManager
 import com.cellrecorder.app.service.SimLiveState
@@ -33,6 +34,7 @@ class RecordingViewModel @Inject constructor(
     private val cellInfoCollector: CellInfoCollector,
     private val configRepository: ConfigRepository,
     private val stateManager: RecordingStateManager,
+    private val indoorPositionCollector: IndoorPositionCollector,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -96,6 +98,16 @@ class RecordingViewModel @Inject constructor(
                 _session.value = entity
             }
         }
+    }
+
+    fun resetOrigin() {
+        indoorPositionCollector.resetOrigin()
+    }
+
+    fun trackingConfidenceText(driftM: Double): String = when {
+        driftM < 3.0 -> "Confident"
+        driftM < 10.0 -> "Degrading"
+        else -> "High drift"
     }
 
     private fun formatCellId(snapshot: CellRecordSnapshot): String {
