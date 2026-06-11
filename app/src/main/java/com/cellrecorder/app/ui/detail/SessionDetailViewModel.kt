@@ -217,7 +217,7 @@ class SessionDetailViewModel @Inject constructor(
         val filtered = if (sim == null) records else records.filter { it.record.simSlotIndex == sim }
         _filteredRecords.value = filtered
         _analytics.value = withContext(Dispatchers.Default) {
-            engine.analyze(filtered, config)
+            engine.analyze(filtered, config, recordingMode = _session.value?.recordingMode ?: "OUTDOOR")
         }
     }
 }

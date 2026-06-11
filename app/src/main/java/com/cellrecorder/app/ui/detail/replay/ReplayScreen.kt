@@ -34,6 +34,7 @@ import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.detail.ratColor
+import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import java.util.Locale
 import org.osmdroid.config.Configuration
@@ -60,6 +61,8 @@ fun ReplayScreen(
     val availableSimSlots by viewModel.availableSimSlots.collectAsStateWithLifecycle()
     val speedTestMarkers by viewModel.speedTestMarkers.collectAsStateWithLifecycle()
     val selectedSpeedTestMarker by viewModel.selectedSpeedTestMarker.collectAsStateWithLifecycle()
+    val session by viewModel.session.collectAsStateWithLifecycle()
+    val isIndoor = session?.recordingMode == "INDOOR"
 
     LaunchedEffect(sessionId) {
         viewModel.loadSession(sessionId)
@@ -104,13 +107,24 @@ fun ReplayScreen(
                     .fillMaxSize()
                     .padding(top = padding.calculateTopPadding())
             ) {
-                ReplayMapView(
-                    filteredRecords = entities,
-                    currentIndex = currentIndex,
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(0.5f)
-                )
+                if (isIndoor) {
+                    val indoorPath = entities.map { Pair(it.relativeX ?: 0.0, it.relativeY ?: 0.0) }
+                    IndoorPathCanvas(
+                        pathPoints = indoorPath,
+                        currentPosition = entities.getOrNull(currentIndex)?.let {
+                            Pair(it.relativeX ?: 0.0, it.relativeY ?: 0.0)
+                        },
+                        modifier = Modifier.fillMaxHeight().weight(0.5f)
+                    )
+                } else {
+                    ReplayMapView(
+                        filteredRecords = entities,
+                        currentIndex = currentIndex,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .weight(0.5f)
+                    )
+                }
 
                 Column(
                     modifier = Modifier
@@ -191,11 +205,22 @@ fun ReplayScreen(
                     .fillMaxSize()
                     .padding(top = padding.calculateTopPadding())
             ) {
-                ReplayMapView(
-                    filteredRecords = entities,
-                    currentIndex = currentIndex,
-                    modifier = Modifier.fillMaxWidth().height(350.dp)
-                )
+                if (isIndoor) {
+                        val indoorPath = entities.map { Pair(it.relativeX ?: 0.0, it.relativeY ?: 0.0) }
+                        IndoorPathCanvas(
+                            pathPoints = indoorPath,
+                            currentPosition = entities.getOrNull(currentIndex)?.let {
+                                Pair(it.relativeX ?: 0.0, it.relativeY ?: 0.0)
+                            },
+                            modifier = Modifier.fillMaxWidth().height(350.dp)
+                        )
+                    } else {
+                        ReplayMapView(
+                            filteredRecords = entities,
+                            currentIndex = currentIndex,
+                            modifier = Modifier.fillMaxWidth().height(350.dp)
+                        )
+                    }
 
                 LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth()

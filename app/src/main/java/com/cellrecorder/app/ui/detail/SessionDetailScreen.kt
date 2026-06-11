@@ -45,6 +45,7 @@ import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.usecase.ExportData
 import com.cellrecorder.app.ui.detail.analytics.AnalyticsPanel
 import com.cellrecorder.app.ui.map.SessionMapView
+import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -82,6 +83,7 @@ fun SessionDetailScreen(
     var showMoreMenu by remember { mutableStateOf(false) }
     var showMapModeMenu by remember { mutableStateOf(false) }
     var showSimMenu by remember { mutableStateOf(false) }
+    val isIndoor = session?.recordingMode == "INDOOR"
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("*/*")
@@ -163,12 +165,20 @@ fun SessionDetailScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
         ) {
-            SessionMapView(
-                records = if (showAnalytics) filteredRecords.map { it.record } else records.map { it.record },
-                displayMode = mapDisplayMode,
-                showLegend = showAnalytics,
-                modifier = Modifier.fillMaxWidth().height(if (showAnalytics) 400.dp else 200.dp)
-            )
+            if (isIndoor) {
+                IndoorPathCanvas(
+                    pathPoints = records.map { it.record.relativeX to it.record.relativeY }.filter { it.first != null }
+                        .map { it.first!! to it.second!! },
+                    modifier = Modifier.fillMaxWidth().height(if (showAnalytics) 400.dp else 200.dp)
+                )
+            } else {
+                SessionMapView(
+                    records = if (showAnalytics) filteredRecords.map { it.record } else records.map { it.record },
+                    displayMode = mapDisplayMode,
+                    showLegend = showAnalytics,
+                    modifier = Modifier.fillMaxWidth().height(if (showAnalytics) 400.dp else 200.dp)
+                )
+            }
 
             if (showAnalytics) {
                 Surface(
@@ -270,6 +280,7 @@ fun SessionDetailScreen(
                     onUpdateVisibleWindow = { first, last ->
                         viewModel.updateVisibleWindow(first, last)
                     },
+                    isIndoor = isIndoor,
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
@@ -304,7 +315,10 @@ fun SessionDetailScreen(
 }
 
 @Composable
-private fun ColumnHeadersRow(modifier: Modifier = Modifier) {
+private fun ColumnHeadersRow(
+    modifier: Modifier = Modifier,
+    isIndoor: Boolean = false
+) {
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -347,11 +361,32 @@ private fun ColumnHeadersRow(modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "Ping (ms)",
+                text = "RSRP (dBm)",
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
             )
+            if (isIndoor) {
+                Text(
+                    text = "relX (m)",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "relY (m)",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                Text(
+                    text = "Ping (ms)",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
@@ -360,6 +395,7 @@ private fun ColumnHeadersRow(modifier: Modifier = Modifier) {
 private fun TimestampGroupRow(
     group: TimestampGroup,
     onRecordClick: (CellRecordWithCaBands) -> Unit,
+    isIndoor: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.padding(vertical = 4.dp)) {
@@ -384,7 +420,7 @@ private fun TimestampGroupRow(
                 } else {
                     Spacer(Modifier.width(48.dp))
                 }
-                SimRecordRow(wrapper = wrapper, modifier = Modifier.weight(1f))
+                SimRecordRow(wrapper = wrapper, modifier = Modifier.weight(1f), isIndoor = isIndoor)
             }
         }
     }
@@ -393,7 +429,8 @@ private fun TimestampGroupRow(
 @Composable
 private fun SimRecordRow(
     wrapper: CellRecordWithCaBands,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isIndoor: Boolean = false
 ) {
     val record = wrapper.record
     Row(
@@ -420,6 +457,18 @@ private fun SimRecordRow(
             style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
             modifier = Modifier.weight(1f)
         )
+        if (isIndoor) {
+            Text(
+                text = record.relativeX?.let { String.format("%.1f", it) } ?: "---",
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = record.relativeY?.let { String.format("%.1f", it) } ?: "---",
+                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.weight(1f)
+            )
+        } else {
 Text(
                 text = record.avgLatencyMs?.let { String.format("%.0f ms", it) } ?: "---",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
@@ -434,6 +483,7 @@ Text(
             )
         }
     }
+}
 
 private fun formatPlmn(mcc: String?, mnc: String?): String = com.cellrecorder.app.ui.shared.formatPlmn(mcc, mnc)
 
@@ -536,6 +586,7 @@ private fun RecordsList(
     visibleWindow: IntRange,
     onRecordClick: (CellRecordWithCaBands) -> Unit,
     onUpdateVisibleWindow: (Int, Int) -> Unit,
+    isIndoor: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -568,7 +619,7 @@ private fun RecordsList(
         state = listState
     ) {
         stickyHeader(key = "headers") {
-            ColumnHeadersRow(modifier = Modifier.fillParentMaxWidth())
+            ColumnHeadersRow(modifier = Modifier.fillParentMaxWidth(), isIndoor = isIndoor)
         }
 
         items(
@@ -580,6 +631,7 @@ private fun RecordsList(
                 TimestampGroupRow(
                     group = group,
                     onRecordClick = onRecordClick,
+                    isIndoor = isIndoor,
                     modifier = Modifier.onGloballyPositioned { coordinates ->
                         measuredHeights[index] = coordinates.size.height
                     }

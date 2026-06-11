@@ -3,7 +3,9 @@ package com.cellrecorder.app.ui.detail.replay
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
+import com.cellrecorder.app.data.local.entity.SessionEntity
 import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
+import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,8 +24,12 @@ data class SpeedTestMarker(
 @HiltViewModel
 class ReplayViewModel @Inject constructor(
     private val getSessionPointsUseCase: GetSessionPointsUseCase,
-    private val speedTestRecordRepository: SpeedTestRecordRepository
+    private val speedTestRecordRepository: SpeedTestRecordRepository,
+    private val sessionRepository: SessionRepository
 ) : ViewModel() {
+
+    private val _session = MutableStateFlow<SessionEntity?>(null)
+    val session: StateFlow<SessionEntity?> = _session
 
     private val _records = MutableStateFlow<List<CellRecordWithCaBands>>(emptyList())
     val records: StateFlow<List<CellRecordWithCaBands>> = _records
@@ -58,6 +64,11 @@ class ReplayViewModel @Inject constructor(
     private var playbackJob: Job? = null
 
     fun loadSession(sessionId: Long) {
+        viewModelScope.launch {
+            sessionRepository.getById(sessionId).collect { entity ->
+                _session.value = entity
+            }
+        }
         viewModelScope.launch {
             getSessionPointsUseCase(sessionId).collect { list ->
                 _records.value = list
