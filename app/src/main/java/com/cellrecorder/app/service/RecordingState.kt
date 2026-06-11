@@ -22,6 +22,7 @@ data class RecordingState(
     val isRecording: Boolean = false,
     val pointCount: Int = 0,
     val elapsedMs: Long = 0,
+    val recordingMode: String = "OUTDOOR",
     val gpsStatus: String = "---",
     val recordedPath: List<Pair<Double, Double>> = emptyList(),
     val dataSubId: Int = -1,
@@ -33,5 +34,10 @@ data class RecordingState(
     val isExtrapolatingGps: Boolean = false,
     val speedTestStatus: String = "Idle",
     val lastSpeedTestDownloadBps: Long? = null,
-    val lastSpeedTestUploadBps: Long? = null
+    val lastSpeedTestUploadBps: Long? = null,
+    val currentRelativeX: Double? = null,
+    val currentRelativeY: Double? = null,
+    val currentHeading: Double? = null,
+    val currentStepCount: Int? = null,
+    val estimatedDriftM: Double? = null
 )

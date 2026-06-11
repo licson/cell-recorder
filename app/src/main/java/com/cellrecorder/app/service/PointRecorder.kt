@@ -12,6 +12,10 @@ import javax.inject.Inject
 
 private const val MAX_PATH_SIZE = 2000
 
+private const val INDOOR_DRIFT_RATE_INITIAL = 0.02
+private const val INDOOR_DRIFT_RATE_PER_MIN = 0.004
+private const val INDOOR_DRIFT_RATE_MAX = 0.20
+
 class PointRecorder @Inject constructor(
     private val cellRecordRepository: CellRecordRepository,
     private val sessionRepository: SessionRepository,
@@ -156,11 +160,124 @@ class PointRecorder @Inject constructor(
         ) }
     }
 
-    fun updateState(sessionId: Long, isRecording: Boolean, error: String? = null) {
+    suspend fun recordIndoorPoint(
+        indoorUpdate: IndoorPositionUpdate,
+        sessionId: Long,
+        config: AppConfigEntity,
+        activeSubs: Map<Int, SubscriptionInfo>,
+        pingWindow: PingSlidingWindow
+    ) {
+        val snapshots = cellInfoCollector.snapshots(config)
+        val pingAvg = pingWindow.avgLatencyMs()
+        val pingLoss = pingWindow.packetLossPct()
+
+        val records = mutableListOf<CellRecordEntity>()
+        val caBandsByRecord = mutableListOf<List<CellRecordCaBandEntity>>()
+
+        for (snapshot in snapshots) {
+            try {
+                val caEntities = if (snapshot.caBands.isNotEmpty()) {
+                    snapshot.caBands.map { ca ->
+                        CellRecordCaBandEntity(
+                            cellRecordId = 0,
+                            bandNumber = ca.bandNumber,
+                            earfcn = ca.earfcn,
+                            pci = ca.pci,
+                            rsrp = ca.rsrp,
+                            rsrq = ca.rsrq,
+                            sinr = ca.sinr,
+                            rssi = ca.rssi,
+                            cqi = ca.cqi,
+                            timingAdvance = ca.timingAdvance
+                        )
+                    }
+                } else emptyList()
+
+                records.add(CellRecordEntity(
+                    sessionId = sessionId,
+                    timestamp = System.currentTimeMillis(),
+                    latitude = 0.0,
+                    longitude = 0.0,
+                    altitude = 0.0,
+                    accuracy = 0f,
+                    relativeX = indoorUpdate.relativeX,
+                    relativeY = indoorUpdate.relativeY,
+                    rat = snapshot.rat,
+                    networkTypeCode = snapshot.networkTypeCode,
+                    fullCellIdentity = snapshot.fullCellIdentity,
+                    enbOrGnbId = snapshot.enbOrGnbId,
+                    lcid = snapshot.lcid,
+                    cellIdBitLength = snapshot.cellIdBitLength,
+                    pci = snapshot.pci,
+                    tac = snapshot.tac,
+                    bandNumber = snapshot.bandNumber,
+                    earfcn = snapshot.earfcn,
+                    bandwidthKhz = snapshot.bandwidthKhz,
+                    rsrp = snapshot.rsrp,
+                    rsrq = snapshot.rsrq,
+                    sinr = snapshot.sinr,
+                    rssi = snapshot.rssi,
+                    cqi = snapshot.cqi,
+                    timingAdvance = snapshot.timingAdvance,
+                    mcc = snapshot.mcc,
+                    mnc = snapshot.mnc,
+                    subscriptionId = snapshot.subscriptionId,
+                    simSlotIndex = activeSubs[snapshot.subscriptionId]?.simSlotIndex,
+                    avgLatencyMs = pingAvg,
+                    packetLossPct = pingLoss,
+                    isLocationEstimated = false,
+                    locationSource = "INDOOR_IMU",
+                    anchorEnbOrGnbId = snapshot.anchorEnbOrGnbId,
+                    anchorLcid = snapshot.anchorLcid,
+                    anchorPci = snapshot.anchorPci,
+                    anchorTac = snapshot.anchorTac,
+                    anchorBandNumber = snapshot.anchorBandNumber,
+                    anchorEarfcn = snapshot.anchorEarfcn,
+                    anchorBandwidthKhz = snapshot.anchorBandwidthKhz,
+                    anchorRsrp = snapshot.anchorRsrp,
+                    anchorRsrq = snapshot.anchorRsrq,
+                    anchorSinr = snapshot.anchorSinr,
+                    anchorRssi = snapshot.anchorRssi,
+                    anchorCqi = snapshot.anchorCqi,
+                    anchorTimingAdvance = snapshot.anchorTimingAdvance
+                ))
+                caBandsByRecord.add(caEntities)
+            } catch (e: Exception) {
+                continue
+            }
+        }
+
+        if (records.isNotEmpty()) {
+            cellRecordRepository.insertRecordBatch(records, caBandsByRecord)
+        }
+
+        sessionRepository.incrementPointCount(sessionId)
+        totalPointCount++
+
+        _recordedPath.addLast(indoorUpdate.relativeX to indoorUpdate.relativeY)
+        if (_recordedPath.size > MAX_PATH_SIZE) {
+            _recordedPath.removeFirst()
+        }
+        lastRecordedTime = System.currentTimeMillis()
+
+        stateManager.update { it?.copy(
+            pointCount = totalPointCount,
+            currentLatency = pingAvg?.let { String.format("%.1f", it) } ?: "---",
+            recordedPath = _recordedPath.toList(),
+            currentRelativeX = indoorUpdate.relativeX,
+            currentRelativeY = indoorUpdate.relativeY,
+            currentHeading = indoorUpdate.headingRad,
+            currentStepCount = indoorUpdate.stepCount,
+            estimatedDriftM = indoorUpdate.estimatedDriftM
+        ) }
+    }
+
+    fun updateState(sessionId: Long, isRecording: Boolean, error: String? = null, recordingMode: String = "OUTDOOR") {
         stateManager.currentState = RecordingState(
             sessionId = sessionId,
             isRecording = isRecording,
-            errorMessage = error
+            errorMessage = error,
+            recordingMode = recordingMode
         )
     }
 }
