@@ -10,12 +10,13 @@ import kotlin.math.sqrt
 
 class SessionAnalyticsEngine {
 
-    fun analyze(records: List<CellRecordWithCaBands>, config: AppConfigEntity): SessionAnalytics {
+    fun analyze(records: List<CellRecordWithCaBands>, config: AppConfigEntity, recordingMode: String = "OUTDOOR"): SessionAnalytics {
         if (records.isEmpty()) return SessionAnalytics()
 
         val entities = records.map { it.record }
         val bySim = entities.groupBy { it.simSlotIndex ?: 0 }.toSortedMap()
-        val handoffs = detectHandoffs(entities, config)
+        val isIndoor = recordingMode == "INDOOR"
+        val handoffs = if (isIndoor) emptyList() else detectHandoffs(entities, config)
 
         return SessionAnalytics(
             ratCoverage = computeRatCoverage(entities),
@@ -32,7 +33,7 @@ class SessionAnalyticsEngine {
             latencyStats = computeLatencyStats(entities),
             handoffEvents = handoffs,
             anomalyFlags = detectAnomalies(entities, config),
-            mobilitySegments = classifyMobility(entities, config),
+            mobilitySegments = classifyMobility(entities, config, isIndoor),
             coverageGaps = detectCoverageGaps(entities, config),
             timelineSegments = buildTimeline(entities),
             insightCards = generatePciInsights(handoffs)
@@ -458,9 +459,18 @@ class SessionAnalyticsEngine {
 
     private fun classifyMobility(
         records: List<CellRecordEntity>,
-        config: AppConfigEntity
+        config: AppConfigEntity,
+        isIndoor: Boolean = false
     ): List<MobilitySegment> {
         if (records.size < 2) return emptyList()
+        if (isIndoor) {
+            val sorted = records.sortedBy { it.timestamp }
+            return listOf(MobilitySegment(
+                startTime = sorted.first().timestamp,
+                endTime = sorted.last().timestamp,
+                type = MobilityType.INDOOR
+            ))
+        }
 
         val segments = mutableListOf<MobilitySegment>()
         val sorted = records.sortedBy { it.timestamp }
