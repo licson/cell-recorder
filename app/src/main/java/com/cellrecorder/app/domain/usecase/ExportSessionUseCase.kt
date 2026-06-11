@@ -30,7 +30,8 @@ class ExportSessionUseCase @Inject constructor() {
 
     fun exportCsv(session: SessionEntity, records: List<CellRecordWithCaBands>): ExportData {
         val sb = StringBuilder()
-        sb.appendLine("timestamp,lat,lon,alt,accuracy,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source,ca_bands,anchor_enb_gnb_id,anchor_lcid,anchor_pci,anchor_tac,anchor_band,anchor_earfcn,anchor_bandwidth,anchor_rsrp,anchor_rsrq,anchor_sinr,anchor_rssi,anchor_cqi,anchor_timing_advance")
+        val isIndoor = session.recordingMode == "INDOOR"
+        sb.appendLine("timestamp,lat,lon,alt,accuracy,relative_x,relative_y,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source,ca_bands,anchor_enb_gnb_id,anchor_lcid,anchor_pci,anchor_tac,anchor_band,anchor_earfcn,anchor_bandwidth,anchor_rsrp,anchor_rsrq,anchor_sinr,anchor_rssi,anchor_cqi,anchor_timing_advance")
         for (wrapper in records) {
             val r = wrapper.record
             val caJson = if (wrapper.caBands.isNotEmpty()) {
@@ -57,6 +58,8 @@ class ExportSessionUseCase @Inject constructor() {
                     append(r.longitude); append(',')
                     append(r.altitude); append(',')
                     append(r.accuracy); append(',')
+                    append(csvField(r.relativeX)); append(',')
+                    append(csvField(r.relativeY)); append(',')
                     append(csvField(r.subscriptionId)); append(',')
                     append(csvField(r.simSlotIndex)); append(',')
                     append(csvField(r.rat)); append(',')
@@ -100,19 +103,33 @@ class ExportSessionUseCase @Inject constructor() {
     }
 
     fun exportGeoJson(session: SessionEntity, records: List<CellRecordWithCaBands>): ExportData {
+        val isIndoor = session.recordingMode == "INDOOR"
         val featureCollection = buildJsonObject {
             put("type", "FeatureCollection")
+            if (isIndoor) {
+                put("indoorMode", true)
+                put("coordinateReference", "relative")
+            }
             put("features", buildJsonArray {
                 for (wrapper in records) {
                     val r = wrapper.record
+                    val (coordLon, coordLat, coordAlt) = if (isIndoor) {
+                        Triple(
+                            (r.relativeX ?: 0.0) / 111320.0,
+                            (r.relativeY ?: 0.0) / 111320.0,
+                            0.0
+                        )
+                    } else {
+                        Triple(r.longitude, r.latitude, r.altitude)
+                    }
                     add(buildJsonObject {
                         put("type", "Feature")
                         put("geometry", buildJsonObject {
                             put("type", "Point")
                             put("coordinates", buildJsonArray {
-                                add(JsonPrimitive(r.longitude))
-                                add(JsonPrimitive(r.latitude))
-                                add(JsonPrimitive(r.altitude))
+                                add(JsonPrimitive(coordLon))
+                                add(JsonPrimitive(coordLat))
+                                add(JsonPrimitive(coordAlt))
                             })
                         })
                         put("properties", buildJsonObject {
@@ -135,6 +152,10 @@ class ExportSessionUseCase @Inject constructor() {
                             put("tac", r.tac)
                             put("isLocationEstimated", r.isLocationEstimated)
                             put("locationSource", r.locationSource)
+                            if (isIndoor) {
+                                r.relativeX?.let { put("relativeX", it) }
+                                r.relativeY?.let { put("relativeY", it) }
+                            }
                             if (wrapper.caBands.isNotEmpty()) {
                                 put("caBands", buildJsonArray {
                                     for (ca in wrapper.caBands) {

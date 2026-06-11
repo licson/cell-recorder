@@ -27,6 +27,8 @@ class CsvRecordParser @Inject constructor() {
         "lon" to "longitude",
         "alt" to "altitude",
         "accuracy" to "accuracy",
+        "relative_x" to "relativeX",
+        "relative_y" to "relativeY",
         "subscription_id" to "subscriptionId",
         "sim_slot_index" to "simSlotIndex",
         "rat" to "rat",
@@ -72,8 +74,10 @@ class CsvRecordParser @Inject constructor() {
             columnMap[key]?.let { colIdx[it] = i }
         }
 
-        if (!colIdx.contains("timestamp") || !colIdx.contains("latitude") || !colIdx.contains("longitude")) {
-            return ParseResult(emptyList(), errors = listOf(ParseError(0, "Missing required columns: timestamp, lat, lon")))
+        val hasLatLon = colIdx.contains("latitude") && colIdx.contains("longitude")
+        val hasRelative = colIdx.contains("relativeX") && colIdx.contains("relativeY")
+        if (!colIdx.contains("timestamp") || (!hasLatLon && !hasRelative)) {
+            return ParseResult(emptyList(), errors = listOf(ParseError(0, "Missing required columns: timestamp with either lat,lon or relative_x,relative_y")))
         }
 
         val records = mutableListOf<CellRecordEntity>()
@@ -131,9 +135,13 @@ class CsvRecordParser @Inject constructor() {
         val timestamp = long("timestamp")
         val lat = double("latitude")
         val lon = double("longitude")
+        val relX = double("relativeX")
+        val relY = double("relativeY")
+        val hasLatLon = lat != null && lon != null
+        val hasRelative = relX != null && relY != null
 
-        if (timestamp == null || lat == null || lon == null) {
-            errors.add(ParseError(lineNum, "Missing or invalid timestamp, lat, or lon"))
+        if (timestamp == null || (!hasLatLon && !hasRelative)) {
+            errors.add(ParseError(lineNum, "Missing or invalid timestamp and coordinates"))
             return null to null
         }
 
@@ -142,10 +150,12 @@ class CsvRecordParser @Inject constructor() {
         return CellRecordEntity(
             sessionId = sessionId,
             timestamp = timestamp,
-            latitude = lat,
-            longitude = lon,
+            latitude = lat ?: 0.0,
+            longitude = lon ?: 0.0,
             altitude = double("altitude") ?: 0.0,
             accuracy = float("accuracy") ?: 0f,
+            relativeX = relX,
+            relativeY = relY,
             subscriptionId = int("subscriptionId"),
             simSlotIndex = int("simSlotIndex"),
             rat = str("rat") ?: "UNKNOWN",

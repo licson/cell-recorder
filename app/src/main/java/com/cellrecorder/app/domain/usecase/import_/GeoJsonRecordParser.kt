@@ -93,6 +93,8 @@ class GeoJsonRecordParser @Inject constructor() {
                     longitude = lon,
                     altitude = alt,
                     accuracy = double("accuracy")?.toFloat() ?: 0f,
+                    relativeX = double("relativeX"),
+                    relativeY = double("relativeY"),
                     subscriptionId = int("subscriptionId"),
                     simSlotIndex = int("simSlotIndex"),
                     rat = str("rat") ?: "UNKNOWN",
