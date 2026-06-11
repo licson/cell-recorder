@@ -31,6 +31,8 @@ data class CellRecordEntity(
     val longitude: Double,
     val altitude: Double,
     val accuracy: Float,
+    val relativeX: Double? = null,
+    val relativeY: Double? = null,
     val rat: String,
     val networkTypeCode: Int? = null,
     val fullCellIdentity: Long? = null,

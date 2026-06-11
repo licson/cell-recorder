@@ -22,7 +22,7 @@ import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
         AppConfigEntity::class,
         SpeedTestRecordEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -128,6 +128,14 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL("ALTER TABLE app_config ADD COLUMN speedTestServerId TEXT")
         }
 
+        val MIGRATION_10_11 = Migration(10, 11) { db ->
+            db.execSQL("ALTER TABLE sessions ADD COLUMN recordingMode TEXT NOT NULL DEFAULT 'OUTDOOR'")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN relativeX REAL")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN relativeY REAL")
+            db.execSQL("ALTER TABLE app_config ADD COLUMN indoorStepLengthM REAL NOT NULL DEFAULT 0.7")
+            db.execSQL("ALTER TABLE app_config ADD COLUMN indoorRecordingIntervalMs INTEGER NOT NULL DEFAULT 5000")
+        }
+
         val CALLBACK = object : Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
                 super.onCreate(db)
@@ -139,11 +147,12 @@ abstract class AppDatabase : RoomDatabase() {
                         handoffTimeWindowMs, rsrpDropThresholdDbm, rsrpDropTimeWindowMs,
                         latencySpikeSigma, pciFlapWindowMs, pciFlapCountThreshold,
                         coverageGapThresholdMs, mobilityStationaryKmh, mobilityWalkingKmh,
-                        indoorAccuracyThresholdM, tunnelSignalLossThresholdMs,
-                        speedTestEnabled, speedTestIntervalMs, speedTestUploadEnabled, speedTestSecure)
-                       VALUES (1, '8.8.8.8', 1000, 3000, 5000, 10.0, 50.0, 120, 24, 5, 120,
-                               5000, 15, 10000, 3.0, 30000, 3, 30000, 5.0, 15.0, 30.0, 10000,
-                               0, 60000, 1, 1)"""
+indoorAccuracyThresholdM, tunnelSignalLossThresholdMs,
+                         speedTestEnabled, speedTestIntervalMs, speedTestUploadEnabled, speedTestSecure,
+                         indoorStepLengthM, indoorRecordingIntervalMs)
+                        VALUES (1, '8.8.8.8', 1000, 3000, 5000, 10.0, 50.0, 120, 24, 5, 120,
+                                5000, 15, 10000, 3.0, 30000, 3, 30000, 5.0, 15.0, 30.0, 10000,
+                                0, 60000, 1, 1, 0.7, 5000)"""
                 )
             }
 

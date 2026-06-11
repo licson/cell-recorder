@@ -10,9 +10,9 @@ import javax.inject.Singleton
 class SessionRepository @Inject constructor(
     private val sessionDao: SessionDao
 ) {
-    suspend fun create(name: String, createdAt: Long = System.currentTimeMillis()): Long {
+    suspend fun create(name: String, createdAt: Long = System.currentTimeMillis(), recordingMode: String = "OUTDOOR"): Long {
         return sessionDao.insert(
-            SessionEntity(name = name, createdAt = createdAt)
+            SessionEntity(name = name, createdAt = createdAt, recordingMode = recordingMode)
         )
     }
 

@@ -11,5 +11,6 @@ data class SessionEntity(
     val createdAt: Long,
     val endedAt: Long? = null,
     val pointCount: Int = 0,
-    val primarySimSlot: Int? = null
+    val primarySimSlot: Int? = null,
+    val recordingMode: String = "OUTDOOR"
 )

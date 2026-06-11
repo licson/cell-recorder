@@ -32,5 +32,7 @@ data class AppConfigEntity(
     val speedTestIntervalMs: Long = 60000L,
     val speedTestUploadEnabled: Boolean = true,
     val speedTestSecure: Boolean = true,
-    val speedTestServerId: String? = null
+    val speedTestServerId: String? = null,
+    val indoorStepLengthM: Float = 0.7f,
+    val indoorRecordingIntervalMs: Long = 5000L
 )
