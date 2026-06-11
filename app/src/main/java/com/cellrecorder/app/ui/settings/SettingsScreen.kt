@@ -75,6 +75,18 @@ fun SettingsScreen(
                 SettingsRow("Max Duration (min)", config.maxRecordingDurationMin.toString(), viewModel::updateMaxRecordingDuration, keyboardType = KeyboardType.Number)
             }
 
+            SettingsCard(title = "Indoor Recording") {
+                SettingsRow("Step Length (m)", config.indoorStepLengthM.toString(), viewModel::updateIndoorStepLength, keyboardType = KeyboardType.Decimal)
+                SettingsRow("Indoor Interval (ms)", config.indoorRecordingIntervalMs.toString(), viewModel::updateIndoorRecordingInterval, keyboardType = KeyboardType.Number)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Indoor sessions under 5 minutes give best accuracy.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
             SettingsCard(title = "Cell ID") {
                 SettingsRow("NR gNB Bit-Length", config.nrGnbBitLength.toString(), viewModel::updateNrGnbBitLength, keyboardType = KeyboardType.Number)
                 SettingsRow("Cell Info Refresh Interval (s)", config.cellInfoRefreshIntervalSec.toString(), viewModel::updateCellInfoRefreshInterval, keyboardType = KeyboardType.Number)

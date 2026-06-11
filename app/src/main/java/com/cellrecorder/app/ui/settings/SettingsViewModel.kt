@@ -202,6 +202,22 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateIndoorStepLength(value: String) {
+        val parsed = value.toFloatOrNull()
+        if (parsed != null && parsed in 0.1f..2.0f) {
+            _config.value = _config.value.copy(indoorStepLengthM = parsed)
+            debouncedSave()
+        }
+    }
+
+    fun updateIndoorRecordingInterval(value: String) {
+        val parsed = value.toLongOrNull()
+        if (parsed != null && parsed in 1_000..60_000) {
+            _config.value = _config.value.copy(indoorRecordingIntervalMs = parsed)
+            debouncedSave()
+        }
+    }
+
     fun updateTunnelSignalLossThreshold(value: String) {
         val parsed = value.toLongOrNull()
         if (parsed != null && parsed in 1_000..60_000) {
