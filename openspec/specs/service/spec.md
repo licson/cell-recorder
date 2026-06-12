@@ -22,7 +22,7 @@ The system SHALL display a persistent notification while the recording service i
 #### Scenario: Notification content
 - GIVEN the recording service is active
 - THEN a notification is shown on the `cell_recorder_channel`
-- AND the notification displays elapsed time, point count, and GPS status
+- AND the notification displays elapsed time, point count, and GPS status (outdoor) or tracking confidence (indoor)
 
 #### Scenario: Notification update rate
 - GIVEN the recording service is active
@@ -94,6 +94,12 @@ The system SHALL require the following Android permissions for full functionalit
 - WHEN `POST_NOTIFICATIONS` is not granted
 - THEN a permission request is shown
 
+#### Scenario: Activity recognition (API 29+)
+- GIVEN the user starts an indoor recording on API 29+
+- WHEN `ACTIVITY_RECOGNITION` is not granted
+- THEN a permission request is shown
+- AND indoor recording does not start until granted
+
 ### Requirement: Speedtest in Notification
 
 The system SHALL include optional speedtest status in the recording notification when speedtest is enabled.
@@ -102,3 +108,66 @@ The system SHALL include optional speedtest status in the recording notification
 - GIVEN an active recording with speedtest enabled
 - THEN the notification displays the current speedtest status ("Running", "Completed", "Failed")
 - AND the notification is updated at the standard 1Hz rate from the state update job
+
+### Requirement: Indoor Mode Service Behavior
+
+The system SHALL adapt the foreground service behavior for indoor recording mode.
+
+#### Scenario: Indoor recording starts without GPS
+- GIVEN a session with `recordingMode = "INDOOR"`
+- WHEN the recording service starts
+- THEN the service uses `FOREGROUND_SERVICE_TYPE_LOCATION` (required for cell info access on Android 11+)
+- AND no GPS location requests are made
+- AND `IndoorPositionCollector` is initialized instead of `LocationCollector`
+- AND the fallback recording job (GPS loss detection) is NOT launched
+
+#### Scenario: Indoor notification content
+- GIVEN an active indoor recording
+- THEN the notification displays elapsed time, point count, and indoor tracking status instead of GPS status
+- AND the notification indicates the current drift level (Confident / Degrading / High drift)
+
+#### Scenario: Indoor recording time-based triggers
+- GIVEN an active indoor recording
+- WHEN `indoorRecordingIntervalMs` has elapsed since the last recorded point
+- THEN a point is recorded with the current indoor position
+- AND no distance-based trigger is used
+
+### Requirement: Activity Recognition Permission in Service
+
+The system SHALL declare and request `android.permission.ACTIVITY_RECOGNITION` for indoor recording.
+
+#### Scenario: ACTIVITY_RECOGNITION declared in manifest
+- GIVEN the app's AndroidManifest.xml
+- THEN `android.permission.ACTIVITY_RECOGNITION` is declared as a `<uses-permission>` element
+
+#### Scenario: Runtime permission request for indoor recording
+- GIVEN the user taps Start on an indoor session
+- WHEN `ACTIVITY_RECOGNITION` is not granted on API 29+
+- THEN the permission request flow includes `ACTIVITY_RECOGNITION` alongside location and phone state
+- AND recording starts only after all required permissions are granted
+
+### Requirement: Sensor Registration Verification
+
+The system SHALL verify that sensor registration succeeds before continuing with indoor recording.
+
+#### Scenario: Verify sensor registration success
+- GIVEN an indoor recording is started
+- WHEN `registerListener()` is called for step detection or accelerometer sensors
+- THEN the return value of `registerListener()` is checked
+- AND if all sensor registrations fail, indoor recording is aborted with an error
+
+### Requirement: Sensor Health Monitoring
+
+The system SHALL monitor step detection activity during indoor recording and provide feedback when no steps are detected.
+
+#### Scenario: No steps detected within 10 seconds
+- GIVEN an active indoor recording
+- WHEN no step events have been received for more than 10 seconds
+- THEN a sensor health warning is emitted: "No steps detected. Try moving the phone to your pocket."
+- AND the tracking confidence indicator shows "No steps"
+
+#### Scenario: Steps resume after warning
+- GIVEN a sensor health warning is displayed
+- WHEN step events resume
+- THEN the sensor health warning is cleared
+- AND the tracking confidence indicator returns to its normal drift-based state
