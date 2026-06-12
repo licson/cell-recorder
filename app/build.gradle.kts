@@ -25,8 +25,8 @@ android {
         applicationId = "com.cellrecorder.app"
         minSdk = 30
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.1.1"
+        versionCode = 7
+        versionName = "1.2.0"
 
         buildConfigField("String", "GIT_HASH", "\"$gitCommitHash\"")
 

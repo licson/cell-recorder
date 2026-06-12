@@ -5,25 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.1] - 2026-06-05
+## [1.2.0] - 2026-06-12
 
 ### Added
 
-- Ping engine now uses the `-O` (outstanding) flag for immediate packet loss detection — dropped ICMP packets are identified as soon as they happen, not when the next successful reply arrives
-- Ping results now carry an outcome classification (success, timeout, host unreachable, process error) for richer diagnostics
-- Host unreachable and network unreachable errors are now properly detected and classified
+- **Continuous speedtest during recording** — measure download and upload throughput at regular intervals while recording cell data, so you can see how signal strength relates to actual network performance. Uses a custom implementation of the Speedtest.net HTTP protocol (no third-party app required).
+- **Speedtest settings** — enable or disable speedtests, toggle upload testing, set the interval between tests, and optionally pin a specific speedtest server in Settings.
+- **Speedtest EULA dialog** — first-time speedtest users see a brief notice about the Speedtest.net terms before enabling the feature.
+- **Live speedtest status** — the recording screen shows the current speedtest phase (selecting server, downloading, uploading) and latest results in Mbps.
+- **Speedtest markers on replay** — speedtest results appear as dots on the session replay timeline; tap one to see its details, or the summary card auto-shows the result at your current replay position.
+- **Speedtest analytics** — session detail now includes a speedtest section with average/peak download and upload speeds, throughput histograms, and correlation charts showing how speed varies with signal strength, network type, and SIM.
+- **Speedtest CSV export** — export speedtest results as a separate CSV file alongside cell data.
+- **Global speedtest stats** — the Statistics screen now shows overall speedtest averages across all sessions.
+- **Indoor recording mode** — record cell coverage inside buildings, basements, and anywhere GPS can't reach. Choose "Indoor" when creating a session; your phone tracks your walking path using motion sensors instead of satellite signals.
+- **Accelerometer step detection fallback** — if your phone's built-in step counter isn't available (some devices don't have one, or it may not detect steps when the phone is in your hand), the app detects steps from the accelerometer automatically.
+- **2D path canvas** — indoor sessions show your walking path on a pannable, zoomable canvas instead of a map. The path is color-coded by signal strength, packet loss, cell ID, network type, or band.
+- **Tracking confidence indicator** — shows how reliable your indoor position estimate is: Confident, Degrading, or High drift, based on how long since your last origin reset and how far you've walked.
+- **Drift radius** — a translucent circle around your position grows over time to show how much uncertainty has accumulated.
+- **Reset Origin button** — tap to recenter your position mid-recording. The old path is preserved with a gap marker so you can see where you reset.
+- **Sensor health warning** — if no steps are detected for 10 seconds, a banner suggests moving the phone to your pocket for better tracking.
+- **Indoor recording settings** — adjust your step length (0.3–1.2 m) and recording interval in Settings.
+- **Ping stats in indoor mode** — live ping latency and packet loss are now visible while recording indoors.
+- **Indoor session detail and replay** — review your indoor path with full replay support, signal coloring, and the same display modes as the outdoor map.
+- **Indoor export and import** — indoor sessions export relative coordinates in CSV and GeoJSON; GeoJSON files include an `indoorMode` flag so tools can distinguish them from GPS-tracked data.
 
 ### Changed
 
-- Packet loss calculation now uses the ping outcome instead of null latency — more accurate and self-documenting
-- Live cell info screen's ping loop migrated from per-ping processes (`ping()` deprecation path) to the same continuous flow used during recording sessions
+- The recording screen now shows the path canvas for indoor sessions and the map for outdoor sessions.
+- Heading direction is now calculated using the standard Android sensor API, which is more reliable on devices with 3-element rotation vectors.
+- Database schema updated to v11 to store speedtest records, indoor session mode, relative coordinates, and indoor settings.
 
 ### Fixed
 
-- Fixed packet loss being underreported — dropped packets were previously invisible because `ping -i` doesn't output timeout lines without the `-O` flag
-- Fixed process-death events being incorrectly counted as individual dropped packets — they now carry a separate "process error" outcome
+- **Speedtest always failed on Android** because the config fetch sent a gzip header that Android's HTTP stack doesn't expect, and latency pings used the wrong URL scheme.
+- **Speedtest always returned 0 Mbps** because Android 11+ blocks unencrypted HTTP by default — the app now uses the correct network security configuration and upgrades to HTTPS when the server supports it.
+- **Speedtest server was re-discovered on every test** after any error, even unrelated ones. Cache now persists across measurement failures.
+- **Speedtest upload analytics showed download speeds** instead of upload speeds — now correctly computed.
+- **Mbps displayed as 0** for sub-1 Mbps speeds (e.g., 0.4 Mbps showed as 0) — now shows one decimal place.
+- **Replay speedtest summary always showed the latest test** instead of the one at your current playback position — now auto-updates as you scrub through the timeline.
+- **Indoor recording produced no path or data** on Android 10+ because the physical activity permission was missing. The app now requests it automatically before starting an indoor session.
+- **Wrong heading direction on some devices** due to an incorrect fallback in the compass calculation, which could cause the indoor path to point the wrong way.
+- **Indoor recording could silently fail** if the step sensor couldn't be started — no error was shown, and no data was collected. The app now falls back to the accelerometer automatically or shows an error if no sensors are available.
 
-## [1.1.0] - 2026-06-05
+## [1.1.1] - 2026-06-05
 
 ### Added
 
