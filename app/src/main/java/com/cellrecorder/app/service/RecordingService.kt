@@ -170,6 +170,12 @@ recordingJob = launch {
                 try {
                     if (recordingMode == "INDOOR") {
                         indoorPositionCollector.start(stepLength = config.indoorStepLengthM)
+                        if (!indoorPositionCollector.isAnyStepDetectionActive()) {
+                            pointRecorder.updateState(sessionId, isRecording = false, error = "No step detection sensor available")
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                            stopSelf()
+                            return@launch
+                        }
                         indoorPositionCollector.positionUpdate.collect { position ->
                             recordingMutex.withLock {
                                 val now = System.currentTimeMillis()
@@ -405,8 +411,13 @@ recordingJob = launch {
                     val indoorPos = indoorPositionCollector.positionUpdate.value
 
                     if (recordingMode == "INDOOR") {
+                        val lastStep = indoorPositionCollector.lastStepTimestampMs
+                        val timeSinceStep = if (lastStep > 0) (System.currentTimeMillis() - lastStep) / 1000 else -1L
+                        val noStepWarn = timeSinceStep >= 10
+
                         val drift = indoorPos.estimatedDriftM
                         val trackingConfidence = when {
+                            noStepWarn -> "No steps"
                             drift < 3.0 -> "Confident"
                             drift < 10.0 -> "Degrading"
                             else -> "High drift"
@@ -420,7 +431,8 @@ recordingJob = launch {
                             currentRelativeY = indoorPos.relativeY,
                             currentHeading = indoorPos.headingRad,
                             currentStepCount = indoorPos.stepCount,
-                            estimatedDriftM = indoorPos.estimatedDriftM
+                            estimatedDriftM = indoorPos.estimatedDriftM,
+                            noStepWarning = noStepWarn
                         ) }
                         notificationHelper.notify(this@RecordingService, notificationHelper.buildIndoorNotification(
                             this@RecordingService, sessionId,

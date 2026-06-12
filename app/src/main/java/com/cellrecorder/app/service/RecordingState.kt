@@ -39,5 +39,6 @@ data class RecordingState(
     val currentRelativeY: Double? = null,
     val currentHeading: Double? = null,
     val currentStepCount: Int? = null,
-    val estimatedDriftM: Double? = null
+    val estimatedDriftM: Double? = null,
+    val noStepWarning: Boolean = false
 )
