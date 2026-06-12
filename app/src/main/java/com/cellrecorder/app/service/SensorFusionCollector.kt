@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin
@@ -40,6 +39,7 @@ class SensorFusionCollector @Inject constructor(
     val speedDeltaMps: StateFlow<Float> = _speedDeltaMps.asStateFlow()
 
     private var rotationMatrix = FloatArray(9)
+    private var orientation = FloatArray(3)
     private var hasRotationMatrix = false
     private var lastAccelTimestampNs: Long = 0L
 
@@ -61,12 +61,13 @@ class SensorFusionCollector @Inject constructor(
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
         hasRotationMatrix = true
 
-        val yaw = calculateYaw(event.values)
+        SensorManager.getOrientation(rotationMatrix, orientation)
+        val yawDeg = Math.toDegrees(orientation[0].toDouble()).toFloat()
         if (baselineYaw == null) {
-            baselineYaw = yaw
+            baselineYaw = yawDeg
             return
         }
-        var rawDelta = yaw - baselineYaw!!
+        var rawDelta = yawDeg - baselineYaw!!
         if (rawDelta > 180f) rawDelta -= 360f
         if (rawDelta < -180f) rawDelta += 360f
         smoothedDelta = 0.85f * smoothedDelta + 0.15f * rawDelta
@@ -142,15 +143,4 @@ class SensorFusionCollector @Inject constructor(
         lastAccelTimestampNs = 0L
     }
 
-    private fun calculateYaw(values: FloatArray): Float {
-        val w = values.getOrElse(3) { 1f }
-        val x = values[0]
-        val y = values[1]
-        val z = values[2]
-        val yaw = -atan2(
-            2.0 * (w.toDouble() * z.toDouble() + x.toDouble() * y.toDouble()),
-            1.0 - 2.0 * (y.toDouble() * y.toDouble() + z.toDouble() * z.toDouble())
-        )
-        return Math.toDegrees(yaw).toFloat()
     }
-}
