@@ -2,6 +2,7 @@ package com.cellrecorder.app.ui.shared
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Phone
@@ -14,8 +15,10 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun PermissionRationaleDialog(
-    onGrant: () -> Unit
+    onGrant: () -> Unit,
+    recordingMode: String = "OUTDOOR"
 ) {
+    val isIndoor = recordingMode == "INDOOR"
     AlertDialog(
         onDismissRequest = {},
         title = { Text("Permissions Required") },
@@ -41,6 +44,13 @@ fun PermissionRationaleDialog(
                     title = "Notifications",
                     description = "Required to show a persistent notification while recording is active."
                 )
+                if (isIndoor) {
+                    PermissionItem(
+                        icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+                        title = "Physical Activity",
+                        description = "Required for indoor mode to detect your steps using the device's motion sensors for position tracking."
+                    )
+                }
             }
         },
         confirmButton = {

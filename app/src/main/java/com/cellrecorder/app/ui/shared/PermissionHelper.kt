@@ -37,10 +37,27 @@ object PermissionHelper {
         }
     }.toTypedArray()
 
+    fun indoorPermissions(): Array<String> = buildList {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            add(Manifest.permission.ACTIVITY_RECOGNITION)
+        }
+    }.toTypedArray()
+
     fun requiredPermissions(): Array<String> = foregroundPermissions() + backgroundPermissions()
 
     fun allGranted(context: Context): Boolean =
         requiredPermissions().all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+
+    fun allGrantedForMode(recordingMode: String, context: Context): Boolean {
+        if (!allGranted(context)) return false
+        if (recordingMode == "INDOOR") return allIndoorGranted(context)
+        return true
+    }
+
+    fun allIndoorGranted(context: Context): Boolean =
+        indoorPermissions().all {
             ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
         }
 
@@ -59,6 +76,14 @@ object PermissionHelper {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
 
+    fun missingIndoorPermissions(context: Context): Array<String> =
+        indoorPermissions().filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+
+    fun missingPermissionsForMode(recordingMode: String, context: Context): Array<String> =
+        (missingForegroundPermissions(context).toList() + missingIndoorPermissions(context).toList()).toTypedArray()
+
     fun missingBackgroundPermissions(context: Context): Array<String> =
         backgroundPermissions().filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
@@ -66,6 +91,12 @@ object PermissionHelper {
 
     fun hasPermanentDenial(activity: Activity): Boolean =
         requiredPermissions().any { permission ->
+            ContextCompat.checkSelfPermission(activity, permission) != PackageManager.PERMISSION_GRANTED &&
+                    !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+        }
+
+    fun hasPermanentDenialForMode(recordingMode: String, activity: Activity): Boolean =
+        (requiredPermissions().toList() + indoorPermissions().toList()).any { permission ->
             ContextCompat.checkSelfPermission(activity, permission) != PackageManager.PERMISSION_GRANTED &&
                     !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
         }
