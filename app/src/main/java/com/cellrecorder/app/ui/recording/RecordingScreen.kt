@@ -90,7 +90,7 @@ fun RecordingScreen(
     fun handlePermissionResult() {
         PermissionHelper.logPermissionState(context, "recording-handle-result")
         permissionState = when {
-            PermissionHelper.allGranted(context) -> {
+            PermissionHelper.allGrantedForMode(recordingMode, context) -> {
                 if (!isRecording) {
                     RecordingService.start(context, sessionId, recordingMode)
                 }
@@ -122,7 +122,7 @@ fun RecordingScreen(
     ) {
         isRequestingPermissions = false
         PermissionHelper.logPermissionState(context, "recording-fg-result")
-        if (PermissionHelper.allForegroundGranted(context) && PermissionHelper.missingBackgroundPermissions(context).isNotEmpty()) {
+        if (PermissionHelper.allForegroundGranted(context) && PermissionHelper.allIndoorGranted(context) && PermissionHelper.missingBackgroundPermissions(context).isNotEmpty()) {
             isRequestingPermissions = true
             mainHandler.postDelayed({
                 val missingBg = PermissionHelper.missingBackgroundPermissions(context)
@@ -135,7 +135,7 @@ fun RecordingScreen(
     }
 
     fun requestNextPermissions() {
-        val missingFg = PermissionHelper.missingForegroundPermissions(context)
+        val missingFg = PermissionHelper.missingPermissionsForMode(recordingMode, context)
         val missingBg = PermissionHelper.missingBackgroundPermissions(context)
         if (BuildConfig.DEBUG) android.util.Log.d("RecordingScreen", "requestNext: missingFg=${missingFg.toList()} missingBg=${missingBg.toList()}")
 
@@ -200,11 +200,28 @@ fun RecordingScreen(
                     )
                     if (isRecording) {
                         TrackingConfidenceIndicator(
-                            trackingConfidence = viewModel.trackingConfidenceText(serviceState?.estimatedDriftM ?: 0.0),
+                            trackingConfidence = viewModel.trackingConfidenceText(
+                                serviceState?.estimatedDriftM ?: 0.0,
+                                serviceState?.noStepWarning ?: false
+                            ),
                             timeSinceResetMs = null,
                             stepCount = serviceState?.currentStepCount,
                             driftM = serviceState?.estimatedDriftM
                         )
+                        if (serviceState?.noStepWarning == true) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(0.dp),
+                                color = Color(0xFFFF9800).copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = "No steps detected. Try moving the phone to your pocket.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFFF9800),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
                     }
                 } else {
                     OsmMapView(
@@ -240,13 +257,13 @@ fun RecordingScreen(
                                 showStopConfirm = true
                             } else {
                                 when {
-                                    PermissionHelper.allGranted(context) -> {
+                                    PermissionHelper.allGrantedForMode(recordingMode, context) -> {
                                         RecordingService.start(context, sessionId, recordingMode)
                                     }
                                     hasAttemptedOnce -> {
                                         permissionState = PermissionUiState.ShowSettings
                                     }
-                                    PermissionHelper.hasPermanentDenial(activity) -> {
+PermissionHelper.hasPermanentDenialForMode(recordingMode, activity) -> {
                                         permissionState = PermissionUiState.ShowSettings
                                     }
                                     else -> {
@@ -279,6 +296,7 @@ contentDescription = if (isRecording) "Stop" else "Start",
         when (permissionState) {
             PermissionUiState.ShowRationale -> {
                 PermissionRationaleDialog(
+                    recordingMode = recordingMode,
                     onGrant = {
                         isRequestingPermissions = true
                         permissionState = null
@@ -446,7 +464,14 @@ private fun LiveStatsBar(
                 val dataSimLabel = (state.dataSubId.takeIf { it >= 0 }?.let { id ->
                     simStates.find { it.subscriptionId == id }?.simSlotIndex?.let { it + 1 }
                 }?.let { "(via SIM $it)" } ?: "")
-                if (!isIndoor) {
+                if (isIndoor) {
+                    Text(
+                        text = "Ping: ${state.currentLatency} ms $dataSimLabel",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
+                    )
+                } else {
                     val latStr = String.format("%.5f", state.currentLatitude)
                     val lonStr = String.format("%.5f", state.currentLongitude)
                     val altStr = if (state.currentAltitude != 0.0) String.format("%.1f m", state.currentAltitude) else "---"

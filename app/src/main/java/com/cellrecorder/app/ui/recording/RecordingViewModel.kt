@@ -104,7 +104,8 @@ class RecordingViewModel @Inject constructor(
         indoorPositionCollector.resetOrigin()
     }
 
-    fun trackingConfidenceText(driftM: Double): String = when {
+    fun trackingConfidenceText(driftM: Double, noStepWarning: Boolean = false): String = when {
+        noStepWarning -> "No steps"
         driftM < 3.0 -> "Confident"
         driftM < 10.0 -> "Degrading"
         else -> "High drift"
