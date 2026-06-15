@@ -107,6 +107,9 @@ dependencies {
     // Google Play Services Location
     implementation("com.google.android.gms:play-services-location:21.2.0")
 
+    // OkHttp
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 

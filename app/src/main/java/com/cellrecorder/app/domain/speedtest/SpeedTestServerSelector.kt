@@ -5,9 +5,8 @@ import android.util.Xml
 import com.cellrecorder.app.domain.speedtest.model.SpeedTestServerInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Request
 import org.xmlpull.v1.XmlPullParser
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.math.*
 
 object SpeedTestServerSelector {
@@ -31,30 +30,38 @@ object SpeedTestServerSelector {
         ignoreIds: List<Int>,
         preferredServerId: Int? = null,
         downloadThreads: Int = 8,
-        secure: Boolean = true
+        secure: Boolean = true,
+        hasValidClientLocation: Boolean = true,
+        httpClient: SpeedTestHttpClient
     ): SpeedTestServerInfo? = withContext(Dispatchers.IO) {
-        val servers = fetchServerList(downloadThreads, secure) ?: return@withContext null
+        val servers = fetchServerList(downloadThreads, secure, httpClient) ?: return@withContext null
 
         if (preferredServerId != null) {
             val server = servers.find { it.id == preferredServerId }
             if (server != null) return@withContext server
         }
 
-        val sortedByDistance = servers
-            .filter { it.id !in ignoreIds }
-            .map { it.copy(latencyMs = haversineKm(clientLat, clientLon, it.lat, it.lon)) }
-            .sortedBy { it.latencyMs }
+        val filtered = servers.filter { it.id !in ignoreIds }
+        if (filtered.isEmpty()) return@withContext null
 
-        val closest = sortedByDistance.take(CLOSEST_COUNT)
+        val closest = if (hasValidClientLocation) {
+            filtered
+                .map { it.copy(latencyMs = haversineKm(clientLat, clientLon, it.lat, it.lon)) }
+                .sortedBy { it.latencyMs }
+                .take(CLOSEST_COUNT)
+        } else {
+            filtered.take(CLOSEST_COUNT * 2)
+        }
         if (closest.isEmpty()) return@withContext null
 
-        val best = pingServers(closest, secure) ?: closest.first()
+        val best = pingServers(closest, secure, httpClient) ?: closest.first()
         best
     }
 
     private suspend fun fetchServerList(
         downloadThreads: Int,
-        secure: Boolean
+        secure: Boolean,
+        httpClient: SpeedTestHttpClient
     ): List<SpeedTestServerInfo>? = withContext(Dispatchers.IO) {
         val scheme = if (secure) "https" else "http"
 
@@ -62,42 +69,39 @@ object SpeedTestServerSelector {
             try {
                 val finalUrl = urlString.replaceFirst(Regex("^https?:"), "$scheme:") +
                         "?threads=$downloadThreads"
-                val connection = URL(finalUrl).openConnection() as HttpURLConnection
-                connection.connectTimeout = SERVER_LIST_TIMEOUT_MS
-                connection.readTimeout = SERVER_LIST_TIMEOUT_MS
-                connection.setRequestProperty("Cache-Control", "no-cache")
-                connection.setRequestProperty("User-Agent", buildUserAgent())
+                val request = Request.Builder()
+                    .url(finalUrl)
+                    .header("Cache-Control", "no-cache")
+                    .header("User-Agent", buildUserAgent())
+                    .build()
+                    val response = httpClient.client.newCall(request).execute()
+                response.use { resp ->
+                    if (!resp.isSuccessful) return@use
 
-                if (connection.responseCode != 200) {
-                    connection.disconnect()
-                    continue
-                }
-
-                val servers = mutableListOf<SpeedTestServerInfo>()
-                val parser = Xml.newPullParser()
-                parser.setInput(connection.inputStream, null)
-                parser.nextTag()
-
-                parser.require(XmlPullParser.START_TAG, null, "settings")
-                while (parser.next() != XmlPullParser.END_TAG) {
-                    if (parser.eventType != XmlPullParser.START_TAG) continue
-                    if (parser.name == "servers") {
-                        while (parser.next() != XmlPullParser.END_TAG) {
-                            if (parser.eventType != XmlPullParser.START_TAG) continue
-                            if (parser.name == "server") {
-                                val server = parseServerElement(parser)
-                                if (server != null) servers.add(server)
-                            } else {
-                                skipTag(parser)
+                    val servers = mutableListOf<SpeedTestServerInfo>()
+                    val parser = Xml.newPullParser()
+                    val bodyStream = resp.body?.byteStream() ?: return@use
+                    parser.setInput(bodyStream, null)
+                    parser.nextTag()
+                    parser.require(XmlPullParser.START_TAG, null, "settings")
+                    while (parser.next() != XmlPullParser.END_TAG) {
+                        if (parser.eventType != XmlPullParser.START_TAG) continue
+                        if (parser.name == "servers") {
+                            while (parser.next() != XmlPullParser.END_TAG) {
+                                if (parser.eventType != XmlPullParser.START_TAG) continue
+                                if (parser.name == "server") {
+                                    val server = parseServerElement(parser)
+                                    if (server != null) servers.add(server)
+                                } else {
+                                    skipTag(parser)
+                                }
                             }
+                        } else {
+                            skipTag(parser)
                         }
-                    } else {
-                        skipTag(parser)
                     }
+                    return@withContext servers
                 }
-
-                connection.disconnect()
-                return@withContext servers
             } catch (_: Exception) {
                 continue
             }
@@ -123,7 +127,8 @@ object SpeedTestServerSelector {
 
     private suspend fun pingServers(
         servers: List<SpeedTestServerInfo>,
-        secure: Boolean
+        secure: Boolean,
+        httpClient: SpeedTestHttpClient
     ): SpeedTestServerInfo? = withContext(Dispatchers.IO) {
         var best: SpeedTestServerInfo? = null
         var bestLatency = Double.MAX_VALUE
@@ -140,34 +145,26 @@ object SpeedTestServerSelector {
                     val latencyUrl = "$baseUrl/latency.txt?x=${System.currentTimeMillis()}.$i"
                     try {
                         val start = System.nanoTime()
-                        val conn = URL(latencyUrl).openConnection() as HttpURLConnection
-                        conn.connectTimeout = LATENCY_PING_TIMEOUT_MS
-                        conn.readTimeout = LATENCY_PING_TIMEOUT_MS
-                        conn.setRequestProperty("User-Agent", buildUserAgent())
-                        conn.setRequestProperty("Accept-Encoding", "identity")
-
-                        val responseCode = conn.responseCode
-                        if (responseCode == 200) {
-                            val input = conn.inputStream
-                            val bytes = ByteArray(9)
-                            var total = 0
-                            while (total < 9) {
-                                val count = input.read(bytes, total, 9 - total)
-                                if (count == -1) break
-                                total += count
-                            }
-                            val elapsed = (System.nanoTime() - start) / 1_000_000.0
-                            val text = String(bytes, 0, total, Charsets.US_ASCII)
-                            if (text == "test=test" && elapsed < LATENCY_PING_TIMEOUT_MS) {
-                                latencies.add(elapsed)
+                        val request = Request.Builder()
+                            .url(latencyUrl)
+                            .header("User-Agent", buildUserAgent())
+                            .header("Accept-Encoding", "identity")
+                            .build()
+                        val response = httpClient.client.newCall(request).execute()
+                        response.use { resp ->
+                            if (resp.isSuccessful) {
+                                val bodyBytes = resp.body?.bytes() ?: ByteArray(0)
+                                val elapsed = (System.nanoTime() - start) / 1_000_000.0
+                                val text = String(bodyBytes, 0, bodyBytes.size.coerceAtMost(9), Charsets.US_ASCII)
+                                if (text == "test=test" && elapsed < LATENCY_PING_TIMEOUT_MS) {
+                                    latencies.add(elapsed)
+                                } else {
+                                    latencies.add(3600.0)
+                                }
                             } else {
                                 latencies.add(3600.0)
                             }
-                            input.close()
-                        } else {
-                            latencies.add(3600.0)
                         }
-                        conn.disconnect()
                     } catch (e: Exception) {
                         Log.w(TAG, "Latency ping failed for ${server.host}: ${e.message}")
                         latencies.add(3600.0)
