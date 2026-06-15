@@ -65,3 +65,16 @@
 - [x] 9.6 Update `openspec/specs/ui/spec.md` with speedtest settings and live stats requirements
 - [x] 9.7 Update `openspec/specs/data/spec.md` with speedtest entity and export requirements
 - [x] 9.8 Update `openspec/design.md` with speedtest architecture and data model
+
+## 10. Throughput Accuracy Improvements
+
+- [x] 10.1 Migrate all HTTP calls to OkHttp with shared `OkHttpClient` (connection pool: 8 idle, 30s keep-alive)
+- [x] 10.2 Increase read/write buffer from 10 KB to 64 KB for reduced syscall overhead
+- [x] 10.3 Add gauge phase (2s) before download test to estimate speed and select adaptive file sizes
+- [x] 10.4 Add warmup grace periods (1.5s download, 3s upload) to exclude TCP slow start from measurement
+- [x] 10.5 Implement slice-based throughput calculation: 500ms intervals, discard fastest 10% + slowest 30%, average remaining 60%
+- [x] 10.6 Apply 1.06× overhead compensation factor for TCP/IP/HTTP protocol overhead
+- [x] 10.7 Pre-allocate and cache upload payloads; reuse exact-size matches across threads
+- [x] 10.8 Count upload bytes only after server ACKs the full request body (OkHttp Response consumption)
+- [x] 10.9 Extend total test duration by warmup period (gauge + warmup + measurement fits within configured interval)
+- [x] 10.10 Update spec docs for OkHttp, warmup, slicing, and compensation factor

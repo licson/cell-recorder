@@ -300,7 +300,7 @@ app/
 - **RecordingService idempotency**: `startRecording()` cancels existing jobs before creating new ones; `onStartCommand` guards against calling `startRecording()` when `recordingJob.isActive == true`; session ID guard uses `> 0` to reject default of 0
 - **Notification content intent**: Uses `FLAG_ACTIVITY_CLEAR_TOP \| FLAG_ACTIVITY_SINGLE_TOP`; `MainActivity` uses `launchMode="singleTop"` to prevent duplicate Activity instances
 - **Point recording resilience**: `PointRecorder.recordPoint()` wraps per-snapshot database operations in try-catch — a single failed insert skips that snapshot and continues
-- **Speedtest engine**: Custom Kotlin implementation of Speedtest.net HTTP protocol (not Ookla binary — binary fails on Android due to `SO_BINDTODEVICE` syscall restriction). Uses `java.net.HttpURLConnection` (no external HTTP dependencies). Coroutine-based with `Semaphore` for concurrency limiting. Pure Kotlin, no native code, works on all Android ABIs
+- **Speedtest engine**: Custom Kotlin implementation of Speedtest.net HTTP protocol (not Ookla binary — binary fails on Android due to `SO_BINDTODEVICE` syscall restriction). Uses OkHttp with a shared `OkHttpClient` (connection pool: 8 idle, 30s keep-alive). Coroutine-based with `Semaphore` for concurrency limiting. Features: gauge phase for adaptive file sizing, 1.5s/3s warmup grace periods to overcome TCP slow start, slice-based throughput calculation (discards fastest 10% and slowest 30% of samples), 1.06× overhead compensation, 64 KB read/write buffer, pre-allocated upload payload, and server-ACK'd upload byte counting.
 - **Server selection**: Fetched from `speedtest-servers-static.php` XML, Haversine-sorted by distance, top 5 candidates pinged via HTTP `latency.txt`, lowest latency selected. Cached per recording session; invalidated on test failure
 - **WiFi skip**: Tests skip when WiFi is active (`ConnectivityManager.getActiveNetwork()` has `TRANSPORT_WIFI`). Records `SKIPPED_WIFI` error so analytics can distinguish skipped vs failed tests
 - **Correlation snapshot**: `CellInfoCollector.snapshots()` called at test start to capture `ratAtTest`, `rsrpAtTest`, `bandAtTest`, `dataSimSlotIndex`. No temporal join needed — snapshot is deterministic point-in-time
@@ -323,6 +323,7 @@ app/
 | osmdroid | 6.1.18 |
 | Play Services Location | 21.2.0 |
 | `kotlinx-coroutines-play-services` | 1.8.0 |
+| OkHttp | 4.12.0 (`com.squareup.okhttp3:okhttp`) |
 | Kotlinx Serialization JSON | 1.6.3 |
 | JUnit 5 (bom) | 5.10.2 |
 | MockK | 1.13.10 |
