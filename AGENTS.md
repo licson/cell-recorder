@@ -72,3 +72,22 @@ Behavioral requirements live in spec files under:
 Implementation details and architecture decisions go in `openspec/design.md`.
 
 Skip trivial changes (typos, pure refactors, UI-only styling). If unsure whether a change qualifies, update the spec.
+
+---
+
+## Code Working Flow — Plan, Confirm, Review, Iterate
+
+When writing or modifying code, always follow this cycle:
+
+1. **Plan** — Analyze the task, search the codebase, and present a concise plan of what will be changed and why (files, functions, approach). Do **not** write any code yet.
+
+2. **Confirm & Execute** — Wait for the user to confirm the plan before writing any code. Only after explicit approval, implement the changes as described.
+
+3. **Review** — After implementation, run the `code-review` subagent (via the Task tool) against the written code. The review prompt must include:
+   - The original plan from step 1.
+   - All modified files and their diffs.
+   - A request to check: (a) code correctness and quality, (b) adherence to the plan, (c) spec compliance if applicable.
+
+4. **Iterate** — If the code-review agent raises major comments or suggestions, address them and repeat steps 2–3 (re-confirm with the user if the fixes deviate from the original plan, then re-review). The code is only considered complete when the code-review agent has **no major comments**.
+
+**Exception:** Trivial one-line fixes (typos, import sorting, etc.) may skip this flow if the user agrees.
