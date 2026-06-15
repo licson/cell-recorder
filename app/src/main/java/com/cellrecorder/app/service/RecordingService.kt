@@ -364,6 +364,9 @@ recordingJob = launch {
                                 lastSpeedTestUploadBps = null
                             ) }
                         } else if (!result.succeeded) {
+                            // Engine may have already invalidated for measurement failures;
+                            // this covers config/selection exceptions
+                            speedTestEngine.invalidateCache()
                             stateManager.update { it?.copy(
                                 speedTestStatus = "Failed",
                                 lastSpeedTestDownloadBps = null,

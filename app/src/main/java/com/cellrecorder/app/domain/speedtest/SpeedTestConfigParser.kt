@@ -8,7 +8,8 @@ data class SpeedTestClientConfig(
     val ip: String,
     val lat: Double,
     val lon: Double,
-    val isp: String
+    val isp: String,
+    val hasValidLocation: Boolean = true
 )
 
 data class SpeedTestDownloadConfig(
@@ -57,6 +58,7 @@ object SpeedTestConfigParser {
         var clientLat = 0.0
         var clientLon = 0.0
         var clientIsp = ""
+        var hasValidLocation = false
         var ignoreIds = emptyList<Int>()
         var threadCount = 4
         var downloadThreadsPerUrl = 4
@@ -75,6 +77,9 @@ object SpeedTestConfigParser {
                     clientLat = parser.getAttributeValue(null, "lat")?.toDoubleOrNull() ?: 0.0
                     clientLon = parser.getAttributeValue(null, "lon")?.toDoubleOrNull() ?: 0.0
                     clientIsp = parser.getAttributeValue(null, "isp") ?: ""
+                    hasValidLocation = parser.getAttributeValue(null, "lat") != null &&
+                            parser.getAttributeValue(null, "lon") != null &&
+                            !(clientLat == 0.0 && clientLon == 0.0)
                     parser.next()
                 }
                 "server-config" -> {
@@ -100,7 +105,7 @@ object SpeedTestConfigParser {
         }
 
         return SpeedTestProtocolConfig(
-            client = SpeedTestClientConfig(ip = clientIp, lat = clientLat, lon = clientLon, isp = clientIsp),
+            client = SpeedTestClientConfig(ip = clientIp, lat = clientLat, lon = clientLon, isp = clientIsp, hasValidLocation = hasValidLocation),
             download = SpeedTestDownloadConfig(threadsPerUrl = downloadThreadsPerUrl, testLengthSec = downloadTestLength),
             upload = SpeedTestUploadConfig(threads = uploadThreads, ratio = uploadRatio, testLengthSec = uploadTestLength, maxChunkCount = uploadMaxChunkCount),
             server = SpeedTestServerConfig(ignoreIds = ignoreIds, threadCount = threadCount)
