@@ -22,8 +22,9 @@ import org.junit.jupiter.api.Test
 private class TestLocationCollector(
     fusedLocationClient: FusedLocationProviderClient,
     context: Context,
-    private val gmsAvailable: Boolean
-) : LocationCollector(fusedLocationClient, context) {
+    private val gmsAvailable: Boolean,
+    callbackHandler: CallbackHandlerThread
+) : LocationCollector(fusedLocationClient, context, callbackHandler) {
     override fun isGooglePlayServicesAvailable(): Boolean = gmsAvailable
     override fun getMainLooper(): android.os.Looper = mockk(relaxed = true)
 }
@@ -48,7 +49,7 @@ class LocationCollectorTest {
     }
 
     private fun collector(gmsAvailable: Boolean): LocationCollector =
-        TestLocationCollector(fusedLocationClient, context, gmsAvailable)
+        TestLocationCollector(fusedLocationClient, context, gmsAvailable, mockk(relaxed = true))
 
     @Test
     fun `locationFlow uses fused provider when GMS is available`() = runBlocking {
