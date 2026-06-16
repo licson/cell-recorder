@@ -35,7 +35,7 @@ class RecordingNotificationHelper @Inject constructor() {
         isExtrapolating: Boolean,
         hasGpsFix: Boolean
     ): Notification {
-        val stopIntent = PendingIntent.getService(
+        val stopIntent = PendingIntent.getForegroundService(
             context, 0, Intent(context, RecordingService::class.java).apply {
                 action = RecordingService.ACTION_STOP
                 putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)
@@ -73,7 +73,7 @@ class RecordingNotificationHelper @Inject constructor() {
         pointCount: Int,
         trackingConfidence: String
     ): Notification {
-        val stopIntent = PendingIntent.getService(
+        val stopIntent = PendingIntent.getForegroundService(
             context, 0, Intent(context, RecordingService::class.java).apply {
                 action = RecordingService.ACTION_STOP
                 putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)

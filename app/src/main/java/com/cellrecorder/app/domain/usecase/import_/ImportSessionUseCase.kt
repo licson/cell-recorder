@@ -30,12 +30,13 @@ class ImportSessionUseCase @Inject constructor(
         val recordingMode = if (isIndoor) "INDOOR" else "OUTDOOR"
         val sessionId = sessionRepository.create(name = sessionName, recordingMode = recordingMode)
 
-        val persistedResult = csvRecordParser.parse(content, sessionId)
+        val persistedRecords = result.records.map { it.copy(sessionId = sessionId) }
+        val persistedCaBands = result.caBands
 
-        if (persistedResult.records.isNotEmpty()) {
-            val ids = cellRecordRepository.insertAll(persistedResult.records)
-            for (i in persistedResult.records.indices) {
-                val caBands = persistedResult.caBands.getOrElse(i) { emptyList() }
+        if (persistedRecords.isNotEmpty()) {
+            val ids = cellRecordRepository.insertAll(persistedRecords)
+            for (i in persistedRecords.indices) {
+                val caBands = persistedCaBands.getOrElse(i) { emptyList() }
                 if (caBands.isNotEmpty()) {
                     cellRecordRepository.insertCaBands(caBands.map { it.copy(cellRecordId = ids[i]) })
                 }
@@ -46,9 +47,9 @@ class ImportSessionUseCase @Inject constructor(
 
         return ImportSummary(
             sessionName = sessionName,
-            importedCount = persistedResult.records.size,
-            errorCount = persistedResult.errors.size,
-            errors = persistedResult.errors,
+            importedCount = persistedRecords.size,
+            errorCount = result.errors.size,
+            errors = result.errors,
             recordingMode = recordingMode
         )
     }

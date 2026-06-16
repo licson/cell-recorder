@@ -361,7 +361,7 @@ private fun ColumnHeadersRow(
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "RSRP (dBm)",
+                text = "RSRQ (dBm)",
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)

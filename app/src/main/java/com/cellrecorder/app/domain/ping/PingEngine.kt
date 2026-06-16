@@ -61,34 +61,39 @@ class PingEngine @Inject constructor() {
         var reader = process.inputStream.bufferedReader()
 
         launch(Dispatchers.IO) {
-            while (isActive) {
-                try {
-                    val line = reader.readLine()
-                    if (line == null) {
+            try {
+                while (isActive) {
+                    try {
+                        val line = reader.readLine()
+                        if (line == null) {
+                            trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis(), outcome = PingOutcome.PROCESS_ERROR))
+                            delay(1000)
+                            if (!isActive) break
+                            process.destroyForcibly()
+                            process = startProcess()
+                            reader = process.inputStream.bufferedReader()
+                            continue
+                        }
+                        if (!line.contains("icmp_seq=")) continue
+                        val parsed = parseLine(line)
+                        trySend(PingResult(latencyMs = parsed.first, timestamp = System.currentTimeMillis(), outcome = parsed.second))
+                    } catch (e: Exception) {
+                        if (!isActive) break
                         trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis(), outcome = PingOutcome.PROCESS_ERROR))
                         delay(1000)
                         if (!isActive) break
                         process.destroyForcibly()
                         process = startProcess()
                         reader = process.inputStream.bufferedReader()
-                        continue
                     }
-                    if (!line.contains("icmp_seq=")) continue
-                    val parsed = parseLine(line)
-                    trySend(PingResult(latencyMs = parsed.first, timestamp = System.currentTimeMillis(), outcome = parsed.second))
-                } catch (e: Exception) {
-                    if (!isActive) break
-                    trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis(), outcome = PingOutcome.PROCESS_ERROR))
-                    delay(1000)
-                    if (!isActive) break
-                    process.destroyForcibly()
-                    process = startProcess()
-                    reader = process.inputStream.bufferedReader()
                 }
+            } finally {
+                process.destroyForcibly()
             }
         }
 
         awaitClose {
+            process.inputStream.close()
             process.destroyForcibly()
         }
     }
