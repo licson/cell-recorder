@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cellrecorder.app.domain.analytics.model.CoverageGap
+import com.cellrecorder.app.domain.analytics.model.GapType
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -55,6 +56,13 @@ private fun CoverageGapRow(gap: CoverageGap) {
     val durationSec = gap.durationMs / 1000
     val durationLabel = if (durationSec < 60) "${durationSec}s" else "${durationSec / 60}m ${durationSec % 60}s"
 
+    val typeLabel = when (gap.type) {
+        GapType.NO_RAT -> "No network coverage"
+        GapType.NO_SERVING_CELL -> "No serving cell"
+        GapType.NO_SIGNAL_METRIC -> "No signal metrics"
+        GapType.WEAK_SIGNAL -> "Weak signal"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -68,7 +76,7 @@ private fun CoverageGapRow(gap: CoverageGap) {
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "No signal for $durationLabel",
+                text = "$typeLabel for $durationLabel",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium
             )

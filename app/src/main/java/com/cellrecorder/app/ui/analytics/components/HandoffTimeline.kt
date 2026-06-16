@@ -118,11 +118,15 @@ fun HandoffTimeline(
                 // Handoff markers (content area only)
                 handoffs.forEach { ev ->
                     val x = xFromTime(ev.timestamp)
-                    val color = when {
-                        ev.type == HandoffType.INTRA_SITE_PCI_CHANGE -> Color(0xFF42A5F5)
-                        ev.latencyDeltaMs != null && ev.latencyDeltaMs!! > 0 -> Color.Red
-                        ev.packetLossDeltaPct != null && ev.packetLossDeltaPct!! > 0 -> Color.Red
-                        else -> Color(0xFF66BB6A)
+                    val color = when (ev.type) {
+                        HandoffType.INTRA_SITE_PCI_CHANGE -> Color(0xFF42A5F5)
+                        HandoffType.RAT_CHANGE -> Color(0xFFAB47BC)
+                        HandoffType.BAND_CHANGE -> Color(0xFFFFA726)
+                        HandoffType.NSA_ANCHOR_CHANGE -> Color(0xFFEF5350)
+                        HandoffType.UNKNOWN_CELL_CHANGE -> Color(0xFF78909C)
+                        HandoffType.INTER_SITE -> if (ev.latencyDeltaMs != null && ev.latencyDeltaMs!! > 0) Color.Red
+                            else if (ev.packetLossDeltaPct != null && ev.packetLossDeltaPct!! > 0) Color.Red
+                            else Color(0xFF66BB6A)
                     }
                     drawLine(
                         color = color,

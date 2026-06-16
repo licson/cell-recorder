@@ -5,6 +5,8 @@ import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.domain.analytics.model.AnomalyType
+import com.cellrecorder.app.domain.analytics.model.GapType
+import com.cellrecorder.app.domain.analytics.model.HandoffType
 import com.cellrecorder.app.domain.analytics.model.MobilityType
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -47,7 +49,7 @@ class SessionAnalyticsEngineTest {
     }
 
     @Test
-    fun `rat coverage has correct percentage`() {
+    fun `rat coverage uses duration not sample count`() {
         val records = listOf(
             wrapper(record(ts = 1000, rat = "4G", rsrp = -85)),
             wrapper(record(ts = 2000, rat = "4G", rsrp = -90)),
@@ -59,9 +61,11 @@ class SessionAnalyticsEngineTest {
         val coverage4g = result.ratCoverage.find { it.rat == "4G" }
         val coverage5g = result.ratCoverage.find { it.rat == "5G_SA" }
         val coverageUnknown = result.ratCoverage.find { it.rat == "UNKNOWN" }
-        assertEquals(40.0, coverage4g?.percentage ?: 0.0, 0.1)
-        assertEquals(40.0, coverage5g?.percentage ?: 0.0, 0.1)
-        assertEquals(20.0, coverageUnknown?.percentage ?: 0.0, 0.1)
+        // intervals: 4G(1000→2000)=1000, 4G(2000→3000)=1000, 5G_SA(3000→4000)=1000, 5G_SA(4000→5000)=1000
+        // total duration = 4000ms, 4G=2000ms(50%), 5G_SA=2000ms(50%), UNKNOWN=0ms(0%, last record has no interval)
+        assertEquals(50.0, coverage4g?.percentage ?: 0.0, 0.1)
+        assertEquals(50.0, coverage5g?.percentage ?: 0.0, 0.1)
+        assertEquals(0.0, coverageUnknown?.percentage ?: 0.0, 0.1)
     }
 
     @Test
@@ -325,6 +329,141 @@ class SessionAnalyticsEngineTest {
         assertEquals(1, coverage.poor)        // -105 < -100
     }
 
+    @Test
+    fun `unsorted input produces same result as sorted`() {
+        val records = listOf(
+            wrapper(record(ts = 4000, rat = "4G", rsrp = -85)),
+            wrapper(record(ts = 2000, rat = "5G_SA", rsrp = -75)),
+            wrapper(record(ts = 1000, rat = "4G", rsrp = -80)),
+            wrapper(record(ts = 3000, rat = "4G", rsrp = -90))
+        )
+        val sorted = records.sortedBy { it.record.timestamp }
+        val resultUnsorted = engine.analyze(records, defaultConfig)
+        val resultSorted = engine.analyze(sorted, defaultConfig)
+        assertEquals(resultSorted.ratCoverage, resultUnsorted.ratCoverage)
+        assertEquals(resultSorted.anomalyFlags.size, resultUnsorted.anomalyFlags.size)
+        assertEquals(resultSorted.timelineSegments, resultUnsorted.timelineSegments)
+        assertEquals(resultSorted.handoffEvents, resultUnsorted.handoffEvents)
+    }
+
+    @Test
+    fun `dual SIM interleaving does not create false rsrp drops`() {
+        val records = listOf(
+            wrapper(record(ts = 1000, rsrp = -70, simSlot = 0, latency = 10.0)),
+            wrapper(record(ts = 1500, rsrp = -72, simSlot = 1, latency = 10.0)),
+            wrapper(record(ts = 2000, rsrp = -70, simSlot = 0, latency = 10.0)),
+            wrapper(record(ts = 2500, rsrp = -71, simSlot = 1, latency = 10.0)),
+            wrapper(record(ts = 3000, rsrp = -70, simSlot = 0, latency = 10.0))
+        )
+        val config = defaultConfig.copy(rsrpDropThresholdDbm = 15, rsrpDropTimeWindowMs = 5000)
+        val result = engine.analyze(records, config)
+        val drops = result.anomalyFlags.filter { it.type == AnomalyType.RSRP_DROP }
+        assertTrue(drops.isEmpty(), "Interleaved SIM records should not create false RSRP drops")
+    }
+
+    @Test
+    fun `boundary bin values counted correctly`() {
+        val records = listOf(
+            wrapper(record(ts = 1000, rsrp = -80)),
+            wrapper(record(ts = 2000, rsrp = -90)),
+            wrapper(record(ts = 3000, rsrp = -100)),
+            wrapper(record(ts = 4000, rsrp = -65)),
+            wrapper(record(ts = 5000, rsrp = -110))
+        )
+        val result = engine.analyze(records, defaultConfig)
+        val excellent = result.rsrpHistogram.find { it.label.startsWith("\u2265") || it.label.startsWith(">") }
+        val good = result.rsrpHistogram.find { it.label.contains("-90") }
+        val fair = result.rsrpHistogram.find { it.label.contains("-100") }
+        val poor = result.rsrpHistogram.find { it.label.startsWith("<") }
+        assertEquals(2, excellent?.count ?: 0, "-80 and -65 should be excellent (>= -80)")
+        assertEquals(1, good?.count ?: 0, "-90 should be good (-90 <= x < -80)")
+        assertEquals(1, fair?.count ?: 0, "-100 should be fair (-100 <= x < -90)")
+        assertEquals(1, poor?.count ?: 0, "-110 should be poor (< -100)")
+    }
+
+    @Test
+    fun `histogram uses valid sample denominator`() {
+        val records = listOf(
+            wrapper(record(ts = 1000, rsrp = -75, latency = 10.0)),
+            wrapper(record(ts = 2000, rsrp = -85, latency = null)),
+            wrapper(record(ts = 3000, rsrp = -95, latency = null)),
+            wrapper(record(ts = 4000, rsrp = null, latency = 20.0)),
+            wrapper(record(ts = 5000, rsrp = null, latency = null))
+        )
+        val result = engine.analyze(records, defaultConfig)
+        // RSRP histogram: 3 records have RSRP, 2 don't → denominator = 3
+        val rsrpBins = result.rsrpHistogram
+        val rsrpTotal = rsrpBins.sumOf { it.count }
+        assertEquals(3, rsrpTotal, "Only 3 valid RSRP values should be counted")
+        // Ping histogram: 2 records have latency, 3 don't → denominator = 2
+        val pingBins = result.pingHistogram
+        val pingTotal = pingBins.sumOf { it.count }
+        assertEquals(2, pingTotal, "Only 2 valid latency values should be counted")
+    }
+
+    @Test
+    fun `rat coverage with irregular sampling reflects duration not count`() {
+        val records = listOf(
+            wrapper(record(ts = 1000, rat = "4G", rsrp = -80)),
+            wrapper(record(ts = 30000, rat = "4G", rsrp = -85)), // 29s gap
+            wrapper(record(ts = 31000, rat = "5G_SA", rsrp = -75)), // 1s gap
+            wrapper(record(ts = 31500, rat = "5G_SA", rsrp = -70)) // 0.5s gap
+        )
+        val result = engine.analyze(records, defaultConfig)
+        val coverage4g = result.ratCoverage.find { it.rat == "4G" }
+        val coverage5g = result.ratCoverage.find { it.rat == "5G_SA" }
+        // Intervals: 4G(1000→30000)=29000ms, 4G(30000→31000)=1000ms, 5G_SA(31000→31500)=500ms
+        // Total: 30500ms, 4G=30000ms(98.4%), 5G_SA=500ms(1.6%)
+        assertNotNull(coverage4g)
+        assertNotNull(coverage5g)
+        assertTrue((coverage4g!!.percentage) > 90.0, "4G should dominate by duration")
+        assertTrue(coverage5g!!.percentage < 10.0, "5G_SA should be small by duration")
+        // Sample count would say 50/50, but duration should reflect truth
+    }
+
+    @Test
+    fun `latency spike detection uses robust baseline`() {
+        val records = (1..30).map { i ->
+            wrapper(record(ts = i * 1000L, rsrp = -80, latency = if (i == 25) 500.0 else 10.0))
+        }
+        val result = engine.analyze(records, defaultConfig)
+        val spikes = result.anomalyFlags.filter { it.type == AnomalyType.LATENCY_SPIKE }
+        assertTrue(spikes.isNotEmpty(), "Single 500ms spike should be detected despite massive outlier in global mean")
+        // With MAD baseline, median=10, MAD=0, threshold = max(10 + 3*0, 10+80) = 90
+        // 500 > 90 → spike detected
+    }
+
+    @Test
+    fun `multiple gap types detected`() {
+        val records = listOf(
+            wrapper(record(ts = 1000, rat = "4G", rsrp = -80, lat = 10.0, lng = 20.0)),
+            wrapper(record(ts = 40000, rat = "UNKNOWN", rsrp = null, lat = 10.1, lng = 20.1)),
+            wrapper(record(ts = 70000, rat = "4G", rsrp = -85, lat = 10.2, lng = 20.2)),
+            wrapper(record(ts = 130000, rat = "4G", rsrp = -120, lat = 10.3, lng = 20.3)),
+            wrapper(record(ts = 180000, rat = "4G", rsrp = -80, lat = 10.4, lng = 20.4))
+        )
+        val config = defaultConfig.copy(coverageGapThresholdMs = 25000)
+        val result = engine.analyze(records, config)
+        assertEquals(2, result.coverageGaps.size, "Should detect 2 distinct gaps")
+        assertEquals(GapType.NO_RAT, result.coverageGaps[0].type, "First gap is NO_RAT")
+        assertEquals(GapType.WEAK_SIGNAL, result.coverageGaps[1].type, "Second gap is WEAK_SIGNAL")
+    }
+
+    @Test
+    fun `handoff detects rat change type`() {
+        val records = listOf(
+            wrapper(record(ts = 1000, rat = "4G", enb = 100L, pci = 1, simSlot = 0, band = 3)),
+            wrapper(record(ts = 3000, rat = "4G", enb = 100L, pci = 1, simSlot = 0, band = 3)),
+            wrapper(record(ts = 5000, rat = "5G_SA", enb = 100L, pci = 2, simSlot = 0, band = 78))
+        )
+        val config = defaultConfig.copy(handoffTimeWindowMs = 5000)
+        val result = engine.analyze(records, config)
+        val ratChanges = result.handoffEvents.filter { it.type == HandoffType.RAT_CHANGE }
+        assertEquals(1, ratChanges.size, "Should detect one RAT change")
+        assertEquals("4G", ratChanges[0].fromRat)
+        assertEquals("5G_SA", ratChanges[0].toRat)
+    }
+
     companion object {
         private var idCounter = 1L
 
@@ -360,7 +499,7 @@ class SessionAnalyticsEngineTest {
             rsrp = rsrp,
             sinr = sinr,
             pci = pci,
-            enbOrGnbId = enb,
+            enbOrGnbId = enb ?: if (rat != "UNKNOWN" && rat.isNotEmpty()) 1L else null,
             simSlotIndex = simSlot,
             avgLatencyMs = latency,
             bandNumber = band,

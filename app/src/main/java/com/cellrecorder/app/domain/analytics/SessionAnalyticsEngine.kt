@@ -10,17 +10,22 @@ import kotlin.math.sqrt
 
 class SessionAnalyticsEngine {
 
+    companion object {
+        private const val WEAK_SIGNAL_RSRP_THRESHOLD_DBM = -110
+    }
+
     fun analyze(records: List<CellRecordWithCaBands>, config: AppConfigEntity, recordingMode: String = "OUTDOOR"): SessionAnalytics {
         if (records.isEmpty()) return SessionAnalytics()
 
-        val entities = records.map { it.record }
+        val entities = records.map { it.record }.sortedBy { it.timestamp }
+        val recordsSorted = records.sortedBy { it.record.timestamp }
         val bySim = entities.groupBy { it.simSlotIndex ?: 0 }.toSortedMap()
         val isIndoor = recordingMode == "INDOOR"
         val handoffs = if (isIndoor) emptyList() else detectHandoffs(entities, config)
 
         return SessionAnalytics(
             ratCoverage = computeRatCoverage(entities),
-            bandDistributionPerSim = computeBandDistribution(records, bySim),
+            bandDistributionPerSim = computeBandDistribution(recordsSorted, bySim),
             rsrpHistogram = computeHistogram(entities, RSRP_BINS, CellRecordEntity::rsrp),
             sinrHistogram = computeHistogram(entities, SINR_BINS, CellRecordEntity::sinr),
             pingHistogram = computeHistogram(entities, PING_BINS) { it.avgLatencyMs?.toInt() },
@@ -40,31 +45,42 @@ class SessionAnalyticsEngine {
         )
     }
 
-    // ── Rat Coverage ──────────────────────────────────────────────
+    // ── RAT Coverage ──────────────────────────────────────────────
 
     private fun computeRatCoverage(records: List<CellRecordEntity>): List<RatCoverage> {
-        val total = records.size.toDouble()
-        return records.groupBy { it.rat }.map { (rat, group) ->
-            val count = group.size
-            val excellent = group.count { it.rsrp != null && it.rsrp > -80 }
-            val good = group.count { it.rsrp != null && it.rsrp in -90 until -80 }
-            val fair = group.count { it.rsrp != null && it.rsrp in -100 until -90 }
-            val poor = group.count { it.rsrp != null && it.rsrp < -100 }
+        if (records.size < 2) {
+            return records.groupBy { it.rat }.map { (rat, group) ->
+                RatCoverage(
+                    rat = rat,
+                    percentage = 100.0,
+                    durationMs = 0L,
+                    excellent = group.count { it.rsrp != null && it.rsrp >= -80 },
+                    good = group.count { it.rsrp != null && it.rsrp in -90 until -80 },
+                    fair = group.count { it.rsrp != null && it.rsrp in -100 until -90 },
+                    poor = group.count { it.rsrp != null && it.rsrp < -100 }
+                )
+            }
+        }
+
+        val intervals = records.zipWithNext { current, next ->
+            val delta = (next.timestamp - current.timestamp).coerceAtLeast(0)
+            current.rat to delta
+        }
+        val totalDuration = intervals.sumOf { it.second }.toDouble()
+
+        return intervals.groupBy { it.first }.map { (rat, ratIntervals) ->
+            val ratDuration = ratIntervals.sumOf { it.second }
+            val ratRecords = records.filter { it.rat == rat }
             RatCoverage(
                 rat = rat,
-                percentage = count / total * 100.0,
-                durationMs = estimateDuration(group),
-                excellent = excellent,
-                good = good,
-                fair = fair,
-                poor = poor
+                percentage = if (totalDuration > 0) ratDuration / totalDuration * 100.0 else 0.0,
+                durationMs = ratDuration,
+                excellent = ratRecords.count { it.rsrp != null && it.rsrp >= -80 },
+                good = ratRecords.count { it.rsrp != null && it.rsrp in -90 until -80 },
+                fair = ratRecords.count { it.rsrp != null && it.rsrp in -100 until -90 },
+                poor = ratRecords.count { it.rsrp != null && it.rsrp < -100 }
             )
         }.sortedByDescending { it.percentage }
-    }
-
-    private fun estimateDuration(records: List<CellRecordEntity>): Long {
-        if (records.size < 2) return 0L
-        return records.last().timestamp - records.first().timestamp
     }
 
     // ── Band Distribution per SIM (includes CA bands) ─────────────
@@ -112,14 +128,14 @@ class SessionAnalyticsEngine {
     }
 
     private val RSRP_BINS = listOf(
-        Bin.Above(-80, ">-80"),
-        Bin.Range(-90, -80, "-80~-90"),
-        Bin.Range(-100, -90, "-90~-100"),
+        Bin.Above(-80, "\u2265-80"),
+        Bin.Range(-90, -80, "-90~-80"),
+        Bin.Range(-100, -90, "-100~-90"),
         Bin.Below(-100, "<-100")
     )
 
     private val SINR_BINS = listOf(
-        Bin.Above(20, ">20"),
+        Bin.Above(20, "\u226520"),
         Bin.Range(10, 20, "10~20"),
         Bin.Range(0, 10, "0~10"),
         Bin.Below(0, "<0")
@@ -129,13 +145,13 @@ class SessionAnalyticsEngine {
         Bin.Range(0, 30, "0~30"),
         Bin.Range(30, 60, "30~60"),
         Bin.Range(60, 100, "60~100"),
-        Bin.Above(100, ">100")
+        Bin.Above(100, "\u2265100")
     )
 
     private fun inBin(value: Int, bin: Bin): Boolean = when (bin) {
         is Bin.Exact -> value == bin.value
         is Bin.Range -> value in bin.min until bin.max
-        is Bin.Above -> value > bin.min
+        is Bin.Above -> value >= bin.min
         is Bin.Below -> value < bin.max
     }
 
@@ -144,7 +160,8 @@ class SessionAnalyticsEngine {
         bins: List<Bin>,
         selector: (CellRecordEntity) -> Int?
     ): List<HistogramBin> {
-        val total = records.size
+        val validCount = records.count { selector(it) != null }
+        val total = validCount
         return bins.map { bin ->
             val count = records.count { r ->
                 val value = selector(r)
@@ -189,7 +206,6 @@ class SessionAnalyticsEngine {
         val values = records.mapNotNull { it.avgLatencyMs }
         if (values.isEmpty()) return null
 
-        val mean = values.average()
         val sorted = values.sorted()
         val n = sorted.size
 
@@ -198,15 +214,19 @@ class SessionAnalyticsEngine {
             return sorted[rank - 1]
         }
 
+        val mean = values.average()
         val variance = values.sumOf { (it - mean) * (it - mean) } / n
-        val jitter = sqrt(variance)
+        val stddev = sqrt(variance)
+
+        val jitterSamples = values.zipWithNext { a, b -> abs(b - a) }
+        val jitter = jitterSamples.average()
 
         return LatencyStats(
             mean = mean,
             p50 = percentile(0.50),
             p95 = percentile(0.95),
             p99 = percentile(0.99),
-            jitterMs = jitter,
+            jitterMs = stddev,
             sampleCount = n
         )
     }
@@ -228,9 +248,12 @@ class SessionAnalyticsEngine {
                 val timeDelta = next.timestamp - cur.timestamp
                 if (timeDelta > config.handoffTimeWindowMs) continue
 
-                val cellChanged = (cur.enbOrGnbId != null && next.enbOrGnbId != null && cur.enbOrGnbId != next.enbOrGnbId)
-                val pciChanged = (cur.pci != null && next.pci != null && cur.pci != next.pci)
-                if (!cellChanged && !pciChanged) continue
+                val cellChanged = cur.enbOrGnbId != null && next.enbOrGnbId != null && cur.enbOrGnbId != next.enbOrGnbId
+                val pciChanged = cur.pci != null && next.pci != null && cur.pci != next.pci
+                val ratChanged = cur.rat != next.rat
+                val bandChanged = cur.bandNumber != null && next.bandNumber != null && cur.bandNumber != next.bandNumber
+
+                if (!cellChanged && !pciChanged && !ratChanged && !bandChanged) continue
 
                 val latDelta = next.avgLatencyMs?.let { n ->
                     cur.avgLatencyMs?.let { c -> n - c }
@@ -240,8 +263,12 @@ class SessionAnalyticsEngine {
                 }
 
                 val type = when {
-                    cur.enbOrGnbId != null && next.enbOrGnbId != null && cur.enbOrGnbId == next.enbOrGnbId -> HandoffType.INTRA_SITE_PCI_CHANGE
-                    else -> HandoffType.INTER_SITE
+                    ratChanged -> HandoffType.RAT_CHANGE
+                    cellChanged && cur.enbOrGnbId == next.enbOrGnbId -> HandoffType.INTRA_SITE_PCI_CHANGE
+                    cellChanged && cur.enbOrGnbId != next.enbOrGnbId -> HandoffType.INTER_SITE
+                    bandChanged -> HandoffType.BAND_CHANGE
+                    pciChanged -> HandoffType.UNKNOWN_CELL_CHANGE
+                    else -> HandoffType.UNKNOWN_CELL_CHANGE
                 }
 
                 result.add(
@@ -255,7 +282,13 @@ class SessionAnalyticsEngine {
                         latencyDeltaMs = latDelta,
                         packetLossDeltaPct = lossDelta,
                         type = type,
-                        rat = next.rat
+                        rat = next.rat,
+                        fromRat = cur.rat,
+                        toRat = next.rat,
+                        fromBand = cur.bandNumber,
+                        toBand = next.bandNumber,
+                        fromCellId = cur.lcid,
+                        toCellId = next.lcid
                     )
                 )
             }
@@ -271,15 +304,14 @@ class SessionAnalyticsEngine {
         config: AppConfigEntity
     ): List<AnomalyFlag> {
         val result = mutableListOf<AnomalyFlag>()
+        val bySim = records.groupBy { it.simSlotIndex ?: 0 }.toSortedMap()
 
-        // RSRP drops
-        result.addAll(detectRsrpDrops(records, config))
-        // Latency spikes
-        result.addAll(detectLatencySpikes(records, config))
-        // PCI flapping
+        for ((_, simRecords) in bySim) {
+            result.addAll(detectRsrpDrops(simRecords, config))
+            result.addAll(detectLatencySpikes(simRecords, config))
+            result.addAll(detectMissingPingClusters(simRecords))
+        }
         result.addAll(detectPciFlapping(records, config))
-        // Missing ping clusters
-        result.addAll(detectMissingPingClusters(records))
 
         return result.sortedBy { it.timestamp }
     }
@@ -304,7 +336,7 @@ class SessionAnalyticsEngine {
                         simSlot = next.simSlotIndex ?: 0,
                         type = AnomalyType.RSRP_DROP,
                         severity = if (drop >= config.rsrpDropThresholdDbm * 1.5) Severity.CRITICAL else Severity.WARNING,
-                        description = "RSRP dropped ${drop}dBm (${cur.rsrp} → ${next.rsrp})"
+                        description = "RSRP dropped ${drop}dBm (${cur.rsrp} \u2192 ${next.rsrp})"
                     )
                 )
             }
@@ -319,10 +351,17 @@ class SessionAnalyticsEngine {
         val values = records.mapNotNull { it.avgLatencyMs }
         if (values.isEmpty()) return emptyList()
 
-        val mean = values.average()
-        val variance = values.sumOf { (it - mean) * (it - mean) } / values.size
-        val stddev = sqrt(variance)
-        val threshold = mean + config.latencySpikeSigma * stddev
+        val sorted = values.sorted()
+        val median = if (sorted.size % 2 == 0) {
+            (sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2.0
+        } else sorted[sorted.size / 2]
+
+        val deviations = sorted.map { abs(it - median) }.sorted()
+        val mad = if (deviations.size % 2 == 0) {
+            (deviations[deviations.size / 2 - 1] + deviations[deviations.size / 2]) / 2.0
+        } else deviations[deviations.size / 2]
+
+        val threshold = maxOf(median + config.latencySpikeSigma * mad, median + 80.0)
 
         val result = mutableListOf<AnomalyFlag>()
         var i = 0
@@ -346,8 +385,8 @@ class SessionAnalyticsEngine {
                         endTimestamp = records[i].timestamp,
                         simSlot = records[runStart].simSlotIndex ?: 0,
                         type = AnomalyType.LATENCY_SPIKE,
-                        severity = if (peak > mean + 2 * config.latencySpikeSigma * stddev) Severity.CRITICAL else Severity.WARNING,
-                        description = "Latency spike: ${"%.0f".format(peak)}ms (mean ${"%.0f".format(mean)}ms)"
+                        severity = if (peak > median + 2 * config.latencySpikeSigma * mad) Severity.CRITICAL else Severity.WARNING,
+                        description = "Latency spike: ${"%.0f".format(peak)}ms (median ${"%.0f".format(median)}ms)"
                     )
                 )
             }
@@ -436,7 +475,6 @@ class SessionAnalyticsEngine {
                 }
             }
         }
-        // trailing run
         if (runStart != -1) {
             val runLength = records.size - runStart
             if (runLength >= 3) {
@@ -464,28 +502,26 @@ class SessionAnalyticsEngine {
     ): List<MobilitySegment> {
         if (records.size < 2) return emptyList()
         if (isIndoor) {
-            val sorted = records.sortedBy { it.timestamp }
             return listOf(MobilitySegment(
-                startTime = sorted.first().timestamp,
-                endTime = sorted.last().timestamp,
+                startTime = records.first().timestamp,
+                endTime = records.last().timestamp,
                 type = MobilityType.INDOOR
             ))
         }
 
         val segments = mutableListOf<MobilitySegment>()
-        val sorted = records.sortedBy { it.timestamp }
-        var segStart = sorted.first().timestamp
-        var segType = classifyRecordMobility(sorted[0], sorted.getOrNull(1), config)
+        var segStart = records.first().timestamp
+        var segType = classifyRecordMobility(records[0], records.getOrNull(1), config)
 
-        for (i in 1 until sorted.size) {
-            val type = classifyRecordMobility(sorted[i], sorted.getOrNull(i + 1), config)
+        for (i in 1 until records.size) {
+            val type = classifyRecordMobility(records[i], records.getOrNull(i + 1), config)
             if (type != segType) {
-                segments.add(MobilitySegment(startTime = segStart, endTime = sorted[i].timestamp, type = segType))
-                segStart = sorted[i].timestamp
+                segments.add(MobilitySegment(startTime = segStart, endTime = records[i].timestamp, type = segType))
+                segStart = records[i].timestamp
                 segType = type
             }
         }
-        segments.add(MobilitySegment(startTime = segStart, endTime = sorted.last().timestamp, type = segType))
+        segments.add(MobilitySegment(startTime = segStart, endTime = records.last().timestamp, type = segType))
 
         return segments
     }
@@ -495,17 +531,14 @@ class SessionAnalyticsEngine {
         next: CellRecordEntity?,
         config: AppConfigEntity
     ): MobilityType {
-        // Tunnel: unknown RAT + motion
         if (record.rat == "UNKNOWN" && next != null && next.rat == "UNKNOWN") {
             return MobilityType.TUNNEL
         }
 
-        // Indoor: poor accuracy + weak signal
         if (record.accuracy > config.indoorAccuracyThresholdM && (record.rsrp == null || record.rsrp < -100)) {
             return MobilityType.INDOOR
         }
 
-        // Speed-based classification
         val speed = estimateSpeed(record, next)
         return when {
             speed == null || speed < config.mobilityStationaryKmh -> MobilityType.STATIONARY
@@ -519,7 +552,7 @@ class SessionAnalyticsEngine {
         next: CellRecordEntity?
     ): Float? {
         if (next == null) return null
-        val dt = (next.timestamp - cur.timestamp) / 1000.0 // seconds
+        val dt = (next.timestamp - cur.timestamp) / 1000.0
         if (dt <= 0) return null
 
         val dlat = Math.toRadians(next.latitude - cur.latitude)
@@ -528,9 +561,9 @@ class SessionAnalyticsEngine {
                 Math.cos(Math.toRadians(cur.latitude)) * Math.cos(Math.toRadians(next.latitude)) *
                 Math.sin(dlon / 2) * Math.sin(dlon / 2)
         val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-        val distKm = 6371.0 * c // Earth radius in km
+        val distKm = 6371.0 * c
 
-        return (distKm / dt * 3600).toFloat() // km/h
+        return (distKm / dt * 3600).toFloat()
     }
 
     // ── Coverage Gaps ─────────────────────────────────────────────
@@ -541,13 +574,24 @@ class SessionAnalyticsEngine {
     ): List<CoverageGap> {
         val result = mutableListOf<CoverageGap>()
         var gapStart = -1L
+        var gapType: GapType? = null
         var lastKnownLat: Double? = null
         var lastKnownLng: Double? = null
 
+        fun classifyGap(record: CellRecordEntity): GapType? = when {
+            record.rat == "UNKNOWN" -> GapType.NO_RAT
+            record.enbOrGnbId == null && record.pci == null -> GapType.NO_SERVING_CELL
+            record.rsrp == null -> GapType.NO_SIGNAL_METRIC
+            record.rsrp < WEAK_SIGNAL_RSRP_THRESHOLD_DBM -> GapType.WEAK_SIGNAL
+            else -> null
+        }
+
         for (record in records) {
-            if (record.rat == "UNKNOWN") {
+            val currentGapType = classifyGap(record)
+            if (currentGapType != null) {
                 if (gapStart == -1L) {
                     gapStart = record.timestamp
+                    gapType = currentGapType
                 }
             } else {
                 if (gapStart != -1L) {
@@ -559,18 +603,19 @@ class SessionAnalyticsEngine {
                                 endTime = record.timestamp,
                                 durationMs = duration,
                                 lastKnownLat = lastKnownLat,
-                                lastKnownLng = lastKnownLng
+                                lastKnownLng = lastKnownLng,
+                                type = gapType ?: GapType.NO_RAT
                             )
                         )
                     }
                     gapStart = -1L
+                    gapType = null
                 }
                 lastKnownLat = record.latitude
                 lastKnownLng = record.longitude
             }
         }
 
-        // trailing gap
         if (gapStart != -1L) {
             val duration = records.last().timestamp - gapStart
             if (duration >= config.coverageGapThresholdMs) {
@@ -580,7 +625,8 @@ class SessionAnalyticsEngine {
                         endTime = records.last().timestamp,
                         durationMs = duration,
                         lastKnownLat = lastKnownLat,
-                        lastKnownLng = lastKnownLng
+                        lastKnownLng = lastKnownLng,
+                        type = gapType ?: GapType.NO_RAT
                     )
                 )
             }
@@ -594,13 +640,12 @@ class SessionAnalyticsEngine {
     private fun buildTimeline(records: List<CellRecordEntity>): List<TimelineSegment> {
         if (records.isEmpty()) return emptyList()
 
-        val sorted = records.sortedBy { it.timestamp }
         val segments = mutableListOf<TimelineSegment>()
-        var segStart = sorted.first().timestamp
-        var segRat = sorted.first().rat
+        var segStart = records.first().timestamp
+        var segRat = records.first().rat
         var count = 0
 
-        for (record in sorted) {
+        for (record in records) {
             if (record.rat != segRat) {
                 segments.add(TimelineSegment(startTime = segStart, endTime = record.timestamp, rat = segRat, recordCount = count))
                 segStart = record.timestamp
@@ -609,7 +654,7 @@ class SessionAnalyticsEngine {
             }
             count++
         }
-        segments.add(TimelineSegment(startTime = segStart, endTime = sorted.last().timestamp, rat = segRat, recordCount = count))
+        segments.add(TimelineSegment(startTime = segStart, endTime = records.last().timestamp, rat = segRat, recordCount = count))
 
         return segments
     }
@@ -620,10 +665,10 @@ class SessionAnalyticsEngine {
         val cards = mutableListOf<InsightCard>()
 
         val intraSite5g = handoffEvents.count {
-            it.type == HandoffType.INTRA_SITE_PCI_CHANGE && it.rat.startsWith("5G")
+            it.type == HandoffType.INTRA_SITE_PCI_CHANGE && (it.rat.startsWith("5G") || it.toRat?.startsWith("5G") == true)
         }
         val intraSite4g = handoffEvents.count {
-            it.type == HandoffType.INTRA_SITE_PCI_CHANGE && (it.rat == "4G" || it.rat == "4G_CA")
+            it.type == HandoffType.INTRA_SITE_PCI_CHANGE && (it.rat == "4G" || it.rat == "4G_CA" || it.toRat == "4G" || it.toRat == "4G_CA")
         }
         val interSiteWithLatency = handoffEvents.count {
             it.type == HandoffType.INTER_SITE && it.latencyDeltaMs != null && it.latencyDeltaMs!! > 0
@@ -633,7 +678,7 @@ class SessionAnalyticsEngine {
             cards.add(
                 InsightCard(
                     title = "Massive MIMO Candidate",
-                    body = "Frequent intra-site PCI changes in 5G SA ($intraSite5g events) — possible Massive MIMO or load-balanced deployment"
+                    body = "Frequent intra-site PCI changes in 5G ($intraSite5g events) — possible Massive MIMO or load-balanced deployment"
                 )
             )
         }
