@@ -1,6 +1,21 @@
 package com.cellrecorder.app.service
 
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
+
+data class GpsStateSnapshot(
+    val hasGpsFix: Boolean,
+    val lastKnownSpeedMps: Float,
+    val lastKnownBearing: Float,
+    val lastValidLocation: LocationUpdate?,
+    val lastAccurateFixTime: Long,
+    val isExtrapolating: Boolean,
+    val gpsLostAtMs: Long,
+    val gpsSettlingUntilMs: Long
+)
+
 class GpsStateMachine {
+    private val lock = ReentrantLock()
 
     var hasGpsFix: Boolean = false
         internal set
@@ -19,51 +34,80 @@ class GpsStateMachine {
     var gpsSettlingUntilMs: Long = 0L
         internal set
 
+    fun snapshot(): GpsStateSnapshot = lock.withLock {
+        GpsStateSnapshot(
+            hasGpsFix = hasGpsFix,
+            lastKnownSpeedMps = lastKnownSpeedMps,
+            lastKnownBearing = lastKnownBearing,
+            lastValidLocation = lastValidLocation,
+            lastAccurateFixTime = lastAccurateFixTime,
+            isExtrapolating = isExtrapolating,
+            gpsLostAtMs = gpsLostAtMs,
+            gpsSettlingUntilMs = gpsSettlingUntilMs
+        )
+    }
+
     fun reset() {
-        hasGpsFix = false
-        lastValidLocation = null
-        lastAccurateFixTime = 0L
-        isExtrapolating = false
-        gpsLostAtMs = 0L
-        gpsSettlingUntilMs = 0L
+        lock.withLock {
+            hasGpsFix = false
+            lastValidLocation = null
+            lastAccurateFixTime = 0L
+            isExtrapolating = false
+            gpsLostAtMs = 0L
+            gpsSettlingUntilMs = 0L
+        }
     }
 
     fun updateMotion(speed: Float?, bearing: Float?) {
-        if (speed != null) lastKnownSpeedMps = speed
-        if (bearing != null) lastKnownBearing = bearing
+        lock.withLock {
+            if (speed != null) lastKnownSpeedMps = speed
+            if (bearing != null) lastKnownBearing = bearing
+        }
     }
 
     fun recordAccurateFix(location: LocationUpdate, nowMs: Long) {
-        lastAccurateFixTime = nowMs
-        lastValidLocation = location
-        if (!hasGpsFix) hasGpsFix = true
+        lock.withLock {
+            lastAccurateFixTime = nowMs
+            lastValidLocation = location
+            if (!hasGpsFix) hasGpsFix = true
+        }
     }
 
     fun startExtrapolating(nowMs: Long) {
-        isExtrapolating = true
-        gpsLostAtMs = nowMs
+        lock.withLock {
+            isExtrapolating = true
+            gpsLostAtMs = nowMs
+        }
     }
 
     fun stopExtrapolating() {
-        isExtrapolating = false
-        gpsLostAtMs = 0L
+        lock.withLock {
+            isExtrapolating = false
+            gpsLostAtMs = 0L
+        }
     }
 
     fun setSettlingUntil(ms: Long) {
-        gpsSettlingUntilMs = ms
+        lock.withLock {
+            gpsSettlingUntilMs = ms
+        }
     }
 
     fun isFixLost(nowMs: Long, gpsLossDelayMs: Long): Boolean {
-        val timeSinceAccurateFix = nowMs - lastAccurateFixTime
-        return timeSinceAccurateFix > gpsLossDelayMs && hasGpsFix && !isExtrapolating && nowMs >= gpsSettlingUntilMs
+        return lock.withLock {
+            val timeSinceAccurateFix = nowMs - lastAccurateFixTime
+            timeSinceAccurateFix > gpsLossDelayMs && hasGpsFix && !isExtrapolating && nowMs >= gpsSettlingUntilMs
+        }
     }
 
     fun extrapolationAgeSec(nowMs: Long): Float {
-        return if (gpsLostAtMs > 0L) (nowMs - gpsLostAtMs) / 1000f else 0f
+        return lock.withLock {
+            if (gpsLostAtMs > 0L) (nowMs - gpsLostAtMs) / 1000f else 0f
+        }
     }
 
     fun isInSettling(nowMs: Long): Boolean {
-        return nowMs < gpsSettlingUntilMs
+        return lock.withLock { nowMs < gpsSettlingUntilMs }
     }
 
     fun estimatedAccuracy(extrapolationAgeSec: Float): Float {

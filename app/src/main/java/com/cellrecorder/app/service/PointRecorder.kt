@@ -23,20 +23,25 @@ class PointRecorder @Inject constructor(
     private val stateManager: RecordingStateManager
 ) {
     var totalPointCount: Int = 0
+        @Synchronized get
         private set
     var lastRecordedLocation: LocationUpdate? = null
+        @Synchronized get
         internal set
     var lastRecordedTime: Long = 0L
+        @Synchronized get
         internal set
 
     private val _recordedPath = ArrayDeque<Pair<Double, Double>>(MAX_PATH_SIZE)
-    val recordedPathSnapshot: List<Pair<Double, Double>> get() = _recordedPath.toList()
+    val recordedPathSnapshot: List<Pair<Double, Double>>
+        @Synchronized
+        get() = _recordedPath.toList()
 
     fun reset() {
         totalPointCount = 0
         lastRecordedLocation = null
         lastRecordedTime = 0L
-        _recordedPath.clear()
+        synchronized(this) { _recordedPath.clear() }
     }
 
     suspend fun recordPoint(
@@ -133,9 +138,11 @@ class PointRecorder @Inject constructor(
         sessionRepository.incrementPointCount(sessionId)
         totalPointCount++
 
-        _recordedPath.addLast(location.latitude to location.longitude)
-        if (_recordedPath.size > MAX_PATH_SIZE) {
-            _recordedPath.removeFirst()
+        synchronized(this) {
+            _recordedPath.addLast(location.latitude to location.longitude)
+            if (_recordedPath.size > MAX_PATH_SIZE) {
+                _recordedPath.removeFirst()
+            }
         }
         lastRecordedLocation = location
         lastRecordedTime = System.currentTimeMillis()
@@ -154,7 +161,7 @@ class PointRecorder @Inject constructor(
             currentLatitude = location.latitude,
             currentLongitude = location.longitude,
             currentAltitude = location.altitude,
-            recordedPath = _recordedPath.toList(),
+            recordedPath = recordedPathSnapshot,
             gpsStatus = if (isExtrapolatingParam) "EXTRAPOLATING" else "OK",
             isExtrapolatingGps = isExtrapolatingParam
         ) }
@@ -254,16 +261,18 @@ class PointRecorder @Inject constructor(
         sessionRepository.incrementPointCount(sessionId)
         totalPointCount++
 
-        _recordedPath.addLast(indoorUpdate.relativeX to indoorUpdate.relativeY)
-        if (_recordedPath.size > MAX_PATH_SIZE) {
-            _recordedPath.removeFirst()
+        synchronized(this) {
+            _recordedPath.addLast(indoorUpdate.relativeX to indoorUpdate.relativeY)
+            if (_recordedPath.size > MAX_PATH_SIZE) {
+                _recordedPath.removeFirst()
+            }
         }
         lastRecordedTime = System.currentTimeMillis()
 
         stateManager.update { it?.copy(
             pointCount = totalPointCount,
             currentLatency = pingAvg?.let { String.format("%.1f", it) } ?: "---",
-            recordedPath = _recordedPath.toList(),
+            recordedPath = recordedPathSnapshot,
             currentRelativeX = indoorUpdate.relativeX,
             currentRelativeY = indoorUpdate.relativeY,
             currentHeading = indoorUpdate.headingRad,

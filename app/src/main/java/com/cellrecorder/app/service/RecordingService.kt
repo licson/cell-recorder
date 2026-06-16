@@ -44,6 +44,7 @@ class RecordingService : Service() {
     @Inject lateinit var speedTestRecordRepository: SpeedTestRecordRepository
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val shutdownScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val recordingMutex = Mutex()
     private var recordingJob: Job? = null
     private var pingJob: Job? = null
@@ -60,6 +61,7 @@ class RecordingService : Service() {
     private var fallbackRecordingJob: Job? = null
     private var lastLocation: LocationUpdate? = null
     private var stateUpdateJob: Job? = null
+    private var isStopped: Boolean = false
 
     override fun onCreate() {
         super.onCreate()
@@ -88,10 +90,15 @@ class RecordingService : Service() {
         stateUpdateJob?.cancel()
         stopRecording()
         serviceScope.cancel()
+        shutdownScope.launch {
+            delay(5000)
+            shutdownScope.cancel()
+        }
         super.onDestroy()
     }
 
     private fun startRecording() {
+        isStopped = false
         recordingJob?.cancel()
         recordingJob = null
         fallbackRecordingJob?.cancel()
@@ -412,6 +419,7 @@ recordingJob = launch {
                     delay(1000)
                     val elapsed = System.currentTimeMillis() - startTime
                     val indoorPos = indoorPositionCollector.positionUpdate.value
+                    val gpsSnap = gpsState.snapshot()
 
                     if (recordingMode == "INDOOR") {
                         val lastStep = indoorPositionCollector.lastStepTimestampMs
@@ -446,15 +454,15 @@ recordingJob = launch {
                     } else {
                         val loc = pointRecorder.lastRecordedLocation ?: lastLocation
                         val currentStatus = when {
-                            gpsState.isExtrapolating -> "EXTRAPOLATING"
-                            gpsState.hasGpsFix -> "OK"
+                            gpsSnap.isExtrapolating -> "EXTRAPOLATING"
+                            gpsSnap.hasGpsFix -> "OK"
                             else -> "Searching..."
                         }
                         stateManager.update { it?.copy(
                             elapsedMs = elapsed,
                             pointCount = pointRecorder.totalPointCount,
                             gpsStatus = currentStatus,
-                            isExtrapolatingGps = gpsState.isExtrapolating,
+                            isExtrapolatingGps = gpsSnap.isExtrapolating,
                             recordedPath = pointRecorder.recordedPathSnapshot,
                             currentLatitude = loc?.latitude ?: 0.0,
                             currentLongitude = loc?.longitude ?: 0.0,
@@ -464,8 +472,8 @@ recordingJob = launch {
                             this@RecordingService, sessionId,
                             elapsedMs = elapsed,
                             pointCount = pointRecorder.totalPointCount,
-                            isExtrapolating = gpsState.isExtrapolating,
-                            hasGpsFix = gpsState.hasGpsFix
+                            isExtrapolating = gpsSnap.isExtrapolating,
+                            hasGpsFix = gpsSnap.hasGpsFix
                         ))
                     }
                 }
@@ -474,6 +482,8 @@ recordingJob = launch {
     }
 
     private fun stopRecording() {
+        if (isStopped) return
+        isStopped = true
         recordingJob?.cancel()
         recordingJob = null
         fallbackRecordingJob?.cancel()
@@ -495,11 +505,15 @@ recordingJob = launch {
         activeSubs = emptyMap()
         defaultDataSubId = -1
 
-        serviceScope.launch {
-            try {
-                sessionRepository.updateEndedAt(endedSessionId, System.currentTimeMillis())
-                sessionRepository.updatePrimarySimSlot(endedSessionId, primarySlot)
-            } catch (_: Exception) { }
+        shutdownScope.launch {
+            withTimeoutOrNull(5000) {
+                try {
+                    sessionRepository.updateEndedAt(endedSessionId, System.currentTimeMillis())
+                    sessionRepository.updatePrimarySimSlot(endedSessionId, primarySlot)
+                } catch (e: Exception) {
+                    android.util.Log.e("RecordingService", "DB write failed during stop", e)
+                }
+            }
         }
 
         if (stateManager.currentState?.isRecording != false) {

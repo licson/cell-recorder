@@ -3,6 +3,7 @@ package com.cellrecorder.app.service
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,6 +18,6 @@ class RecordingStateManager @Inject constructor() {
         set(value) { _state.value = value }
 
     fun update(transform: (RecordingState?) -> RecordingState?) {
-        _state.value = transform(_state.value)
+        _state.update { transform(it) }
     }
 }
