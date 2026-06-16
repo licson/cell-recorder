@@ -6,8 +6,9 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Handler
-import android.os.Looper
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,7 +29,8 @@ data class IndoorPositionUpdate(
 
 @Singleton
 class IndoorPositionCollector @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val callbackHandler: CallbackHandlerThread
 ) {
     private val sensorManager: SensorManager =
         context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -166,7 +168,7 @@ class IndoorPositionCollector @Inject constructor(
         gravityBaseline = 9.81f
         baselineSamples = 0
 
-        val handler = Handler(Looper.getMainLooper())
+        val handler = Handler(callbackHandler.looper)
         val stepSensor = stepDetector
         var stepRegistered = false
         if (stepSensor != null) {
@@ -190,7 +192,15 @@ class IndoorPositionCollector @Inject constructor(
     fun stop() {
         if (!isStarted) return
         isStarted = false
-        sensorManager.unregisterListener(sensorCallback)
+        val latch = CountDownLatch(1)
+        Handler(callbackHandler.looper).post {
+            try {
+                sensorManager.unregisterListener(sensorCallback)
+            } finally {
+                latch.countDown()
+            }
+        }
+        latch.await(5, TimeUnit.SECONDS)
         relativeX = 0.0
         relativeY = 0.0
         currentHeadingRad = 0.0

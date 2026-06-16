@@ -31,7 +31,8 @@ data class LocationUpdate(
 @Singleton
 open class LocationCollector @Inject constructor(
     private val fusedLocationClient: FusedLocationProviderClient,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val callbackHandler: CallbackHandlerThread
 ) {
     private val locationManager: LocationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -98,7 +99,7 @@ open class LocationCollector @Inject constructor(
         }
     }
 
-    protected open fun getMainLooper(): Looper = Looper.getMainLooper()
+    protected open fun getMainLooper(): Looper = callbackHandler.looper
 
     internal open fun isGooglePlayServicesAvailable(): Boolean {
         return try {

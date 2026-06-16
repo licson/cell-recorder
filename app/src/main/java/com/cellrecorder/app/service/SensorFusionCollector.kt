@@ -6,8 +6,9 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Handler
-import android.os.Looper
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +20,8 @@ import kotlin.math.sin
 
 @Singleton
 class SensorFusionCollector @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val callbackHandler: CallbackHandlerThread
 ) {
     private val sensorManager: SensorManager =
         context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -63,11 +65,12 @@ class SensorFusionCollector @Inject constructor(
 
         SensorManager.getOrientation(rotationMatrix, orientation)
         val yawDeg = Math.toDegrees(orientation[0].toDouble()).toFloat()
-        if (baselineYaw == null) {
+        val base = baselineYaw
+        if (base == null) {
             baselineYaw = yawDeg
             return
         }
-        var rawDelta = yawDeg - baselineYaw!!
+        var rawDelta = yawDeg - base
         if (rawDelta > 180f) rawDelta -= 360f
         if (rawDelta < -180f) rawDelta += 360f
         smoothedDelta = 0.85f * smoothedDelta + 0.15f * rawDelta
@@ -120,7 +123,7 @@ class SensorFusionCollector @Inject constructor(
         hasRotationMatrix = false
         lastAccelTimestampNs = 0L
 
-        val handler = Handler(Looper.getMainLooper())
+        val handler = Handler(callbackHandler.looper)
         gameRotation?.let {
             sensorManager.registerListener(sensorCallback, it, SensorManager.SENSOR_DELAY_GAME, handler)
         }
@@ -132,7 +135,15 @@ class SensorFusionCollector @Inject constructor(
     }
 
     fun stop() {
-        sensorManager.unregisterListener(sensorCallback)
+        val latch = CountDownLatch(1)
+        Handler(callbackHandler.looper).post {
+            try {
+                sensorManager.unregisterListener(sensorCallback)
+            } finally {
+                latch.countDown()
+            }
+        }
+        latch.await(5, TimeUnit.SECONDS)
         baselineYaw = null
         smoothedDelta = 0f
         _headingDelta.value = 0f
