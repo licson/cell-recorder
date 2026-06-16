@@ -19,7 +19,8 @@ import androidx.room.PrimaryKey
         Index("sessionId"),
         Index("timestamp"),
         Index("simSlotIndex", "rat"),
-        Index("bandNumber")
+        Index("bandNumber"),
+        Index(value = ["sessionId", "timestamp"], name = "index_cell_records_session_id_timestamp")
     ]
 )
 data class CellRecordEntity(

@@ -102,6 +102,22 @@ class CellRecordRepository @Inject constructor(
                         cellIdBitLength = nrBitLen
                     )
                 }
+                "5G_NSA" -> {
+                    val shift = 36 - nrBitLen
+                    val gnb = fullId shr shift
+                    val mask = (1L shl shift) - 1
+                    val clId = fullId and mask
+                    val anchorEnb = fullId shr 8
+                    val anchorCid = fullId and 0xFF
+                    cellRecordDao.updateSplitWithAnchorForRecord(
+                        recordId = record.id,
+                        enbOrGnbId = gnb,
+                        lcid = clId.toInt(),
+                        cellIdBitLength = nrBitLen,
+                        anchorEnbOrGnbId = anchorEnb,
+                        anchorLcid = anchorCid.toInt()
+                    )
+                }
             }
         }
     }

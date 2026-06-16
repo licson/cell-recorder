@@ -80,6 +80,21 @@ interface CellRecordDao {
         cellIdBitLength: Int?
     )
 
+    @Query("""
+        UPDATE cell_records 
+        SET enbOrGnbId = :enbOrGnbId, lcid = :lcid, cellIdBitLength = :cellIdBitLength,
+            anchorEnbOrGnbId = :anchorEnbOrGnbId, anchorLcid = :anchorLcid 
+        WHERE id = :recordId
+    """)
+    suspend fun updateSplitWithAnchorForRecord(
+        recordId: Long,
+        enbOrGnbId: Long?,
+        lcid: Int?,
+        cellIdBitLength: Int?,
+        anchorEnbOrGnbId: Long?,
+        anchorLcid: Int?
+    )
+
     @Query("SELECT COUNT(*) FROM cell_records")
     fun getTotalRecordCount(): Flow<Int>
 
