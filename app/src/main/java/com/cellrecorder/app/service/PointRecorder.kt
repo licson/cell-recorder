@@ -8,6 +8,7 @@ import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.ping.PingSlidingWindow
+import java.util.Locale
 import javax.inject.Inject
 
 private const val MAX_PATH_SIZE = 2000
@@ -168,7 +169,7 @@ class PointRecorder @Inject constructor(
     ) {
         stateManager.update { it?.copy(
             pointCount = totalPointCount,
-            currentLatency = avgLatencyMs?.let { String.format("%.1f", it) } ?: "---",
+            currentLatency = avgLatencyMs?.let { String.format(Locale.US, "%.1f", it) } ?: "---",
             currentLatitude = location.latitude,
             currentLongitude = location.longitude,
             currentAltitude = location.altitude,
@@ -297,7 +298,7 @@ class PointRecorder @Inject constructor(
 
         stateManager.update { it?.copy(
             pointCount = totalPointCount,
-            currentLatency = pingAvg?.let { String.format("%.1f", it) } ?: "---",
+            currentLatency = pingAvg?.let { String.format(Locale.US, "%.1f", it) } ?: "---",
             recordedPath = recordedPathSnapshot,
             recordedDiscontinuities = recordedDiscontinuitiesSnapshot,
             currentRelativeX = indoorUpdate.relativeX,

@@ -1,7 +1,6 @@
 package com.cellrecorder.app.ui.settings
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -10,6 +9,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 
 @Composable
 fun SpeedTestEulaDialog(
@@ -47,7 +47,7 @@ fun SpeedTestEulaDialog(
                 ) {
                     TextButton(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.speedtest.net/about/eula"))
+                            val intent = Intent(Intent.ACTION_VIEW, "https://www.speedtest.net/about/eula".toUri())
                             context.startActivity(intent)
                         }
                     ) {
@@ -56,7 +56,7 @@ fun SpeedTestEulaDialog(
 
                     TextButton(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.speedtest.net/about/privacy"))
+                            val intent = Intent(Intent.ACTION_VIEW, "https://www.speedtest.net/about/privacy".toUri())
                             context.startActivity(intent)
                         }
                     ) {

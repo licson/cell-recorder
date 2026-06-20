@@ -1,5 +1,6 @@
 package com.cellrecorder.app.ui.liveinfo
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.telephony.SubscriptionManager
 import androidx.lifecycle.ViewModel
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+@SuppressLint("MissingPermission")
 @HiltViewModel
 class LiveInfoViewModel @Inject constructor(
     private val cellInfoCollector: CellInfoCollector,
@@ -93,11 +95,11 @@ class LiveInfoViewModel @Inject constructor(
                 for (s in snapshots) {
                     val rsrpList = currentRsrp.getOrPut(s.subscriptionId) { mutableListOf() }
                     rsrpList.add(s.rsrp)
-                    if (rsrpList.size > MAX_HISTORY) rsrpList.removeFirst()
+                    if (rsrpList.size > MAX_HISTORY) rsrpList.removeAt(0)
 
                     val sinrList = currentSinr.getOrPut(s.subscriptionId) { mutableListOf() }
                     sinrList.add(s.sinr)
-                    if (sinrList.size > MAX_HISTORY) sinrList.removeFirst()
+                    if (sinrList.size > MAX_HISTORY) sinrList.removeAt(0)
                 }
                 _rsrpHistory.value = currentRsrp
                 _sinrHistory.value = currentSinr
@@ -117,12 +119,12 @@ class LiveInfoViewModel @Inject constructor(
 
                 val latency = _pingLatencyHistory.value.toMutableList()
                 latency.add(result.latencyMs?.toFloat())
-                if (latency.size > MAX_HISTORY) latency.removeFirst()
+                if (latency.size > MAX_HISTORY) latency.removeAt(0)
                 _pingLatencyHistory.value = latency
 
                 val loss = _packetLossHistory.value.toMutableList()
                 loss.add(pingWindow.packetLossPct().toFloat())
-                if (loss.size > MAX_HISTORY) loss.removeFirst()
+                if (loss.size > MAX_HISTORY) loss.removeAt(0)
                 _packetLossHistory.value = loss
             }
         }

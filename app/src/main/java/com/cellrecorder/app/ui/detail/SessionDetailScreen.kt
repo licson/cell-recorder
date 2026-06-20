@@ -48,6 +48,7 @@ import com.cellrecorder.app.ui.map.SessionMapView
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.IndoorPathLegend
 import com.cellrecorder.app.ui.shared.TooltipIconButton
+import java.util.Locale
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.BoundingBox
@@ -397,8 +398,8 @@ private fun ColumnHeadersRow(
 private fun TimestampGroupRow(
     group: TimestampGroup,
     onRecordClick: (CellRecordWithCaBands) -> Unit,
-    isIndoor: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isIndoor: Boolean = false
 ) {
     Column(modifier = modifier.padding(vertical = 4.dp)) {
         group.records.forEachIndexed { index, wrapper ->
@@ -461,18 +462,18 @@ private fun SimRecordRow(
         )
         if (isIndoor) {
             Text(
-                text = record.relativeX?.let { String.format("%.1f", it) } ?: "---",
+                text = record.relativeX?.let { String.format(Locale.US, "%.1f", it) } ?: "---",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = record.relativeY?.let { String.format("%.1f", it) } ?: "---",
+                text = record.relativeY?.let { String.format(Locale.US, "%.1f", it) } ?: "---",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                 modifier = Modifier.weight(1f)
             )
         } else {
 Text(
-                text = record.avgLatencyMs?.let { String.format("%.0f ms", it) } ?: "---",
+                text = record.avgLatencyMs?.let { String.format(Locale.US, "%.0f ms", it) } ?: "---",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                 modifier = Modifier.weight(1f)
             )
@@ -588,8 +589,8 @@ private fun RecordsList(
     visibleWindow: IntRange,
     onRecordClick: (CellRecordWithCaBands) -> Unit,
     onUpdateVisibleWindow: (Int, Int) -> Unit,
-    isIndoor: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isIndoor: Boolean = false
 ) {
     val listState = rememberLazyListState()
     val measuredHeights = remember { mutableStateMapOf<Int, Int>() }

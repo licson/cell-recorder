@@ -1,25 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Cell Recorder</string>
-    <string name="start_recording">Start Recording</string>
-    <string name="stop_recording">Stop Recording</string>
-    <string name="new_session">New Session</string>
-    <string name="session_name_hint">Session name</string>
-    <string name="settings">Settings</string>
-    <string name="export_csv">Export CSV</string>
-    <string name="export_geojson">Export GeoJSON</string>
-    <string name="replay">Replay</string>
-    <string name="delete_session">Delete session</string>
     <string name="recording_notification_channel">Recording Status</string>
-    <string name="recording_notification_text">Recording in progress</string>
-    <string name="permission_rationale_title">Permissions Required</string>
-    <string name="permission_location">Fine Location</string>
-    <string name="permission_location_desc">Required to record GPS coordinates alongside cell tower data during recording.</string>
-    <string name="permission_background_location">Background Location</string>
-    <string name="permission_background_location_desc">Required to continue recording when the app is not in the foreground, such as when your phone is in your pocket.</string>
-    <string name="permission_phone_state">Phone State</string>
-    <string name="permission_phone_state_desc">Required to read cell tower information including signal strength, Cell ID, RAT type, and frequency bands.</string>
-    <string name="permission_notifications">Notifications</string>
-    <string name="permission_notifications_desc">Required to show a persistent notification while recording is active.</string>
-    <string name="grant_permissions">Grant Permissions</string>
 </resources>

@@ -1,5 +1,6 @@
 package com.cellrecorder.app.service
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
@@ -28,6 +29,7 @@ data class LocationUpdate(
     val bearing: Float? = null
 )
 
+@SuppressLint("MissingPermission")
 @Singleton
 open class LocationCollector @Inject constructor(
     private val fusedLocationClient: FusedLocationProviderClient,

@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,21 +28,22 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 
 @Composable
 fun IndoorPathCanvas(
     pathPoints: List<Pair<Double, Double>>,
+    modifier: Modifier = Modifier,
     currentPosition: Pair<Double, Double>? = null,
     originPosition: Pair<Double, Double>? = null,
     driftRadiusM: Double = 0.0,
-    discontinuityIndices: Set<Int> = emptySet(),
-    modifier: Modifier = Modifier
+    discontinuityIndices: Set<Int> = emptySet()
 ) {
-    var scale by remember { mutableStateOf(1f) }
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
 
     Box(modifier = modifier) {
         Canvas(
@@ -206,7 +208,7 @@ fun TrackingConfidenceIndicator(
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         Text(
-            text = "$trackingConfidence · ${timeStr} since reset · ${stepCount ?: 0} steps · ${String.format("%.1f", driftM ?: 0.0)}m drift",
+            text = "$trackingConfidence · ${timeStr} since reset · ${stepCount ?: 0} steps · ${String.format(Locale.US, "%.1f", driftM ?: 0.0)}m drift",
             style = MaterialTheme.typography.bodySmall,
             color = bgColor
         )

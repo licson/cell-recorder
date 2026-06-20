@@ -11,6 +11,7 @@ import android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
 import androidx.core.app.NotificationCompat
 import com.cellrecorder.app.R
 import com.cellrecorder.app.ui.MainActivity
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,7 +51,7 @@ class RecordingNotificationHelper @Inject constructor() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val totalSec = elapsedMs / 1000
-        val elapsed = String.format("%02d:%02d", totalSec / 60, totalSec % 60)
+        val elapsed = String.format(Locale.US, "%02d:%02d", totalSec / 60, totalSec % 60)
         val gps = when {
             isExtrapolating -> "GPS ! Hold phone steady"
             hasGpsFix -> "GPS OK"
@@ -88,7 +89,7 @@ class RecordingNotificationHelper @Inject constructor() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val totalSec = elapsedMs / 1000
-        val elapsed = String.format("%02d:%02d", totalSec / 60, totalSec % 60)
+        val elapsed = String.format(Locale.US, "%02d:%02d", totalSec / 60, totalSec % 60)
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle("Cell Recorder (Indoor)")
             .setContentText("$elapsed — $pointCount pts — $trackingConfidence")

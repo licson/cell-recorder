@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -170,7 +171,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Code,
                     label = "View Source",
                     onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/licson/cell-recorder"))
+                        val intent = Intent(Intent.ACTION_VIEW, "https://github.com/licson/cell-recorder".toUri())
                         context.startActivity(intent)
                     }
                 )
@@ -180,7 +181,7 @@ fun SettingsScreen(
                     label = "Report Issue",
                     onClick = {
                         val body = viewModel.getDeviceInfoString() + "\n\n**Description:**\n"
-                        val uri = Uri.parse("https://github.com/licson/cell-recorder/issues/new?body=${Uri.encode(body)}")
+                        val uri = "https://github.com/licson/cell-recorder/issues/new?body=${Uri.encode(body)}".toUri()
                         context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                     }
                 )

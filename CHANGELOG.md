@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Coarse location permission** — the app now declares `ACCESS_COARSE_LOCATION` alongside `ACCESS_FINE_LOCATION`, as required on Android 12 and later so the system can offer users a coarse-only location grant.
+- **Network state permission** — declared `ACCESS_NETWORK_STATE` so the speedtest's Wi-Fi detection works correctly and cellular tests are skipped when on Wi-Fi.
+
+### Changed
+
+- **Updated all libraries and Android build tools to their latest versions** for long-term compatibility, security patches, and continued support in future Android Studio releases. This includes the Android Gradle Plugin, Kotlin, Compose, Hilt, Room, and all test libraries.
+- **Launcher icon now supports Android 13+ themed icons** — added a monochrome layer so the app icon adapts to themed home screens.
+
+### Fixed
+
+- **Resolved all static analysis (lint) errors and warnings** — the project now builds clean with zero lint findings. Fixes include locale-safe number formatting in CSV exports and UI, correct Compose modifier parameter ordering, removal of redundant SDK version checks, and deletion of unused string/color resources.
+- **Themed/monochrome launcher icon** is now properly defined so the icon renders correctly on Android 13+ themed launchers.
+
 ## [1.2.0] - 2026-06-12
 
 ### Added

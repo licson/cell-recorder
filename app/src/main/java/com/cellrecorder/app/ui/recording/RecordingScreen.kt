@@ -1,7 +1,7 @@
 package com.cellrecorder.app.ui.recording
 
-import android.app.Activity
 import android.content.Context
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -87,7 +87,7 @@ fun RecordingScreen(
     var showStopConfirm by remember { mutableStateOf(false) }
     var isRequestingPermissions by remember { mutableStateOf(false) }
     var hasAttemptedOnce by remember { mutableStateOf(false) }
-    val activity = LocalContext.current as Activity
+    val activity = LocalActivity.current
     val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
 
     fun handlePermissionResult() {
@@ -102,7 +102,7 @@ fun RecordingScreen(
             hasAttemptedOnce -> {
                 PermissionUiState.ShowSettings
             }
-            PermissionHelper.hasPermanentDenial(activity) -> {
+            activity != null && PermissionHelper.hasPermanentDenial(activity) -> {
                 PermissionUiState.ShowSettings
             }
             else -> {
@@ -271,7 +271,7 @@ fun RecordingScreen(
                                     hasAttemptedOnce -> {
                                         permissionState = PermissionUiState.ShowSettings
                                     }
-PermissionHelper.hasPermanentDenialForMode(recordingMode, activity) -> {
+                                    activity != null && PermissionHelper.hasPermanentDenialForMode(recordingMode, activity) -> {
                                         permissionState = PermissionUiState.ShowSettings
                                     }
                                     else -> {
@@ -480,9 +480,9 @@ private fun LiveStatsBar(
                         maxLines = 1
                     )
                 } else {
-                    val latStr = String.format("%.5f", state.currentLatitude)
-                    val lonStr = String.format("%.5f", state.currentLongitude)
-                    val altStr = if (state.currentAltitude != 0.0) String.format("%.1f m", state.currentAltitude) else "---"
+                    val latStr = String.format(Locale.US, "%.5f", state.currentLatitude)
+                    val lonStr = String.format(Locale.US, "%.5f", state.currentLongitude)
+                    val altStr = if (state.currentAltitude != 0.0) String.format(Locale.US, "%.1f m", state.currentAltitude) else "---"
                     val gpsStr = if (state.gpsStatus == "OK") "GPS OK" else "GPS ${state.gpsStatus}"
                     val gpsColor = if (state.isExtrapolatingGps == true) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary
                     Text(

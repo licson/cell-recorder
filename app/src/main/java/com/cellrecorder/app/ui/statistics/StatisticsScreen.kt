@@ -338,8 +338,8 @@ private fun DistributionBar(
     label: String,
     count: Int,
     total: Int,
-    color: Color = MaterialTheme.colorScheme.primary,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary
 ) {
     val fraction = if (total > 0) count.toFloat() / total else 0f
 

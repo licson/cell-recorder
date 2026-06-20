@@ -1,10 +1,3 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="seed">#1B5E20</color>
-    <color name="rat_2g">#F44336</color>
-    <color name="rat_3g">#FF9800</color>
-    <color name="rat_4g">#2196F3</color>
-    <color name="rat_4g_ca">#9C27B0</color>
-    <color name="rat_5g_nsa">#4CAF50</color>
-    <color name="rat_5g_sa">#00BCD4</color>
 </resources>

@@ -33,8 +33,8 @@ import com.cellrecorder.app.ui.detail.ratColor
 @Composable
 fun AnalyticsPanel(
     analytics: SessionAnalytics,
-    speedTestAnalytics: SpeedTestSessionAnalytics? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    speedTestAnalytics: SpeedTestSessionAnalytics? = null
 ) {
     val totalRecords = analytics.timelineSegments.sumOf { it.recordCount }
     val hasAnyData = analytics.ratCoverage.isNotEmpty() ||

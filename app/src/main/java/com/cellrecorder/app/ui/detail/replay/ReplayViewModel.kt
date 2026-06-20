@@ -164,6 +164,5 @@ class ReplayViewModel @Inject constructor(
 
     override fun onCleared() {
         playbackJob?.cancel()
-        super.onCleared()
     }
 }

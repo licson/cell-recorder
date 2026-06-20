@@ -688,7 +688,7 @@ private fun StatsPanel(record: CellRecordEntity?) {
                     StatItem("RAT", record.rat, weight = 0.7f, valueColor = ratColor(record.rat))
                     StatItem("Band", BandResolver.formatBand(record.bandNumber, record.earfcn, record.rat), weight = 0.6f)
                     StatItem("ARFCN", record.earfcn?.toString() ?: "---", weight = 0.8f)
-                    StatItem("Ping", record.avgLatencyMs?.let { String.format("%.0f ms", it) } ?: "---", weight = 0.8f)
+                    StatItem("Ping", record.avgLatencyMs?.let { String.format(Locale.US, "%.0f ms", it) } ?: "---", weight = 0.8f)
                 }
                 Spacer(Modifier.height(2.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {

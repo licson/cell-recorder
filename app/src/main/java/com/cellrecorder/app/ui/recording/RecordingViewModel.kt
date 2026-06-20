@@ -1,5 +1,6 @@
 package com.cellrecorder.app.ui.recording
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.telephony.SubscriptionManager
 import androidx.lifecycle.ViewModel
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+@SuppressLint("MissingPermission")
 @HiltViewModel
 class RecordingViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,

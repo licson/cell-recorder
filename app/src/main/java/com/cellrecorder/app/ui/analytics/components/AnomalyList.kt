@@ -26,8 +26,8 @@ import java.util.*
 @Composable
 fun AnomalyList(
     anomalies: List<AnomalyFlag>,
-    onViewAllClick: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onViewAllClick: () -> Unit = {}
 ) {
     if (anomalies.isEmpty()) {
         Text(

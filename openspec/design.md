@@ -312,19 +312,30 @@ app/
 
 | Dependency | Version |
 |---|---|
-| AGP | 8.4.1 |
-| Kotlin | 2.0.0 |
-| Gradle | 8.7 |
-| Compose BOM | 2024.10.00 |
-| Navigation | 2.7.7 |
-| Hilt | 2.51.1 |
-| Room | 2.6.1 |
-| NetMonster Core | 1.2.0 (`app.netmonster:core`) |
-| osmdroid | 6.1.18 |
-| Play Services Location | 21.2.0 |
-| `kotlinx-coroutines-play-services` | 1.8.0 |
-| OkHttp | 4.12.0 (`com.squareup.okhttp3:okhttp`) |
-| Kotlinx Serialization JSON | 1.6.3 |
-| JUnit 5 (bom) | 5.10.2 |
-| MockK | 1.13.10 |
-| Turbine | 1.1.0 |
+| Gradle | 9.6.0 |
+| AGP | 9.2.1 |
+| Kotlin | 2.1.21 |
+| KSP | 2.1.21-2.0.2 |
+| compileSdk | 37 |
+| targetSdk | 34 (intentionally held; bump requires runtime audit) |
+| minSdk | 30 |
+| Compose BOM | 2026.06.00 |
+| Activity Compose | 1.13.0 |
+| Lifecycle (runtime-compose, viewmodel-compose) | 2.11.0 |
+| Navigation | 2.9.8 |
+| Hilt | 2.59.2 |
+| Hilt Navigation Compose | 1.3.0 |
+| Room | 2.8.4 |
+| NetMonster Core | 1.3.0 (`app.netmonster:core`) |
+| osmdroid | 6.1.20 |
+| Play Services Location | 21.3.0 |
+| `kotlinx-coroutines-*` (core, android, play-services, test) | 1.11.0 |
+| OkHttp | 5.4.0 (`com.squareup.okhttp3:okhttp`) |
+| Kotlinx Serialization JSON | 1.11.0 |
+| JUnit BOM | 6.1.0 (+ `junit-platform-launcher` required by Gradle 9.x) |
+| MockK | 1.14.11 |
+| Turbine | 1.2.1 |
+| AndroidX Test (ext:junit, rules, core, runner) | 1.7.0 / 1.3.0 |
+| Espresso | 3.7.0 |
+
+> AGP 9.0 enables built-in Kotlin by default; this project opts out (`android.builtInKotlin=false`, `android.newDsl=false` in `gradle.properties`) because KSP's source-set registration is incompatible with built-in Kotlin. Migrate to built-in Kotlin before bumping to AGP 10.

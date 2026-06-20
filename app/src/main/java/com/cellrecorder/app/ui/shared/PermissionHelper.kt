@@ -32,15 +32,11 @@ object PermissionHelper {
     }.toTypedArray()
 
     fun backgroundPermissions(): Array<String> = buildList {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
+        add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
     }.toTypedArray()
 
     fun indoorPermissions(): Array<String> = buildList {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            add(Manifest.permission.ACTIVITY_RECOGNITION)
-        }
+        add(Manifest.permission.ACTIVITY_RECOGNITION)
     }.toTypedArray()
 
     fun requiredPermissions(): Array<String> = foregroundPermissions() + backgroundPermissions()

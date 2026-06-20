@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -69,8 +70,8 @@ class ExportSessionUseCase @Inject constructor() {
                     append(csvField(r.sinr)); append(',')
                     append(csvField(r.enbOrGnbId)); append(',')
                     append(csvField(r.lcid)); append(',')
-                    append(r.avgLatencyMs?.let { String.format("%.1f", it) } ?: ""); append(',')
-                    append(r.packetLossPct?.let { String.format("%.0f", it) } ?: ""); append(',')
+                    append(r.avgLatencyMs?.let { String.format(Locale.US, "%.1f", it) } ?: ""); append(',')
+                    append(r.packetLossPct?.let { String.format(Locale.US, "%.0f", it) } ?: ""); append(',')
                     append(csvField(r.mcc)); append(',')
                     append(csvField(r.mnc)); append(',')
                     append(csvField(r.bandNumber)); append(',')

@@ -29,9 +29,9 @@ fun MetricChart(
     unit: String,
     currentIndex: Int,
     color: Color,
+    modifier: Modifier = Modifier,
     fixedMin: Float? = null,
-    fixedMax: Float? = null,
-    modifier: Modifier = Modifier
+    fixedMax: Float? = null
 ) {
     Column(modifier = modifier) {
         Box(

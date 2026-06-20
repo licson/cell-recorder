@@ -80,6 +80,11 @@ The system SHALL require the following Android permissions for full functionalit
 - THEN a permission request is shown
 - AND recording does not start until granted
 
+#### Scenario: Coarse location declared alongside fine
+- GIVEN the app's AndroidManifest.xml
+- THEN `ACCESS_COARSE_LOCATION` is declared as a `<uses-permission>` element
+- AND it is declared alongside `ACCESS_FINE_LOCATION` (required on Android 12+ so the system can offer a coarse-only grant)
+
 #### Scenario: Background location
 - GIVEN the user has granted fine location
 - WHEN `ACCESS_BACKGROUND_LOCATION` is not granted
@@ -89,6 +94,11 @@ The system SHALL require the following Android permissions for full functionalit
 - GIVEN the user has an active recording
 - WHEN `READ_PHONE_STATE` is granted
 - THEN SIM subscription details are available for multi-SIM recording
+
+#### Scenario: Network state
+- GIVEN the app's AndroidManifest.xml
+- THEN `ACCESS_NETWORK_STATE` is declared as a `<uses-permission>` element
+- AND the speedtest Wi-Fi availability check (`ConnectivityManager.getActiveNetwork()` / `getNetworkCapabilities()`) is permitted without a runtime request (normal permission)
 
 #### Scenario: Notifications permission (API 33+)
 - GIVEN the user starts recording on API 33+

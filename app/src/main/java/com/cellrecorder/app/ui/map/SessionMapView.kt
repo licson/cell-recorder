@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.detail.MapDisplayMode
@@ -49,9 +51,9 @@ private val lossLegendLabels = listOf("0%", "20%", "40%", "60%+")
 @Composable
 fun SessionMapView(
     records: List<CellRecordEntity>,
+    modifier: Modifier = Modifier,
     displayMode: MapDisplayMode = MapDisplayMode.SIGNAL_TRAILS,
-    showLegend: Boolean = true,
-    modifier: Modifier = Modifier
+    showLegend: Boolean = true
 ) {
     val ctx = LocalContext.current
 
@@ -246,7 +248,7 @@ private fun createDotDrawable(ctx: Context, color: Int, sizeDp: Int): android.gr
     val sizePx = TypedValue.applyDimension(
         TypedValue.COMPLEX_UNIT_DIP, sizeDp.toFloat(), ctx.resources.displayMetrics
     ).toInt()
-    val bitmap = Bitmap.createBitmap(sizePx + 4, sizePx + 4, Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(sizePx + 4, sizePx + 4, Bitmap.Config.ARGB_8888)
     val canvas = AndroidCanvas(bitmap)
     val cx = (sizePx + 4) / 2f
     val cy = cx
@@ -265,5 +267,5 @@ private fun createDotDrawable(ctx: Context, color: Int, sizeDp: Int): android.gr
     }
     canvas.drawCircle(cx, cy, r - 1f, borderPaint)
 
-    return android.graphics.drawable.BitmapDrawable(ctx.resources, bitmap)
+    return bitmap.toDrawable(ctx.resources)
 }
