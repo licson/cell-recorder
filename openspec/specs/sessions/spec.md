@@ -26,6 +26,10 @@ The system SHALL allow the user to create a new session from the session list. T
 - THEN a dialog prompts for a session name and recording mode selection
 - AND a new session is created upon confirmation with the selected recording mode
 
+### Requirement: Recording Mode Selection
+
+The system SHALL allow the user to select a recording mode (Outdoor or Indoor) when creating a new session.
+
 #### Scenario: Recording mode selector in session creation
 - GIVEN the user taps the FAB to create a new session
 - WHEN the session creation dialog is shown
@@ -41,6 +45,11 @@ The system SHALL allow the user to create a new session from the session list. T
 - GIVEN the session creation dialog
 - WHEN the user selects "Indoor" mode and enters a session name
 - THEN a new session is created with `recordingMode = "INDOOR"`
+
+#### Scenario: Outdoor session created
+- GIVEN the session creation dialog
+- WHEN the user selects "Outdoor" mode and enters a session name
+- THEN a new session is created with `recordingMode = "OUTDOOR"`
 
 ### Requirement: Session Context Menu
 

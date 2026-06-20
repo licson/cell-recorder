@@ -81,6 +81,6 @@ In `RecordingNotificationHelper`, replace `PendingIntent.getService()` with `Pen
 
 - [Synchronized getters on PointRecorder add minor read contention] → Acceptable; `stateUpdateJob` reads at 1Hz, contention is negligible
 - [shutdownScope with 5s timeout may still lose writes if DB is locked] → Log the error; this is no worse than current behavior (writes are currently lost on every stop)
-- [New HandlerThread adds a singleton lifecycle concern] → Hilt `@Singleton` with `@PreDestroy` to quit the looper; standard pattern
+- [New HandlerThread adds a singleton lifecycle concern] → Hilt `@Singleton` exposes a `quit()` method for explicit teardown. Note: Hilt does not support `@PreDestroy` on `@Singleton`-scoped bindings, so the annotation is intentionally omitted; the thread lives for the application process lifetime (correct behavior for a singleton-scoped background looper) and the OS reclaims it on process death. Quitting it on every service stop would break subsequent recordings.
 - [Room migration v11→v12 must be tested] → Add migration test in `AppDatabaseTest`; index-only migration is low risk
 - [5G_NSA batchResplit must handle anchor fields too] → The anchor split uses the LTE formula which is always `shr 8 / and 0xFF`, so it's straightforward

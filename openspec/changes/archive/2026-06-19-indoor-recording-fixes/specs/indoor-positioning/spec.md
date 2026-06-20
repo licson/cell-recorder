@@ -2,24 +2,25 @@
 
 ### Requirement: Activity Recognition Permission Check
 
-The system SHALL require `android.permission.ACTIVITY_RECOGNITION` for indoor recording on Android 10+ (API 29+).
+The system SHALL require `android.permission.ACTIVITY_RECOGNITION` for indoor recording on Android 10+ (API 29+). The permission is exposed via a dedicated `PermissionHelper.indoorPermissions()` helper (separate from `foregroundPermissions()`) and gated at the screen layer before an indoor session is allowed to start.
 
 #### Scenario: Permission required before indoor recording
 - GIVEN the user attempts to start an indoor recording on API 29+
 - WHEN `ACTIVITY_RECOGNITION` is not granted
 - THEN indoor recording SHALL NOT start
-- AND a permission request dialog is shown
+- AND a permission request dialog is shown (via `PermissionHelper.missingPermissionsForMode(...)` in `RecordingScreen`)
 - AND an error message informs the user that activity recognition permission is required
 
 #### Scenario: Permission denied prevents indoor recording
 - GIVEN the user attempts to start an indoor recording on API 29+
 - WHEN `ACTIVITY_RECOGNITION` is permanently denied
-- THEN indoor recording SHALL NOT start
+- THEN indoor recording SHALL NOT start (the Start button's gate `PermissionHelper.allGrantedForMode(recordingMode, context)` returns false)
 - AND the user is directed to system Settings to grant the permission
 
 #### Scenario: Permission not required for outdoor recording
 - GIVEN the user attempts to start an outdoor recording
 - THEN `ACTIVITY_RECOGNITION` is NOT required
+- AND `PermissionHelper.indoorPermissions()` is not consulted
 - AND outdoor recording proceeds normally
 
 ## MODIFIED Requirements

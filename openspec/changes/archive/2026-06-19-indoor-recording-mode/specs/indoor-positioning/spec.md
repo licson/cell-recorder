@@ -30,7 +30,7 @@ The system SHALL estimate indoor position using Android's `TYPE_STEP_DETECTOR` s
 
 ### Requirement: Indoor Position State
 
-The system SHALL maintain and expose the current indoor position state including relative coordinates, heading, step count, and estimated drift.
+The system SHALL maintain and expose the current indoor position state including relative coordinates, heading, step count, estimated drift, and time since the last origin reset.
 
 #### Scenario: Indoor position update emitted
 - GIVEN an active indoor recording
@@ -40,6 +40,12 @@ The system SHALL maintain and expose the current indoor position state including
 #### Scenario: Initial state at recording start
 - GIVEN an indoor recording has just started
 - THEN the position state is `relativeX = 0.0`, `relativeY = 0.0`, `headingRad = current device heading`, `stepCount = 0`, `estimatedDriftM = 0.0`
+
+#### Scenario: Time since origin reset exposed
+- GIVEN an active indoor recording
+- THEN `IndoorPositionCollector` exposes `originResetTimestampMs` (the wall-clock time of the last origin reset)
+- AND `RecordingState.timeSinceOriginResetMs` is populated as `now - originResetTimestampMs` by `RecordingService.stateUpdateJob`
+- AND `TrackingConfidenceIndicator` displays this elapsed time
 
 ### Requirement: Drift Estimation
 
@@ -61,7 +67,7 @@ The system SHALL estimate position drift based on step count and elapsed time si
 
 ### Requirement: Origin Reset
 
-The system SHALL allow the user to reset the indoor position to a new (0,0) origin during recording.
+The system SHALL allow the user to reset the indoor position to a new (0,0) origin during recording, and SHALL track each reset as a discontinuity in the recorded path so the UI can render a visible break.
 
 #### Scenario: User resets origin
 - GIVEN an active indoor recording
@@ -69,7 +75,8 @@ The system SHALL allow the user to reset the indoor position to a new (0,0) orig
 - THEN the position is reset to `relativeX = 0.0`, `relativeY = 0.0`
 - AND the heading is reset to the current device heading
 - AND the step counter and drift estimate are reset
-- AND a discontinuity marker is recorded at the reset point
+- AND the origin reset timestamp is updated (`IndoorPositionCollector.originResetTimestampMs`)
+- AND the next path point recorded after the reset is tagged as a discontinuity in `PointRecorder.recordedDiscontinuitiesSnapshot`
 
 #### Scenario: Path preservation after reset
 - GIVEN an active indoor recording with a path history
@@ -77,6 +84,8 @@ The system SHALL allow the user to reset the indoor position to a new (0,0) orig
 - THEN all previously recorded path segments are preserved
 - AND the path has a visible discontinuity at the reset point
 - AND new path segments continue from (0,0)
+- AND `RecordingState.recordedDiscontinuities` includes the index of the pre-reset path point (the last point before the origin reset), so that the line from the pre-reset point to the post-reset (0,0) point is not drawn
+- AND `IndoorPathCanvas` renders an orange break/gap marker at that index and does not draw a line across it
 
 ### Requirement: Step Length Configuration
 

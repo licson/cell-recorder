@@ -20,7 +20,7 @@
 ## 4. Callback HandlerThread
 
 - [x] 4.1 Create `CallbackHandlerThread` singleton class with Hilt `@Singleton` injection providing a `Looper` for sensor/location callbacks
-- [x] 4.2 Add `@PreDestroy` method to quit the handler thread looper
+- [x] 4.2 Provide a `quit()` method to stop the handler thread looper (NOTE: Hilt does not support `@PreDestroy` on `@Singleton`-scoped bindings, so the annotation is intentionally omitted. The thread lives for the duration of the application process, which is correct for a singleton-scoped background looper — the OS reclaims threads on process death, and quitting it would break subsequent recordings. The `quit()` method remains available for explicit teardown if ever needed.)
 - [x] 4.3 Update `LocationCollector` to use the injected `CallbackHandlerThread.looper` instead of `Looper.getMainLooper()` for `requestLocationUpdates()`
 - [x] 4.4 Update `SensorFusionCollector` to use the injected looper for `registerListener`/`unregisterListener` calls (call from the looper's thread via `Handler(looper).post { ... }`)
 - [x] 4.5 Update `IndoorPositionCollector` to use the injected looper for `registerListener`/`unregisterListener` calls

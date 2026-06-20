@@ -29,27 +29,27 @@
 
 - [x] 4.1 Add indoor point recording method that accepts `IndoorPositionUpdate`
 - [x] 4.2 Populate `relativeX`, `relativeY` from `IndoorPositionUpdate` for indoor records
-- [x] 4.3 Set `latitude`, `longitude`, `altitude`, `accuracy` to null for indoor records
+- [x] 4.3 Set `latitude`, `longitude`, `altitude`, `accuracy` to `0.0`/`0f` sentinel values for indoor records (NOTE: the `CellRecordEntity` fields are non-nullable, so `null` is not representable; 0 is used as a sentinel — implemented at `PointRecorder.kt:206-209`)
 - [x] 4.4 Set `locationSource = "INDOOR_IMU"` and `isLocationEstimated = false` for indoor records
-- [x] 4.5 Track discontinuity markers when origin reset occurs during indoor recording
+- [x] 4.5 Track discontinuity markers when origin reset occurs during indoor recording (`PointRecorder._discontinuities` tracks indices where path breaks; `IndoorPositionCollector._originResetCount` increments on `resetOrigin()`; `recordIndoorPoint(originResetCount=...)` detects count changes and inserts discontinuity at the pre-reset point index)
 - [x] 4.6 Update `recordedPathSnapshot` to support both lat/lon pairs and relative X/Y pairs
 
 ## 5. Recording State & ViewModel
 
-- [x] 5.1 Add indoor-specific fields to `RecordingState`: `recordingMode`, `currentRelativeX`, `currentRelativeY`, `currentHeading`, `currentStepCount`, `estimatedDriftM`, `timeSinceOriginResetMs`
-- [x] 5.2 Update `RecordingStateManager` to populate indoor fields from `IndoorPositionCollector` updates
+- [x] 5.1 Add indoor-specific fields to `RecordingState`: `recordingMode`, `currentRelativeX`, `currentRelativeY`, `currentHeading`, `currentStepCount`, `estimatedDriftM`, `timeSinceOriginResetMs` (all implemented including `timeSinceOriginResetMs: Long? = null` at `RecordingState.kt:44`)
+- [x] 5.2 Update `RecordingStateManager` to populate indoor fields from `IndoorPositionCollector` updates (`RecordingService.stateUpdateJob` populates `timeSinceOriginResetMs = now - indoorPositionCollector.originResetTimestampMs`; `PointRecorder.recordIndoorPoint()` populates `recordedDiscontinuities` and other indoor fields)
 - [x] 5.3 Add `resetOrigin()` function to `RecordingViewModel` that calls `IndoorPositionCollector.resetOrigin()`
 - [x] 5.4 Update notification content for indoor mode: show tracking confidence instead of GPS status
 
 ## 6. UI — Indoor Path Canvas
 
-- [x] 6.1 Create `IndoorPathCanvas` composable: render path polyline with signal-colored segments (RSRP-mapped colors)
+- [x] 6.1 Create `IndoorPathCanvas` composable: render path polyline with uniform blue color (per-segment RSRP coloring not supported; `signalColors` param removed since B6 was skipped)
 - [x] 6.2 Add pan and zoom gesture support (transformable + draggable)
 - [x] 6.3 Add grid lines for spatial reference
-- [x] 6.4 Add current position marker and origin (0,0) marker
+- [x] 6.4 Add current position marker and origin (0,0) marker (`originPosition = Pair(0.0, 0.0)` now passed by all callers: `RecordingScreen`, `SessionDetailScreen`, `ReplayScreen`)
 - [x] 6.5 Add drift radius circle (translucent, growing with drift estimate)
-- [x] 6.6 Add discontinuity markers at origin reset points (visible gap in path)
-- [x] 6.7 Add signal color legend
+- [x] 6.6 Add discontinuity markers at origin reset points (visible gap in path) (`discontinuityIndices` now passed by `RecordingScreen` from `serviceState?.recordedDiscontinuities`; `IndoorPathCanvas` renders orange break/gap markers)
+- [x] 6.7 Add signal color legend (`IndoorPathLegend` composable added to `IndoorPathCanvas.kt`; rendered below canvas in `RecordingScreen`, `SessionDetailScreen`, `ReplayScreen`)
 
 ## 7. UI — Tracking Confidence & Controls
 
@@ -65,65 +65,6 @@
 - [x] 8.3 Show GPS status when outdoor (existing behavior)
 - [x] 8.4 Add "Reset Origin" FAB/action button when indoor
 
-## 2. Indoor Position Collector
-
-- [ ] 2.1 Create `IndoorPositionUpdate` data class with fields: `relativeX`, `relativeY`, `headingRad`, `stepCount`, `estimatedDriftM`, `timestamp`
-- [ ] 2.2 Create `IndoorPositionCollector` class (Hilt `@Singleton`): subscribe to `TYPE_STEP_DETECTOR` and `TYPE_GAME_ROTATION_VECTOR` (fallback to `TYPE_ROTATION_VECTOR`)
-- [ ] 2.3 Implement step-to-position conversion: each step event advances position by `indoorStepLengthM` meters in the current heading direction
-- [ ] 2.4 Implement heading extraction from game rotation vector (yaw angle)
-- [ ] 2.5 Implement drift estimation: `stepCount * indoorStepLengthM * driftRate`, where `driftRate` starts at 0.02 and grows linearly by 0.004/min (capped at 0.20)
-- [ ] 2.6 Implement origin reset: reset (X,Y) to (0,0), heading to current device heading, step counter and drift to zero
-- [ ] 2.7 Emit `Flow<IndoorPositionUpdate>` from `IndoorPositionCollector`
-- [ ] 2.8 Implement sensor availability check: `hasStepDetector()` and `hasGameRotationVector()` / `hasRotationVector()` methods
-
-## 3. Recording Service Modifications
-
-- [ ] 3.1 Add `recordingMode` parameter to `RecordingService.start()` intent extras
-- [ ] 3.2 Branch `startRecording()` on recording mode: indoor → use `IndoorPositionCollector`, outdoor → use existing `LocationCollector`
-- [ ] 3.3 For indoor mode: launch a time-based trigger job instead of the GPS-based `recordingJob`
-- [ ] 3.4 For indoor mode: do NOT launch `fallbackRecordingJob` (no GPS loss detection needed)
-- [ ] 3.5 For indoor mode: ping job and speedtest job run unchanged
-
-## 4. Point Recorder Modifications
-
-- [ ] 4.1 Add indoor point recording method that accepts `IndoorPositionUpdate`
-- [ ] 4.2 Populate `relativeX`, `relativeY` from `IndoorPositionUpdate` for indoor records
-- [ ] 4.3 Set `latitude`, `longitude`, `altitude`, `accuracy` to null for indoor records
-- [ ] 4.4 Set `locationSource = "INDOOR_IMU"` and `isLocationEstimated = false` for indoor records
-- [ ] 4.5 Track discontinuity markers when origin reset occurs during indoor recording
-- [ ] 4.6 Update `recordedPathSnapshot` to support both lat/lon pairs and relative X/Y pairs
-
-## 5. Recording State & ViewModel
-
-- [ ] 5.1 Add indoor-specific fields to `RecordingState`: `recordingMode`, `currentRelativeX`, `currentRelativeY`, `currentHeading`, `currentStepCount`, `estimatedDriftM`, `timeSinceOriginResetMs`
-- [ ] 5.2 Update `RecordingStateManager` to populate indoor fields from `IndoorPositionCollector` updates
-- [ ] 5.3 Add `resetOrigin()` function to `RecordingViewModel` that calls `IndoorPositionCollector.resetOrigin()`
-- [ ] 5.4 Update notification content for indoor mode: show tracking confidence instead of GPS status
-
-## 6. UI — Indoor Path Canvas
-
-- [ ] 6.1 Create `IndoorPathCanvas` composable: render path polyline with signal-colored segments (RSRP-mapped colors)
-- [ ] 6.2 Add pan and zoom gesture support (transformable + draggable)
-- [ ] 6.3 Add grid lines for spatial reference
-- [ ] 6.4 Add current position marker and origin (0,0) marker
-- [ ] 6.5 Add drift radius circle (translucent, growing with drift estimate)
-- [ ] 6.6 Add discontinuity markers at origin reset points (visible gap in path)
-- [ ] 6.7 Add signal color legend
-
-## 7. UI — Tracking Confidence & Controls
-
-- [ ] 7.1 Create `TrackingConfidenceIndicator` composable: 3-state (Confident=green, Degrading=yellow, High drift=red) with time since last reset
-- [ ] 7.2 Add "Reset Origin" button to indoor recording screen
-- [ ] 7.3 Show step count and drift estimate on indoor recording screen
-- [ ] 7.4 Hide GPS status indicator and accuracy on indoor recording screen
-
-## 8. UI — Recording Screen Mode Branch
-
-- [ ] 8.1 Conditionally render `IndoorPathCanvas` vs. OSM map based on `RecordingState.recordingMode`
-- [ ] 8.2 Show `TrackingConfidenceIndicator` when indoor
-- [ ] 8.3 Show GPS status when outdoor (existing behavior)
-- [ ] 8.4 Add "Reset Origin" FAB/action button when indoor
-
 ## 9. UI — Session Creation
 
 - [x] 9.1 Add recording mode selector (Outdoor / Indoor radio buttons or dropdown) to session creation dialog
@@ -132,15 +73,15 @@
 
 ## 10. UI — Session Detail & Replay (Indoor)
 
-- [ ] 10.1 In `SessionDetailScreen`: conditionally render `IndoorPathCanvas` for indoor sessions instead of map
-- [ ] 10.2 In `SessionDetailScreen`: show `relativeX`/`relativeY` columns in data table for indoor sessions
+- [x] 10.1 In `SessionDetailScreen`: conditionally render `IndoorPathCanvas` for indoor sessions instead of map (`SessionDetailScreen.kt:168-173`)
+- [x] 10.2 In `SessionDetailScreen`: show `relativeX`/`relativeY` columns in data table for indoor sessions (`SessionDetailScreen.kt:371,462-469`)
 - [x] 10.3 In `ReplayScreen`: render indoor path on `IndoorPathCanvas` for indoor sessions instead of map
 - [x] 10.4 In `ReplayScreen`: animate marker along indoor path for indoor sessions
 
 ## 11. Settings
 
 - [x] 11.1 Add "Indoor Recording" settings section to `SettingsScreen`
-- [x] 11.2 Add step length slider (default 0.7m, range 0.3m–1.2m)
+- [x] 11.2 Add step length input (default 0.7m, range 0.1–2.0m) — implemented as an `OutlinedTextField` (keyboard input) at `SettingsScreen.kt:79` rather than a slider; range validated in `SettingsViewModel.kt:205-211` (deviation from original 0.3–1.2m slider spec)
 - [x] 11.3 Add indoor recording interval picker (default 5000ms)
 - [x] 11.4 Add session time guidance note ("Indoor sessions < 5 min give best accuracy")
 

@@ -19,6 +19,7 @@ The system SHALL display a sensor health warning when step detection is not rece
 - THEN a warning message is displayed below the tracking confidence indicator
 - AND the message reads: "No steps detected. Try moving the phone to your pocket."
 - AND the warning is styled with a caution color (yellow/orange)
+- AND the warning element exposes a "No steps" content description for accessibility
 
 #### Scenario: Sensor health warning hidden
 - GIVEN a sensor health warning is visible

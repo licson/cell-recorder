@@ -7,7 +7,7 @@ The system SHALL display a 2D path canvas for indoor recording and indoor sessio
 #### Scenario: Indoor canvas layout
 - GIVEN an active indoor recording or indoor session detail view
 - THEN a 2D canvas is displayed showing the movement path as a polyline
-- AND the path is color-coded by signal strength (RSRP)
+- AND the path polyline is rendered in a single uniform color (per-segment RSRP coloring is not supported because the recorded path stores only `(x, y)` pairs without per-point RSRP)
 - AND the current position is marked with a distinct marker
 - AND the origin (0,0) is marked with a reference marker
 - AND light grid lines are shown for spatial reference
@@ -18,51 +18,20 @@ The system SHALL display a 2D path canvas for indoor recording and indoor sessio
 - THEN the canvas pans and zooms accordingly
 - AND the path, markers, and grid scale with the transformation
 
-#### Scenario: Signal-colored path
-- GIVEN an indoor recording with recorded points
-- WHEN the path is rendered on the canvas
-- THEN each path segment is colored based on the RSRP value at that point (excellent=green, good=blue, fair=yellow, poor=red)
-- AND a signal color legend is displayed
+#### Scenario: Signal color legend
+- GIVEN an indoor recording or indoor session detail/replay view
+- THEN a signal color legend is displayed below the canvas
+- AND the legend explains the RSRP ranges that map to each color (excellent=green >-80 dBm, good=cyan -80~-90 dBm, fair=orange -90~-100 dBm, poor=red <-100 dBm)
+- AND the legend is informational only (the path itself uses a uniform color)
 
 ### Requirement: Indoor Canvas Display Modes
 
-The system SHALL support the existing `MapDisplayMode` options on the indoor path canvas, applying the same coloring and marker logic without geographic map tiles.
-
-#### Scenario: SIGNAL_TRAILS mode on indoor canvas
-- GIVEN an indoor session viewed on the indoor canvas
-- WHEN the display mode is set to SIGNAL_TRAILS
-- THEN the path polyline is color-coded by RSRP value per segment (green >-80, cyan -80~-90, orange -90~-100, red <-100)
-- AND a signal color legend is displayed
-
-#### Scenario: PACKET_LOSS mode on indoor canvas
-- GIVEN an indoor session viewed on the indoor canvas
-- WHEN the display mode is set to PACKET_LOSS
-- THEN the path polyline is color-coded by packet loss percentage per segment (green 0%, cyan <=20%, orange <=40%, red >40%)
-- AND a packet loss legend is displayed
-
-#### Scenario: CELL_ID mode on indoor canvas
-- GIVEN an indoor session viewed on the indoor canvas
-- WHEN the display mode is set to CELL_ID
-- THEN dot markers are placed at points where the cell identity changes
-- AND each marker shows a RAT-colored dot icon with cell ID info snippet
-- AND the path polyline is rendered in grey
-
-#### Scenario: RAT mode on indoor canvas
-- GIVEN an indoor session viewed on the indoor canvas
-- WHEN the display mode is set to RAT
-- THEN dot markers are placed at RAT change points
-- AND each marker shows a RAT-colored dot icon
-
-#### Scenario: BAND mode on indoor canvas
-- GIVEN an indoor session viewed on the indoor canvas
-- WHEN the display mode is set to BAND
-- THEN dot markers are placed at band change points
-- AND each marker shows a RAT-colored dot icon
+The system SHALL support the existing `MapDisplayMode` options on the indoor path canvas. Note: the indoor canvas does not store per-point RSRP on the recorded path, so display modes that rely on per-point signal coloring fall back to the uniform path color.
 
 #### Scenario: Display mode selector for indoor sessions
 - GIVEN an indoor session detail or replay view
 - THEN a `MapDisplayMode` dropdown is displayed with the same 5 options as outdoor sessions
-- AND the selected mode applies to the indoor canvas rendering
+- AND the selected mode applies to the indoor canvas rendering (dot markers are placed for cell-ID/RAT/band change points; per-segment color coding is not supported and falls back to uniform color)
 
 #### Scenario: Discontinuity markers
 - GIVEN an indoor recording with one or more origin resets
@@ -128,6 +97,7 @@ The system SHALL provide an indoor recording screen layout adapted from the outd
 - AND a "Reset Origin" button is accessible
 - AND a live stats panel shows per-SIM cell data
 - AND the current step count and estimated drift are displayed
+- AND a signal color legend is displayed below the canvas
 
 #### Scenario: Indoor screen hides GPS status
 - GIVEN an active indoor recording
@@ -156,8 +126,8 @@ The system SHALL provide a screen for controlling and monitoring an active recor
 
 #### Scenario: Indoor canvas path (indoor)
 - GIVEN an active indoor recording
-- THEN recorded points are shown as signal-colored segments on the 2D canvas
-- AND a path polyline connects the points with discontinuity markers at origin resets
+- THEN recorded points are shown as a uniform-colored polyline on the 2D canvas
+- AND discontinuity markers are placed at origin reset points (path segments on either side are not connected)
 
 ### Requirement: Settings Screen
 
@@ -170,5 +140,5 @@ The system SHALL provide a settings screen for configuring recording and analyti
 #### Scenario: Indoor recording settings
 - GIVEN the Settings screen
 - WHEN the "Indoor Recording" section is displayed
-- THEN the section contains a step length slider (default 0.7m, range 0.3m–1.2m)
+- THEN the section contains a step length text input (default 0.7m, range 0.1m–2.0m, validated in `SettingsViewModel`)
 - AND an indoor recording interval picker (default 5000ms)

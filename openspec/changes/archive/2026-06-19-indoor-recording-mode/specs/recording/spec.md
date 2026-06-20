@@ -16,7 +16,7 @@ The system SHALL support an indoor recording mode that uses IMU-based pedestrian
 - WHEN `indoorRecordingIntervalMs` has elapsed since the last recorded point
 - THEN a new point is recorded with the current indoor position (relativeX, relativeY)
 - AND `locationSource = "INDOOR_IMU"`, `isLocationEstimated = false`
-- AND `latitude`, `longitude`, `altitude`, `accuracy` are set to null
+- AND `latitude`, `longitude`, `altitude`, `accuracy` are set to sentinel `0.0`/`0f` values (the `CellRecordEntity` columns are non-nullable, so `null` is not representable; 0 is used as a sentinel and indoor records are identified by `locationSource = "INDOOR_IMU"` and non-null `relativeX`/`relativeY`)
 
 #### Scenario: No GPS distance triggers in indoor mode
 - GIVEN an active indoor recording
