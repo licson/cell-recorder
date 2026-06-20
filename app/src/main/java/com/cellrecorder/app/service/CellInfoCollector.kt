@@ -1,5 +1,6 @@
 package com.cellrecorder.app.service
 
+import android.annotation.SuppressLint
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.model.CaBandSnapshot
@@ -18,6 +19,7 @@ import cz.mroczis.netmonster.core.model.connection.SecondaryConnection
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@SuppressLint("MissingPermission")
 @Singleton
 class CellInfoCollector @Inject constructor(
     private val netMonster: INetMonster
@@ -48,12 +50,19 @@ class CellInfoCollector @Inject constructor(
 
         if (nrCell == null) {
             if (lteAnchor == null) {
-                return CellRecordSnapshot(subscriptionId = subId, rat = "UNKNOWN")
+                return CellRecordSnapshot(
+                    subscriptionId = subId,
+                    rat = "UNKNOWN",
+                    networkTypeCode = netMonster.getNetworkType(subId).technology
+                )
             }
             val caBands = extractCaBands(lteAnchor, subCells)
-            val lteRat = if (caBands.isNotEmpty()) "4G_CA" else "4G"
-            return CellRecordSnapshot(
-                subscriptionId = subId, rat = lteRat, caBands = caBands
+            return buildLteSnapshot(
+                subId = subId,
+                lteCell = lteAnchor,
+                subCells = subCells,
+                rat = if (caBands.isNotEmpty()) "4G_CA" else "4G",
+                networkTypeCode = netMonster.getNetworkType(subId).technology
             )
         }
 
@@ -106,32 +115,13 @@ class CellInfoCollector @Inject constructor(
         config: AppConfigEntity
     ): CellRecordSnapshot {
         val snapshot = when (serving) {
-            is CellLte -> {
-                val fullId = serving.eci?.toLong()
-                val caBands = extractCaBands(serving, subCells)
-                CellRecordSnapshot(
-                    subscriptionId = subId,
-                    rat = if (networkType is NetworkType.Lte && networkType.technology == NetworkType.LTE_CA) "4G_CA" else "4G",
-                    networkTypeCode = networkType.technology,
-                    fullCellIdentity = fullId,
-                    enbOrGnbId = fullId?.shr(8),
-                    lcid = fullId?.and(0xFF)?.toInt(),
-                    pci = serving.pci,
-                    tac = serving.tac,
-                    bandNumber = serving.band?.downlinkEarfcn?.let { BandTableLte.map(it).number } ?: serving.band?.number,
-                    earfcn = serving.band?.downlinkEarfcn,
-                    bandwidthKhz = serving.bandwidth,
-                    rsrp = serving.signal?.rsrp?.toInt(),
-                    rsrq = serving.signal?.rsrq?.toInt(),
-                    sinr = serving.signal?.snr?.toInt(),
-                    rssi = serving.signal?.rssi,
-                    cqi = serving.signal?.cqi,
-                    timingAdvance = serving.signal?.timingAdvance,
-                    mcc = serving.network?.mcc,
-                    mnc = serving.network?.mnc,
-                    caBands = caBands
-                )
-            }
+            is CellLte -> buildLteSnapshot(
+                subId = subId,
+                lteCell = serving,
+                subCells = subCells,
+                rat = if (networkType is NetworkType.Lte && networkType.technology == NetworkType.LTE_CA) "4G_CA" else "4G",
+                networkTypeCode = networkType.technology
+            )
             is CellNr -> {
                 val fullId = serving.nci
                 val shift = 36 - config.nrGnbBitLength
@@ -187,6 +177,39 @@ class CellInfoCollector @Inject constructor(
             )
         }
         return snapshot
+    }
+
+    private fun buildLteSnapshot(
+        subId: Int,
+        lteCell: CellLte,
+        subCells: List<ICell>,
+        rat: String,
+        networkTypeCode: Int
+    ): CellRecordSnapshot {
+        val fullId = lteCell.eci?.toLong()
+        val caBands = extractCaBands(lteCell, subCells)
+        return CellRecordSnapshot(
+            subscriptionId = subId,
+            rat = rat,
+            networkTypeCode = networkTypeCode,
+            fullCellIdentity = fullId,
+            enbOrGnbId = fullId?.shr(8),
+            lcid = fullId?.and(0xFF)?.toInt(),
+            pci = lteCell.pci,
+            tac = lteCell.tac,
+            bandNumber = lteCell.band?.downlinkEarfcn?.let { BandTableLte.map(it).number } ?: lteCell.band?.number,
+            earfcn = lteCell.band?.downlinkEarfcn,
+            bandwidthKhz = lteCell.bandwidth,
+            rsrp = lteCell.signal?.rsrp?.toInt(),
+            rsrq = lteCell.signal?.rsrq?.toInt(),
+            sinr = lteCell.signal?.snr?.toInt(),
+            rssi = lteCell.signal?.rssi,
+            cqi = lteCell.signal?.cqi,
+            timingAdvance = lteCell.signal?.timingAdvance,
+            mcc = lteCell.network?.mcc,
+            mnc = lteCell.network?.mnc,
+            caBands = caBands
+        )
     }
 
     private fun extractCaBands(primary: CellLte, subCells: List<ICell>): List<CaBandSnapshot> {
