@@ -25,6 +25,7 @@ data class RecordingState(
     val recordingMode: String = "OUTDOOR",
     val gpsStatus: String = "---",
     val recordedPath: List<Pair<Double, Double>> = emptyList(),
+    val recordedDiscontinuities: Set<Int> = emptySet(),
     val dataSubId: Int = -1,
     val currentLatency: String = "---",
     val currentLatitude: Double = 0.0,
@@ -40,5 +41,6 @@ data class RecordingState(
     val currentHeading: Double? = null,
     val currentStepCount: Int? = null,
     val estimatedDriftM: Double? = null,
+    val timeSinceOriginResetMs: Long? = null,
     val noStepWarning: Boolean = false
 )

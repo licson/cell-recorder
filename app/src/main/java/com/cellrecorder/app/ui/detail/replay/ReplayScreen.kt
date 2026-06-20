@@ -35,6 +35,7 @@ import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
+import com.cellrecorder.app.ui.shared.IndoorPathLegend
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import java.util.Locale
 import org.osmdroid.config.Configuration
@@ -116,6 +117,7 @@ fun ReplayScreen(
                         },
                         modifier = Modifier.fillMaxHeight().weight(0.5f)
                     )
+                    IndoorPathLegend()
                 } else {
                     ReplayMapView(
                         filteredRecords = entities,
@@ -214,6 +216,7 @@ fun ReplayScreen(
                             },
                             modifier = Modifier.fillMaxWidth().height(350.dp)
                         )
+                        IndoorPathLegend()
                     } else {
                         ReplayMapView(
                             filteredRecords = entities,

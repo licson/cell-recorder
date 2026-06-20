@@ -189,7 +189,8 @@ recordingJob = launch {
                                 val elapsedSinceLast = now - pointRecorder.lastRecordedTime
                                 if (elapsedSinceLast < config.indoorRecordingIntervalMs) return@withLock
                                 pointRecorder.recordIndoorPoint(
-                                    position, sessionId, config, activeSubs, pingWindow
+                                    position, sessionId, config, activeSubs, pingWindow,
+                                    originResetCount = indoorPositionCollector.originResetCount
                                 )
                             }
                             val elapsed = System.currentTimeMillis() - startTime
@@ -422,8 +423,7 @@ recordingJob = launch {
                     val gpsSnap = gpsState.snapshot()
 
                     if (recordingMode == "INDOOR") {
-                        val lastStep = indoorPositionCollector.lastStepTimestampMs
-                        val timeSinceStep = if (lastStep > 0) (System.currentTimeMillis() - lastStep) / 1000 else -1L
+                        val timeSinceStep = indoorPositionCollector.secondsSinceLastStep()
                         val noStepWarn = timeSinceStep >= 10
 
                         val drift = indoorPos.estimatedDriftM
@@ -433,16 +433,19 @@ recordingJob = launch {
                             drift < 10.0 -> "Degrading"
                             else -> "High drift"
                         }
+                        val timeSinceOriginReset = System.currentTimeMillis() - indoorPositionCollector.originResetTimestampMs
                         stateManager.update { it?.copy(
                             elapsedMs = elapsed,
                             pointCount = pointRecorder.totalPointCount,
                             recordedPath = pointRecorder.recordedPathSnapshot,
+                            recordedDiscontinuities = pointRecorder.recordedDiscontinuitiesSnapshot,
                             recordingMode = recordingMode,
                             currentRelativeX = indoorPos.relativeX,
                             currentRelativeY = indoorPos.relativeY,
                             currentHeading = indoorPos.headingRad,
                             currentStepCount = indoorPos.stepCount,
                             estimatedDriftM = indoorPos.estimatedDriftM,
+                            timeSinceOriginResetMs = timeSinceOriginReset,
                             noStepWarning = noStepWarn
                         ) }
                         notificationHelper.notify(this@RecordingService, notificationHelper.buildIndoorNotification(

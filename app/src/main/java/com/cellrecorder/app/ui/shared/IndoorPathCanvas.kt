@@ -4,9 +4,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,7 +37,6 @@ fun IndoorPathCanvas(
     originPosition: Pair<Double, Double>? = null,
     driftRadiusM: Double = 0.0,
     discontinuityIndices: Set<Int> = emptySet(),
-    signalColors: Map<Int, Color> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     var scale by remember { mutableStateOf(1f) }
@@ -80,17 +82,14 @@ fun IndoorPathCanvas(
             drawGrid(bounds, pixelPerMeter, padding)
 
             if (pathPoints.size > 1) {
-                var segmentStart = 0
                 for (i in 0 until pathPoints.size - 1) {
                     if (discontinuityIndices.contains(i)) {
-                        segmentStart = i + 1
                         continue
                     }
                     val from = toCanvas(pathPoints[i])
                     val to2 = toCanvas(pathPoints[i + 1])
-                    val color = signalColors[i] ?: Color(0xFF2196F3)
                     drawLine(
-                        color = color,
+                        color = Color(0xFF2196F3),
                         start = from,
                         end = to2,
                         strokeWidth = 4f
@@ -211,5 +210,42 @@ fun TrackingConfidenceIndicator(
             style = MaterialTheme.typography.bodySmall,
             color = bgColor
         )
+    }
+}
+
+private data class LegendEntry(val label: String, val color: Color)
+
+@Composable
+fun IndoorPathLegend(modifier: Modifier = Modifier) {
+    val entries = remember {
+        listOf(
+            LegendEntry(">-80", Color(0xFF4CAF50)),
+            LegendEntry("-80~-90", Color(0xFF00BCD4)),
+            LegendEntry("-90~-100", Color(0xFFFF9800)),
+            LegendEntry("<-100", Color(0xFFF44336))
+        )
+    }
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "RSRP (dBm):",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        for (entry in entries) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .size(8.dp)
+                    .background(entry.color, CircleShape)
+            )
+            Text(
+                text = entry.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }

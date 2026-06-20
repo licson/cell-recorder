@@ -19,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -32,6 +34,7 @@ import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.SimLiveState
 import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
+import com.cellrecorder.app.ui.shared.IndoorPathLegend
 import com.cellrecorder.app.ui.shared.PermissionDeniedDialog
 import com.cellrecorder.app.ui.shared.TrackingConfidenceIndicator
 import java.util.Locale
@@ -195,7 +198,9 @@ fun RecordingScreen(
                         currentPosition = if (serviceState?.isRecording == true)
                             Pair(serviceState?.currentRelativeX ?: 0.0, serviceState?.currentRelativeY ?: 0.0)
                         else null,
+                        originPosition = Pair(0.0, 0.0),
                         driftRadiusM = serviceState?.estimatedDriftM ?: 0.0,
+                        discontinuityIndices = serviceState?.recordedDiscontinuities ?: emptySet(),
                         modifier = Modifier.weight(1f).fillMaxWidth()
                     )
                     if (isRecording) {
@@ -204,13 +209,15 @@ fun RecordingScreen(
                                 serviceState?.estimatedDriftM ?: 0.0,
                                 serviceState?.noStepWarning ?: false
                             ),
-                            timeSinceResetMs = null,
+                            timeSinceResetMs = serviceState?.timeSinceOriginResetMs,
                             stepCount = serviceState?.currentStepCount,
                             driftM = serviceState?.estimatedDriftM
                         )
                         if (serviceState?.noStepWarning == true) {
                             Surface(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .semantics { contentDescription = "No steps" },
                                 shape = RoundedCornerShape(0.dp),
                                 color = Color(0xFFFF9800).copy(alpha = 0.12f)
                             ) {
@@ -223,6 +230,7 @@ fun RecordingScreen(
                             }
                         }
                     }
+                    IndoorPathLegend()
                 } else {
                     OsmMapView(
                         state = serviceState,

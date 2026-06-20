@@ -37,11 +37,22 @@ class PointRecorder @Inject constructor(
         @Synchronized
         get() = _recordedPath.toList()
 
+    private val _discontinuities = ArrayDeque<Int>()
+    val recordedDiscontinuitiesSnapshot: Set<Int>
+        @Synchronized
+        get() = _discontinuities.toSet()
+
+    private var lastOriginResetCount: Int = 0
+
     fun reset() {
         totalPointCount = 0
         lastRecordedLocation = null
         lastRecordedTime = 0L
-        synchronized(this) { _recordedPath.clear() }
+        synchronized(this) {
+            _recordedPath.clear()
+            _discontinuities.clear()
+        }
+        lastOriginResetCount = 0
     }
 
     suspend fun recordPoint(
@@ -172,7 +183,8 @@ class PointRecorder @Inject constructor(
         sessionId: Long,
         config: AppConfigEntity,
         activeSubs: Map<Int, SubscriptionInfo>,
-        pingWindow: PingSlidingWindow
+        pingWindow: PingSlidingWindow,
+        originResetCount: Int = 0
     ) {
         val snapshots = cellInfoCollector.snapshots(config)
         val pingAvg = pingWindow.avgLatencyMs()
@@ -262,10 +274,24 @@ class PointRecorder @Inject constructor(
         totalPointCount++
 
         synchronized(this) {
+            val pathIndex = _recordedPath.size
             _recordedPath.addLast(indoorUpdate.relativeX to indoorUpdate.relativeY)
+            if (originResetCount > lastOriginResetCount && pathIndex > 0) {
+                _discontinuities.addLast(pathIndex - 1)
+            }
             if (_recordedPath.size > MAX_PATH_SIZE) {
                 _recordedPath.removeFirst()
+                if (_discontinuities.isNotEmpty() && _discontinuities.first() == 0) {
+                    _discontinuities.removeFirst()
+                }
+                val shifted = ArrayDeque<Int>(_discontinuities.size)
+                for (idx in _discontinuities) {
+                    shifted.addLast(idx - 1)
+                }
+                _discontinuities.clear()
+                _discontinuities.addAll(shifted)
             }
+            lastOriginResetCount = originResetCount
         }
         lastRecordedTime = System.currentTimeMillis()
 
@@ -273,6 +299,7 @@ class PointRecorder @Inject constructor(
             pointCount = totalPointCount,
             currentLatency = pingAvg?.let { String.format("%.1f", it) } ?: "---",
             recordedPath = recordedPathSnapshot,
+            recordedDiscontinuities = recordedDiscontinuitiesSnapshot,
             currentRelativeX = indoorUpdate.relativeX,
             currentRelativeY = indoorUpdate.relativeY,
             currentHeading = indoorUpdate.headingRad,

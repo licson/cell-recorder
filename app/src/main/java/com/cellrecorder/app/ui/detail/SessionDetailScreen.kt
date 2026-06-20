@@ -46,6 +46,7 @@ import com.cellrecorder.app.domain.usecase.ExportData
 import com.cellrecorder.app.ui.detail.analytics.AnalyticsPanel
 import com.cellrecorder.app.ui.map.SessionMapView
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
+import com.cellrecorder.app.ui.shared.IndoorPathLegend
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
@@ -171,6 +172,7 @@ fun SessionDetailScreen(
                         .map { it.first!! to it.second!! },
                     modifier = Modifier.fillMaxWidth().height(if (showAnalytics) 400.dp else 200.dp)
                 )
+                IndoorPathLegend()
             } else {
                 SessionMapView(
                     records = if (showAnalytics) filteredRecords.map { it.record } else records.map { it.record },

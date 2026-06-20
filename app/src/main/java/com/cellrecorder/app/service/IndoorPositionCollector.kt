@@ -50,11 +50,15 @@ class IndoorPositionCollector @Inject constructor(
     private var hasHeading: Boolean = false
 
     private var stepLengthM: Float = 0.7f
-    private var originResetTimeMs: Long = System.currentTimeMillis()
+    @Volatile private var originResetTimeMs: Long = System.currentTimeMillis()
+    @Volatile private var _originResetCount: Int = 0
     private var driftRate: Double = 0.02
-    private var lastStepTimeMs: Long = 0L
+    @Volatile private var lastStepTimeMs: Long = 0L
 
     private var isUsingAccelFallback: Boolean = false
+    private var stepDetectorRegistered: Boolean = false
+    private var accelerometerRegistered: Boolean = false
+    private var rotationRegistered: Boolean = false
     private val STEP_COOLDOWN_MS = 350L
 
     private var filteredMagnitude: Float = 0f
@@ -78,6 +82,11 @@ class IndoorPositionCollector @Inject constructor(
     val hasAccelerometer: Boolean get() = accelerometer != null
     val isAccelerometerFallbackActive: Boolean get() = isUsingAccelFallback
     val lastStepTimestampMs: Long get() = lastStepTimeMs
+    val originResetTimestampMs: Long get() = originResetTimeMs
+    val originResetCount: Int get() = _originResetCount
+
+    fun secondsSinceLastStep(): Long =
+        if (lastStepTimeMs == 0L) -1L else (System.currentTimeMillis() - lastStepTimeMs) / 1000L
 
     private val sensorCallback = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
@@ -155,6 +164,9 @@ class IndoorPositionCollector @Inject constructor(
         if (isStarted) return
         isStarted = true
         isUsingAccelFallback = false
+        stepDetectorRegistered = false
+        accelerometerRegistered = false
+        rotationRegistered = false
         stepLengthM = stepLength
         relativeX = 0.0
         relativeY = 0.0
@@ -162,6 +174,7 @@ class IndoorPositionCollector @Inject constructor(
         stepCount = 0
         hasHeading = false
         originResetTimeMs = System.currentTimeMillis()
+        _originResetCount = 0
         driftRate = 0.02
         lastStepTimeMs = 0L
         filteredMagnitude = 0f
@@ -170,21 +183,22 @@ class IndoorPositionCollector @Inject constructor(
 
         val handler = Handler(callbackHandler.looper)
         val stepSensor = stepDetector
-        var stepRegistered = false
         if (stepSensor != null) {
-            stepRegistered = sensorManager.registerListener(
+            stepDetectorRegistered = sensorManager.registerListener(
                 sensorCallback, stepSensor, SensorManager.SENSOR_DELAY_UI, handler
             )
         }
-        if (!stepRegistered && accelerometer != null) {
-            sensorManager.registerListener(
+        if (!stepDetectorRegistered && accelerometer != null) {
+            accelerometerRegistered = sensorManager.registerListener(
                 sensorCallback, accelerometer, SensorManager.SENSOR_DELAY_GAME, handler
             )
-            isUsingAccelFallback = true
+            isUsingAccelFallback = accelerometerRegistered
         }
         val rotation = gameRotation ?: rotationVector
-        rotation?.let {
-            sensorManager.registerListener(sensorCallback, it, SensorManager.SENSOR_DELAY_GAME, handler)
+        if (rotation != null) {
+            rotationRegistered = sensorManager.registerListener(
+                sensorCallback, rotation, SensorManager.SENSOR_DELAY_GAME, handler
+            )
         }
         emitUpdate()
     }
@@ -207,9 +221,13 @@ class IndoorPositionCollector @Inject constructor(
         stepCount = 0
         hasHeading = false
         originResetTimeMs = System.currentTimeMillis()
+        _originResetCount = 0
         driftRate = 0.02
         lastStepTimeMs = 0L
         isUsingAccelFallback = false
+        stepDetectorRegistered = false
+        accelerometerRegistered = false
+        rotationRegistered = false
     }
 
     fun resetOrigin() {
@@ -218,11 +236,12 @@ class IndoorPositionCollector @Inject constructor(
         stepCount = 0
         hasHeading = false
         originResetTimeMs = System.currentTimeMillis()
+        _originResetCount += 1
         driftRate = 0.02
         lastStepTimeMs = 0L
         emitUpdate()
     }
 
     fun isAnyStepDetectionActive(): Boolean = isStarted &&
-        ((stepDetector != null) || (isUsingAccelFallback && accelerometer != null))
+        (stepDetectorRegistered || accelerometerRegistered)
 }
