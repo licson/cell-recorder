@@ -66,24 +66,32 @@ class PingSlidingWindowTest {
         assertEquals(100.0, window.packetLossPct())
     }
 
-    // --- Partial window: no loss reported until window is full ---
+    // --- Partial window: loss reflects actual buffer contents ---
 
     @Test
-    fun `loss is zero when buffer not yet full`() {
+    fun `loss reflects partial buffer contents`() {
         val window = PingSlidingWindow(5)
         window.add(PingResult(latencyMs = null, timestamp = 1, outcome = PingOutcome.TIMEOUT))
-        assertEquals(0.0, window.packetLossPct())
+        assertEquals(100.0, window.packetLossPct())
     }
 
     @Test
-    fun `loss zero until buffer reaches window size`() {
+    fun `loss reflects buffer contents regardless of window size`() {
         val window = PingSlidingWindow(3)
         window.add(PingResult(latencyMs = null, timestamp = 1, outcome = PingOutcome.TIMEOUT))
         window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.HOST_UNREACHABLE))
-        assertEquals(0.0, window.packetLossPct())
+        assertEquals(100.0, window.packetLossPct())
 
         window.add(PingResult(latencyMs = null, timestamp = 3, outcome = PingOutcome.PROCESS_ERROR))
         assertEquals(100.0, window.packetLossPct())
+    }
+
+    @Test
+    fun `loss reports mixed contents from partial buffer`() {
+        val window = PingSlidingWindow(5)
+        window.add(PingResult(latencyMs = 10.0, timestamp = 1, outcome = PingOutcome.SUCCESS))
+        window.add(PingResult(latencyMs = null, timestamp = 2, outcome = PingOutcome.TIMEOUT))
+        assertEquals(50.0, window.packetLossPct(), 0.01)
     }
 
     @Test
