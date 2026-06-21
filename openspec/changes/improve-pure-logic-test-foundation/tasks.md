@@ -55,8 +55,8 @@
 
 ## 5. Verification
 
-- [ ] 5.1 Run `./gradlew clean && ./gradlew test` and confirm all unit tests (existing + new) pass
-- [ ] 5.2 Run `./gradlew lint` and confirm no new warnings introduced by source refactors
-- [ ] 5.3 Run `./gradlew assembleDebug` and confirm the app still builds (refactors did not break compilation or Hilt graph)
-- [ ] 5.4 Manually verify on a device or emulator that recording, indoor mode, and live info display behave identically to before the refactor (sanity check, since no behavior change is expected)
-- [ ] 5.5 Commit the change locally with a descriptive message (e.g., `Add pure-logic unit test foundation and extract testable helpers`)
+- [x] 5.1 Run `./gradlew clean && ./gradlew test` and confirm all unit tests (existing + new) pass
+- [x] 5.2 Run `./gradlew lint` and confirm no new warnings introduced by source refactors
+- [x] 5.3 Run `./gradlew assembleDebug` and confirm the app still builds (refactors did not break compilation or Hilt graph)
+- [ ] 5.4 Manually verify on a device or emulator that recording, indoor mode, and live info display behave identically to before the refactor (sanity check, since no behavior change is expected) — **deferred: no device available in this environment; user should verify on hardware before merging**
+- [x] 5.5 Commit the change locally with a descriptive message (e.g., `Add pure-logic unit test foundation and extract testable helpers`)
