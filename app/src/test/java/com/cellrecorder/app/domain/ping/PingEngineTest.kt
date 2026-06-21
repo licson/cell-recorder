@@ -1,9 +1,18 @@
 package com.cellrecorder.app.domain.ping
 
+import app.cash.turbine.test
 import com.cellrecorder.app.domain.model.PingOutcome
 import com.cellrecorder.app.domain.model.PingResult
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.mockkConstructor
+import io.mockk.unmockkConstructor
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import java.io.ByteArrayInputStream
+import java.io.InputStream
 
 class PingEngineTest {
 
@@ -154,5 +163,82 @@ class PingEngineTest {
         val r2 = engine.parseLine("no answer yet for icmp_seq=2")
         assertEquals(PingOutcome.TIMEOUT, r1.second)
         assertEquals(PingOutcome.TIMEOUT, r2.second)
+    }
+
+    /**
+     * Streaming tests for `PingEngine.pingFlow()`. These mock `ProcessBuilder.start()` to
+     * return a stubbed `Process` whose `inputStream` is a `ByteArrayInputStream` containing
+     * sample ping output. The flow is collected via Turbine.
+     *
+     * If `ProcessBuilder` mocking proves unstable across environments, defer these tests
+     * to `androidTest` (per design.md Decision 4 fallback) — the parse helpers above are
+     * the high-value logic and remain covered here.
+     */
+    @Nested
+    inner class PingFlow {
+
+        private fun stubProcess(vararg lines: String): Process {
+            val data = lines.joinToString(separator = "\n", postfix = "\n") { it }.toByteArray(Charsets.US_ASCII)
+            val stream: InputStream = ByteArrayInputStream(data)
+            val proc = mockk<Process>()
+            every { proc.inputStream } returns stream
+            every { proc.waitFor(any(), any()) } returns true
+            every { proc.destroyForcibly() } returns proc
+            return proc
+        }
+
+        @Test
+        fun `pingFlow emits SUCCESS for a line with latency`() = runTest {
+            mockkConstructor(ProcessBuilder::class)
+            try {
+                val proc = stubProcess("64 bytes from 8.8.8.8: icmp_seq=0 ttl=117 time=12.3 ms")
+                every { anyConstructed<ProcessBuilder>().start() } returns proc
+
+                engine.pingFlow(host = "8.8.8.8", intervalSec = 1f).test {
+                    val item = awaitItem()
+                    assertEquals(PingOutcome.SUCCESS, item.outcome)
+                    assertEquals(12.3, item.latencyMs ?: 0.0, 1e-3)
+                    cancelAndIgnoreRemainingEvents()
+                }
+            } finally {
+                unmockkConstructor(ProcessBuilder::class)
+            }
+        }
+
+        @Test
+        fun `pingFlow emits TIMEOUT for a no-answer line`() = runTest {
+            mockkConstructor(ProcessBuilder::class)
+            try {
+                val proc = stubProcess("no answer yet for icmp_seq=1")
+                every { anyConstructed<ProcessBuilder>().start() } returns proc
+
+                engine.pingFlow(host = "8.8.8.8", intervalSec = 1f).test {
+                    val item = awaitItem()
+                    assertEquals(PingOutcome.TIMEOUT, item.outcome)
+                    assertNull(item.latencyMs)
+                    cancelAndIgnoreRemainingEvents()
+                }
+            } finally {
+                unmockkConstructor(ProcessBuilder::class)
+            }
+        }
+
+        @Test
+        fun `pingFlow emits HOST_UNREACHABLE for an error line`() = runTest {
+            mockkConstructor(ProcessBuilder::class)
+            try {
+                val proc = stubProcess("From 192.168.1.1 icmp_seq=1 Destination Host Unreachable")
+                every { anyConstructed<ProcessBuilder>().start() } returns proc
+
+                engine.pingFlow(host = "8.8.8.8", intervalSec = 1f).test {
+                    val item = awaitItem()
+                    assertEquals(PingOutcome.HOST_UNREACHABLE, item.outcome)
+                    assertNull(item.latencyMs)
+                    cancelAndIgnoreRemainingEvents()
+                }
+            } finally {
+                unmockkConstructor(ProcessBuilder::class)
+            }
+        }
     }
 }

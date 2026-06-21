@@ -529,30 +529,16 @@ recordingJob = launch {
     private fun movePoint(
         lat: Double, lon: Double,
         bearingDeg: Float, distanceM: Float
-    ): Pair<Double, Double> {
-        val R = 6371000.0
-        val latRad = Math.toRadians(lat)
-        val lonRad = Math.toRadians(lon)
-        val bRad = Math.toRadians(bearingDeg.toDouble())
-        val dR = distanceM / R
-        val newLatRad = asin(
-            sin(latRad) * cos(dR) + cos(latRad) * sin(dR) * cos(bRad)
-        )
-        val newLonRad = lonRad + atan2(
-            sin(bRad) * sin(dR) * cos(latRad),
-            cos(dR) - sin(latRad) * sin(newLatRad)
-        )
-        return Math.toDegrees(newLatRad) to Math.toDegrees(newLonRad)
-    }
+    ): Pair<Double, Double> = GeoExtrapolation.movePoint(
+        lat = lat, lon = lon,
+        bearingDeg = bearingDeg.toDouble(),
+        distanceM = distanceM.toDouble()
+    )
 
     private fun calculateDistance(
         lat1: Double, lon1: Double,
         lat2: Double, lon2: Double
-    ): Float {
-        val results = FloatArray(1)
-        android.location.Location.distanceBetween(lat1, lon1, lat2, lon2, results)
-        return results[0]
-    }
+    ): Float = GeoExtrapolation.calculateDistance(lat1, lon1, lat2, lon2).toFloat()
 
     companion object {
         private const val GPS_SETTLING_DELAY_MS = 5000L

@@ -6,12 +6,11 @@ import android.telephony.SubscriptionManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.repository.ConfigRepository
-import com.cellrecorder.app.domain.model.BandResolver
-import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.domain.ping.PingEngine
 import com.cellrecorder.app.domain.ping.PingSlidingWindow
 import com.cellrecorder.app.service.CellInfoCollector
 import com.cellrecorder.app.service.SimLiveState
+import com.cellrecorder.app.ui.recording.SimLiveStateMapper
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -68,25 +67,9 @@ class LiveInfoViewModel @Inject constructor(
 
                 _liveSimStates.value = snapshots.map { s ->
                     val info = activeSubs[s.subscriptionId]
-                    SimLiveState(
-                        subscriptionId = s.subscriptionId,
-                        simSlotIndex = info?.simSlotIndex ?: 0,
-                        plmn = if (s.mcc != null && s.mnc != null) "${s.mcc}-${s.mnc}" else "---",
-                        rat = s.rat,
-                        tac = s.tac?.toString() ?: "---",
-                        bandNumber = BandResolver.formatBand(s.bandNumber, s.earfcn, s.rat),
-                        earfcn = s.earfcn?.toString() ?: "---",
-                        cellId = formatCellId(s),
-                        pci = s.pci?.toString() ?: "---",
-                        rsrp = s.rsrp?.toString() ?: "---",
-                        rsrq = s.rsrq?.toString() ?: "---",
-                        sinr = s.sinr?.toString() ?: "---",
-                        caBands = s.caBands.map { ca ->
-                            "B${ca.bandNumber ?: "?"} (PCI ${ca.pci ?: "?"})"
-                        },
-                        anchorInfo = if (s.rat.startsWith("5G_NSA") && s.anchorPci != null) {
-                            "B${s.anchorBandNumber ?: "?"} PCI ${s.anchorPci} RSRP ${s.anchorRsrp ?: "---"}"
-                        } else ""
+                    SimLiveStateMapper.map(
+                        snapshot = s,
+                        simSlotIndex = info?.simSlotIndex ?: 0
                     )
                 }
 
@@ -128,12 +111,5 @@ class LiveInfoViewModel @Inject constructor(
                 _packetLossHistory.value = loss
             }
         }
-    }
-
-    private fun formatCellId(snapshot: CellRecordSnapshot): String {
-        if (snapshot.enbOrGnbId != null && snapshot.lcid != null) {
-            return "${snapshot.enbOrGnbId}:${snapshot.lcid}"
-        }
-        return snapshot.fullCellIdentity?.toString() ?: "---"
     }
 }

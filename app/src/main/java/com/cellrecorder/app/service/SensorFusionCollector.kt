@@ -70,10 +70,8 @@ class SensorFusionCollector @Inject constructor(
             baselineYaw = yawDeg
             return
         }
-        var rawDelta = yawDeg - base
-        if (rawDelta > 180f) rawDelta -= 360f
-        if (rawDelta < -180f) rawDelta += 360f
-        smoothedDelta = 0.85f * smoothedDelta + 0.15f * rawDelta
+        val rawDelta = yawDeg - base
+        smoothedDelta = SensorFusionMath.smoothHeadingDelta(smoothedDelta, rawDelta)
         if (_headingDelta.value != smoothedDelta) {
             _headingDelta.value = smoothedDelta
         }
@@ -104,13 +102,12 @@ class SensorFusionCollector @Inject constructor(
         val headingRad = Math.toRadians(currentHeadingDeg.toDouble())
         val forwardAccel = (worldAccel[0] * sin(headingRad) + worldAccel[1] * cos(headingRad)).toFloat()
 
-        val tau = 10f
-        val decay = exp(-dtSec / tau).toFloat()
-        val currentDelta = _speedDeltaMps.value
-        val newDelta = currentDelta * decay + forwardAccel * dtSec
-        val maxAdjust = 0.5f * initialSpeedMps
-        val clampedDelta = newDelta.coerceIn(-maxAdjust, maxAdjust)
-        _speedDeltaMps.value = clampedDelta
+        _speedDeltaMps.value = SensorFusionMath.decaySpeedDelta(
+            currentDeltaMps = _speedDeltaMps.value,
+            forwardAccel = forwardAccel,
+            dtSec = dtSec,
+            initialSpeedMps = initialSpeedMps
+        )
     }
 
     fun start(bearing: Float = 0f, speedMps: Float = 0f) {

@@ -144,7 +144,7 @@ object SpeedTestAnalyticsEngine {
         }
     }
 
-    private fun percentile(values: List<Long>, p: Double): Long? {
+    internal fun percentile(values: List<Long>, p: Double): Long? {
         if (values.isEmpty()) return null
         val sorted = values.sorted()
         val rank = ceil(p * sorted.size).toInt().coerceIn(1, sorted.size)

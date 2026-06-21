@@ -282,13 +282,7 @@ class PointRecorder @Inject constructor(
             }
             if (_recordedPath.size > MAX_PATH_SIZE) {
                 _recordedPath.removeFirst()
-                if (_discontinuities.isNotEmpty() && _discontinuities.first() == 0) {
-                    _discontinuities.removeFirst()
-                }
-                val shifted = ArrayDeque<Int>(_discontinuities.size)
-                for (idx in _discontinuities) {
-                    shifted.addLast(idx - 1)
-                }
+                val shifted = IndoorDiscontinuityShifter.shift(_discontinuities)
                 _discontinuities.clear()
                 _discontinuities.addAll(shifted)
             }

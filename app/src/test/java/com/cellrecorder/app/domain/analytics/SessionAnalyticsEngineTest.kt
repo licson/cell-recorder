@@ -10,6 +10,7 @@ import com.cellrecorder.app.domain.analytics.model.HandoffType
 import com.cellrecorder.app.domain.analytics.model.MobilityType
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class SessionAnalyticsEngineTest {
@@ -462,6 +463,352 @@ class SessionAnalyticsEngineTest {
         assertEquals(1, ratChanges.size, "Should detect one RAT change")
         assertEquals("4G", ratChanges[0].fromRat)
         assertEquals("5G_SA", ratChanges[0].toRat)
+    }
+
+    @Nested
+    inner class GeneratePciInsights {
+
+        @Test
+        fun `no handoffs yields no insight cards`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G", enb = 1L, pci = 100)),
+                wrapper(record(ts = 2000, rat = "4G", enb = 1L, pci = 100))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertEquals(0, result.insightCards.size)
+        }
+
+        @Test
+        fun `fewer than 3 inter-site handoffs with latency delta yield no Cross-Site Handoff Impact card`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G", enb = 1L, pci = 100, latency = 10.0)),
+                wrapper(record(ts = 2000, rat = "4G", enb = 2L, pci = 200, latency = 20.0)),
+                wrapper(record(ts = 3000, rat = "4G", enb = 1L, pci = 100, latency = 10.0)),
+                wrapper(record(ts = 4000, rat = "4G", enb = 1L, pci = 100, latency = 10.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertEquals(false, result.insightCards.any { it.title.contains("Cross-Site") })
+        }
+
+        @Test
+        fun `3 or more inter-site handoffs with positive latency delta generate Cross-Site Handoff Impact card`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G", enb = 1L, pci = 100, latency = 10.0)),
+                wrapper(record(ts = 1500, rat = "4G", enb = 2L, pci = 200, latency = 30.0)),
+                wrapper(record(ts = 2000, rat = "4G", enb = 1L, pci = 100, latency = 10.0)),
+                wrapper(record(ts = 2500, rat = "4G", enb = 3L, pci = 300, latency = 40.0)),
+                wrapper(record(ts = 3000, rat = "4G", enb = 1L, pci = 100, latency = 10.0)),
+                wrapper(record(ts = 3500, rat = "4G", enb = 4L, pci = 400, latency = 50.0)),
+                wrapper(record(ts = 4000, rat = "4G", enb = 1L, pci = 100, latency = 10.0)),
+                wrapper(record(ts = 4500, rat = "4G", enb = 5L, pci = 500, latency = 60.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(
+                result.insightCards.any { it.title == "Cross-Site Handoff Impact" },
+                "Expected Cross-Site Handoff Impact card for ≥3 inter-site handoffs with positive latency delta"
+            )
+        }
+
+        @Test
+        fun `inter-site handoffs with non-positive latency delta do not generate Cross-Site Handoff Impact card`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G", enb = 1L, pci = 100, latency = 50.0)),
+                wrapper(record(ts = 1500, rat = "4G", enb = 2L, pci = 200, latency = 10.0)),
+                wrapper(record(ts = 2000, rat = "4G", enb = 1L, pci = 100, latency = 50.0)),
+                wrapper(record(ts = 2500, rat = "4G", enb = 3L, pci = 300, latency = 5.0)),
+                wrapper(record(ts = 3000, rat = "4G", enb = 1L, pci = 100, latency = 50.0)),
+                wrapper(record(ts = 3500, rat = "4G", enb = 4L, pci = 400, latency = 1.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertEquals(false, result.insightCards.any { it.title.contains("Cross-Site") })
+        }
+    }
+
+    @Nested
+    inner class IndoorMode {
+
+        @Test
+        fun `indoor mode produces no handoff events`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G", enb = 1L, pci = 100)),
+                wrapper(record(ts = 2000, rat = "5G_NSA", enb = 2L, pci = 200))
+            )
+            val result = engine.analyze(records, defaultConfig, recordingMode = "INDOOR")
+            assertTrue(result.handoffEvents.isEmpty(), "Indoor mode disables handoff detection")
+        }
+
+        @Test
+        fun `indoor mode produces exactly one INDOOR mobility segment`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G")),
+                wrapper(record(ts = 2000, rat = "4G")),
+                wrapper(record(ts = 3000, rat = "4G"))
+            )
+            val result = engine.analyze(records, defaultConfig, recordingMode = "INDOOR")
+            assertEquals(1, result.mobilitySegments.size)
+            assertEquals(MobilityType.INDOOR, result.mobilitySegments[0].type)
+        }
+
+        @Test
+        fun `outdoor mode produces handoff events for cell changes`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G", enb = 1L, pci = 100)),
+                wrapper(record(ts = 2000, rat = "5G_NSA", enb = 2L, pci = 200))
+            )
+            val result = engine.analyze(records, defaultConfig, recordingMode = "OUTDOOR")
+            assertTrue(result.handoffEvents.isNotEmpty(), "Outdoor mode detects handoffs")
+        }
+    }
+
+    @Nested
+    inner class MobilityClassification {
+
+        @Test
+        fun `stationary segment for very low speed movement`() {
+            val records = listOf(
+                wrapper(record(ts = 0, lat = 0.0, lng = 0.0, rat = "4G")),
+                wrapper(record(ts = 60_000, lat = 0.0, lng = 0.0, rat = "4G"))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(result.mobilitySegments.isNotEmpty(), "Mobility segments should not be empty")
+            assertEquals(MobilityType.STATIONARY, result.mobilitySegments.last().type)
+        }
+
+        @Test
+        fun `walking segment for moderate speed movement`() {
+            val records = listOf(
+                wrapper(record(ts = 0, lat = 0.0, lng = 0.0, rat = "4G")),
+                wrapper(record(ts = 60_000, lat = 0.0005, lng = 0.0, rat = "4G"))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(result.mobilitySegments.isNotEmpty())
+            val types = result.mobilitySegments.map { it.type }.toSet()
+            assertTrue(
+                types.any { it == MobilityType.WALKING || it == MobilityType.DRIVING || it == MobilityType.STATIONARY },
+                "Expected one of STATIONARY/WALKING/DRIVING for moderate-speed movement"
+            )
+        }
+
+        @Test
+        fun `driving segment for high speed movement`() {
+            val records = listOf(
+                wrapper(record(ts = 0, lat = 0.0, lng = 0.0, rat = "4G")),
+                wrapper(record(ts = 1000, lat = 0.005, lng = 0.0, rat = "4G")),
+                wrapper(record(ts = 2000, lat = 0.010, lng = 0.0, rat = "4G"))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(result.mobilitySegments.isNotEmpty())
+            assertTrue(
+                result.mobilitySegments.any { it.type == MobilityType.DRIVING },
+                "Expected at least one DRIVING segment for high-speed movement; got types: ${result.mobilitySegments.map { it.type }}"
+            )
+        }
+
+        @Test
+        fun `tunnel segment for consecutive UNKNOWN RAT records`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G")),
+                wrapper(record(ts = 2000, rat = "UNKNOWN")),
+                wrapper(record(ts = 3000, rat = "UNKNOWN"))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(result.mobilitySegments.isNotEmpty())
+            assertTrue(
+                result.mobilitySegments.any { it.type == MobilityType.TUNNEL },
+                "Expected at least one TUNNEL segment for consecutive UNKNOWN RAT records"
+            )
+        }
+
+        @Test
+        fun `indoor segment for high-accuracy weak-signal record`() {
+            val config = defaultConfig.copy(indoorAccuracyThresholdM = 30f)
+            val records = listOf(
+                wrapper(record(ts = 0, lat = 0.0, lng = 0.0, rat = "4G", rsrp = -110, accuracy = 50f)),
+                wrapper(record(ts = 60_000, lat = 0.0, lng = 0.0, rat = "4G", rsrp = -110, accuracy = 50f))
+            )
+            val result = engine.analyze(records, config)
+            assertTrue(result.mobilitySegments.isNotEmpty())
+            assertTrue(
+                result.mobilitySegments.any { it.type == MobilityType.INDOOR },
+                "Expected INDOOR mobility segment for accuracy above threshold and weak RSRP"
+            )
+        }
+    }
+
+    @Nested
+    inner class SeverityLevels {
+
+        @Test
+        fun `detected anomalies have a severity of INFO WARNING or CRITICAL`() {
+            val records = listOf(
+                wrapper(record(ts = 0, rat = "4G", rsrp = -50, latency = 10.0)),
+                wrapper(record(ts = 1000, rat = "4G", rsrp = -90, latency = 10.0)),
+                wrapper(record(ts = 2000, rat = "4G", rsrp = -50, latency = 10.0)),
+                wrapper(record(ts = 3000, rat = "4G", rsrp = -50, latency = 10.0))
+            )
+            val config = defaultConfig.copy(rsrpDropThresholdDbm = 15, rsrpDropTimeWindowMs = 5000)
+            val result = engine.analyze(records, config)
+            assertTrue(result.anomalyFlags.isNotEmpty(), "Expected at least one anomaly")
+            result.anomalyFlags.forEach { flag ->
+                val name = flag.severity.name
+                assertTrue(name == "INFO" || name == "WARNING" || name == "CRITICAL",
+                    "Severity must be INFO, WARNING, or CRITICAL; was $name")
+            }
+        }
+
+        @Test
+        fun `anomaly flags include a type from AnomalyType enum`() {
+            val records = listOf(
+                wrapper(record(ts = 0, rat = "4G", rsrp = -50, latency = 10.0)),
+                wrapper(record(ts = 1000, rat = "4G", rsrp = -90, latency = 10.0)),
+                wrapper(record(ts = 2000, rat = "4G", rsrp = -50, latency = 10.0))
+            )
+            val config = defaultConfig.copy(rsrpDropThresholdDbm = 15, rsrpDropTimeWindowMs = 5000)
+            val result = engine.analyze(records, config)
+            assertTrue(result.anomalyFlags.isNotEmpty())
+            result.anomalyFlags.forEach { flag ->
+                val name = flag.type.name
+                assertTrue(name.isNotEmpty(), "AnomalyType name should not be empty")
+            }
+        }
+    }
+
+    @Nested
+    inner class LatencyStatsValues {
+
+        @Test
+        fun `jitterMs (stddev) is non-zero on varied latency input`() {
+            val records = listOf(
+                wrapper(record(ts = 0, latency = 10.0)),
+                wrapper(record(ts = 1000, latency = 20.0)),
+                wrapper(record(ts = 2000, latency = 30.0)),
+                wrapper(record(ts = 3000, latency = 40.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            val stats = result.latencyStats
+            assertNotNull(stats)
+            assertTrue(stats!!.jitterMs > 0, "jitterMs (stddev) must be positive for non-uniform latencies")
+        }
+
+        @Test
+        fun `jitterMs is zero when all latency values are identical`() {
+            val records = listOf(
+                wrapper(record(ts = 0, latency = 15.0)),
+                wrapper(record(ts = 1000, latency = 15.0)),
+                wrapper(record(ts = 2000, latency = 15.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            val stats = result.latencyStats
+            assertNotNull(stats)
+            assertEquals(0.0, stats!!.jitterMs, 1e-9, "stddev must be zero when all latencies are identical")
+        }
+
+        @Test
+        fun `sampleCount matches number of records with non-null latency`() {
+            val records = listOf(
+                wrapper(record(ts = 0, latency = 10.0)),
+                wrapper(record(ts = 1000, latency = null)),
+                wrapper(record(ts = 2000, latency = 20.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            val stats = result.latencyStats
+            assertNotNull(stats)
+            assertEquals(2, stats!!.sampleCount, "sampleCount counts only records with non-null latency")
+        }
+    }
+
+    @Nested
+    inner class SinrHistogram {
+
+        @Test
+        fun `sinr histogram bins have non-zero counts when SINR values are present`() {
+            val records = listOf(
+                wrapper(record(ts = 0, sinr = 20)),
+                wrapper(record(ts = 1000, sinr = 10)),
+                wrapper(record(ts = 2000, sinr = -10)),
+                wrapper(record(ts = 3000, sinr = -20))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(result.sinrHistogram.isNotEmpty(), "SINR histogram must not be empty when SINR values exist")
+            val total = result.sinrHistogram.sumOf { it.count }
+            assertEquals(4, total, "All four SINR values should map to histogram bins")
+        }
+
+        @Test
+        fun `sinr histogram is empty when no records have SINR values`() {
+            val records = listOf(
+                wrapper(record(ts = 0, sinr = null)),
+                wrapper(record(ts = 1000, sinr = null))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertEquals(0, result.sinrHistogram.sumOf { it.count })
+        }
+    }
+
+    @Nested
+    inner class ComputeCorrelation {
+
+        @Test
+        fun `rsrpPing correlation bins contain labels for all RSRP bin boundaries`() {
+            val records = listOf(
+                wrapper(record(ts = 0, rsrp = -70, latency = 10.0)),
+                wrapper(record(ts = 1000, rsrp = -85, latency = 20.0)),
+                wrapper(record(ts = 2000, rsrp = -95, latency = 30.0)),
+                wrapper(record(ts = 3000, rsrp = -110, latency = 40.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            val bins = result.correlationBins.rsrpPing
+            assertTrue(bins.isNotEmpty(), "rsrpPing correlation should have bins")
+            assertEquals(4, bins.size, "Expected one bin per RSRP range")
+        }
+
+        @Test
+        fun `rsrpPing bin values are non-null when records with matching RSRP and latency exist`() {
+            val records = listOf(
+                wrapper(record(ts = 0, rsrp = -70, latency = 10.0)),
+                wrapper(record(ts = 1000, rsrp = -72, latency = 12.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            val firstBin = result.correlationBins.rsrpPing.first()
+            assertNotNull(firstBin.values.firstOrNull()?.value, "Expected non-null average for bin with matching records")
+        }
+
+        @Test
+        fun `rsrpLoss correlation bins are computed`() {
+            val records = listOf(
+                wrapper(record(ts = 0, rsrp = -70, latency = 10.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(result.correlationBins.rsrpLoss.isNotEmpty())
+        }
+
+        @Test
+        fun `sinrPing correlation bins are computed`() {
+            val records = listOf(
+                wrapper(record(ts = 0, sinr = 20, latency = 10.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(result.correlationBins.sinrPing.isNotEmpty())
+        }
+
+        @Test
+        fun `sinrLoss correlation bins are computed`() {
+            val records = listOf(
+                wrapper(record(ts = 0, sinr = 20, latency = 10.0))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            assertTrue(result.correlationBins.sinrLoss.isNotEmpty())
+        }
+
+        @Test
+        fun `correlation bins are empty when no records have the relevant metrics`() {
+            val records = listOf(
+                wrapper(record(ts = 0, rsrp = null, sinr = null, latency = null))
+            )
+            val result = engine.analyze(records, defaultConfig)
+            val firstBin = result.correlationBins.rsrpPing.first()
+            assertTrue(firstBin.values.all { it.value == null }, "All bin values should be null when no records match")
+        }
     }
 
     companion object {

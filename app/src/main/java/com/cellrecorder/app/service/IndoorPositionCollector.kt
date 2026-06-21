@@ -16,7 +16,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 data class IndoorPositionUpdate(
     val relativeX: Double = 0.0,
@@ -113,13 +112,10 @@ class IndoorPositionCollector @Inject constructor(
     }
 
     private fun onAccelerometerEvent(values: FloatArray) {
-        val mag = sqrt(
-            (values[0] * values[0] + values[1] * values[1] + values[2] * values[2]).toDouble()
-        ).toFloat()
+        val mag = IndoorStepDetector.magnitude(values[0], values[1], values[2])
 
         if (baselineSamples < BASELINE_CALIBRATION_SAMPLES) {
-            gravityBaseline = gravityBaseline * baselineSamples / (baselineSamples + 1) +
-                    mag / (baselineSamples + 1)
+            gravityBaseline = IndoorStepDetector.calibrateBaseline(gravityBaseline, mag, baselineSamples)
             baselineSamples++
             filteredMagnitude = mag
             return
@@ -128,7 +124,7 @@ class IndoorPositionCollector @Inject constructor(
         filteredMagnitude = ACCEL_ALPHA * mag + (1f - ACCEL_ALPHA) * filteredMagnitude
 
         val now = System.currentTimeMillis()
-        if (filteredMagnitude > gravityBaseline * STEP_THRESHOLD &&
+        if (IndoorStepDetector.isStep(filteredMagnitude, gravityBaseline) &&
             now - lastStepTimeMs >= STEP_COOLDOWN_MS) {
             onStepDetected()
         }
@@ -144,7 +140,7 @@ class IndoorPositionCollector @Inject constructor(
 
     private fun updateDrift() {
         val elapsedMin = (System.currentTimeMillis() - originResetTimeMs) / 60_000.0
-        driftRate = (0.02 + elapsedMin * 0.004).coerceAtMost(0.20)
+        driftRate = IndoorStepDetector.driftRateForElapsedMinutes(elapsedMin)
     }
 
     private fun emitUpdate() {

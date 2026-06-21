@@ -109,7 +109,7 @@ object SpeedTestServerSelector {
         null
     }
 
-    private fun parseServerElement(parser: XmlPullParser): SpeedTestServerInfo? {
+    internal fun parseServerElement(parser: XmlPullParser): SpeedTestServerInfo? {
         return try {
             val id = parser.getAttributeValue(null, "id")?.toIntOrNull() ?: return null
             val url = parser.getAttributeValue(null, "url") ?: return null
@@ -187,7 +187,7 @@ object SpeedTestServerSelector {
         best
     }
 
-    private fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    internal fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val R = 6371.0
         val dLat = Math.toRadians(lat2 - lat1)
         val dLon = Math.toRadians(lon2 - lon1)
