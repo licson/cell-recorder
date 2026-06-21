@@ -80,22 +80,46 @@ object PermissionHelper {
     fun missingPermissionsForMode(recordingMode: String, context: Context): Array<String> =
         (missingForegroundPermissions(context).toList() + missingIndoorPermissions(context).toList()).toTypedArray()
 
+    fun missingAllForMode(recordingMode: String, context: Context): Array<String> {
+        val result = mutableListOf<String>()
+        result.addAll(missingForegroundPermissions(context).toList())
+        if (recordingMode == "INDOOR") {
+            result.addAll(missingIndoorPermissions(context).toList())
+        }
+        result.addAll(missingBackgroundPermissions(context).toList())
+        return result.toTypedArray()
+    }
+
     fun missingBackgroundPermissions(context: Context): Array<String> =
         backgroundPermissions().filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
 
-    fun hasPermanentDenial(activity: Activity): Boolean =
-        requiredPermissions().any { permission ->
-            ContextCompat.checkSelfPermission(activity, permission) != PackageManager.PERMISSION_GRANTED &&
-                    !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+    fun decidePermissionState(
+        hasAttemptedOnce: Boolean,
+        missingPermissions: Array<String>,
+        activity: Activity?
+    ): PermissionUiState {
+        if (missingPermissions.isEmpty()) return PermissionUiState.AllGranted
+        if (activity == null) return PermissionUiState.ShowRationale
+        return decidePermissionState(hasAttemptedOnce, missingPermissions) { permission ->
+            ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
         }
+    }
 
-    fun hasPermanentDenialForMode(recordingMode: String, activity: Activity): Boolean =
-        (requiredPermissions().toList() + indoorPermissions().toList()).any { permission ->
-            ContextCompat.checkSelfPermission(activity, permission) != PackageManager.PERMISSION_GRANTED &&
-                    !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+    fun decidePermissionState(
+        hasAttemptedOnce: Boolean,
+        missingPermissions: Array<String>,
+        rationaleProvider: (String) -> Boolean
+    ): PermissionUiState {
+        if (missingPermissions.isEmpty()) return PermissionUiState.AllGranted
+        val anyRationale = missingPermissions.any(rationaleProvider)
+        return when {
+            anyRationale -> PermissionUiState.ShowRationale
+            hasAttemptedOnce -> PermissionUiState.ShowSettings
+            else -> PermissionUiState.ShowRationale
         }
+    }
 
     fun openAppSettings(context: Context) {
         context.startActivity(

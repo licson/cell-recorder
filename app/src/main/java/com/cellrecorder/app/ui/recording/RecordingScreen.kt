@@ -35,13 +35,13 @@ import com.cellrecorder.app.service.SimLiveState
 import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.IndoorPathLegend
-import com.cellrecorder.app.ui.shared.PermissionDeniedDialog
+import com.cellrecorder.app.ui.shared.PermissionFlowDialogs
+import com.cellrecorder.app.ui.shared.PermissionFlowState
 import com.cellrecorder.app.ui.shared.TrackingConfidenceIndicator
 import java.util.Locale
 import com.cellrecorder.app.ui.shared.PermissionHelper
-import com.cellrecorder.app.ui.shared.PermissionRationaleDialog
-import com.cellrecorder.app.ui.shared.PermissionUiState
 import com.cellrecorder.app.ui.shared.TooltipIconButton
+import com.cellrecorder.app.ui.shared.rememberPermissionFlowState
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -83,31 +83,26 @@ fun RecordingScreen(
         wasExtrapolating.value = serviceState?.isExtrapolatingGps == true
     }
 
-    var permissionState by remember { mutableStateOf<PermissionUiState?>(null) }
     var showStopConfirm by remember { mutableStateOf(false) }
-    var isRequestingPermissions by remember { mutableStateOf(false) }
-    var hasAttemptedOnce by remember { mutableStateOf(false) }
     val activity = LocalActivity.current
     val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
 
+    val flowState = rememberPermissionFlowState(
+        permissions = PermissionHelper.missingAllForMode(recordingMode, context).toList(),
+        onAllGranted = {
+            if (!isRecording) {
+                RecordingService.start(context, sessionId, recordingMode)
+            }
+        },
+        autoRequestOnLaunch = false,
+    )
+
     fun handlePermissionResult() {
         PermissionHelper.logPermissionState(context, "recording-handle-result")
-        permissionState = when {
-            PermissionHelper.allGrantedForMode(recordingMode, context) -> {
-                if (!isRecording) {
-                    RecordingService.start(context, sessionId, recordingMode)
-                }
-                null
-            }
-            hasAttemptedOnce -> {
-                PermissionUiState.ShowSettings
-            }
-            activity != null && PermissionHelper.hasPermanentDenial(activity) -> {
-                PermissionUiState.ShowSettings
-            }
-            else -> {
-                hasAttemptedOnce = true
-                PermissionUiState.ShowRationale
+        val missing = PermissionHelper.missingAllForMode(recordingMode, context)
+        flowState.handleResult(missing, activity) {
+            if (!isRecording) {
+                RecordingService.start(context, sessionId, recordingMode)
             }
         }
     }
@@ -115,7 +110,7 @@ fun RecordingScreen(
     val backgroundPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        isRequestingPermissions = false
+        flowState.isRequestingPermissions = false
         PermissionHelper.logPermissionState(context, "recording-bg-result")
         handlePermissionResult()
     }
@@ -123,10 +118,10 @@ fun RecordingScreen(
     val foregroundPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        isRequestingPermissions = false
+        flowState.isRequestingPermissions = false
         PermissionHelper.logPermissionState(context, "recording-fg-result")
         if (PermissionHelper.allForegroundGranted(context) && PermissionHelper.allIndoorGranted(context) && PermissionHelper.missingBackgroundPermissions(context).isNotEmpty()) {
-            isRequestingPermissions = true
+            flowState.isRequestingPermissions = true
             mainHandler.postDelayed({
                 val missingBg = PermissionHelper.missingBackgroundPermissions(context)
                 if (BuildConfig.DEBUG) android.util.Log.d("RecordingScreen", "Foreground done, launching background: ${missingBg.toList()}")
@@ -156,7 +151,7 @@ fun RecordingScreen(
                 }, 200)
             }
             else -> {
-                isRequestingPermissions = false
+                flowState.isRequestingPermissions = false
                 handlePermissionResult()
             }
         }
@@ -264,22 +259,13 @@ fun RecordingScreen(
                             if (isRecording) {
                                 showStopConfirm = true
                             } else {
-                                when {
-                                    PermissionHelper.allGrantedForMode(recordingMode, context) -> {
-                                        RecordingService.start(context, sessionId, recordingMode)
-                                    }
-                                    hasAttemptedOnce -> {
-                                        permissionState = PermissionUiState.ShowSettings
-                                    }
-                                    activity != null && PermissionHelper.hasPermanentDenialForMode(recordingMode, activity) -> {
-                                        permissionState = PermissionUiState.ShowSettings
-                                    }
-                                    else -> {
-                                        hasAttemptedOnce = true
-                                        isRequestingPermissions = true
-                                        permissionState = null
-                                        requestNextPermissions()
-                                    }
+                                if (PermissionHelper.allGrantedForMode(recordingMode, context)) {
+                                    RecordingService.start(context, sessionId, recordingMode)
+                                } else {
+                                    val missing = PermissionHelper.missingAllForMode(recordingMode, context)
+                                    flowState.permissionState = PermissionHelper.decidePermissionState(
+                                        flowState.hasAttemptedOnce, missing, activity
+                                    )
                                 }
                             }
                         },
@@ -301,24 +287,15 @@ contentDescription = if (isRecording) "Stop" else "Start",
             }
         }
 
-        when (permissionState) {
-            PermissionUiState.ShowRationale -> {
-                PermissionRationaleDialog(
-                    recordingMode = recordingMode,
-                    onGrant = {
-                        isRequestingPermissions = true
-                        permissionState = null
-                        requestNextPermissions()
-                    }
-                )
-            }
-            PermissionUiState.ShowSettings -> {
-                PermissionDeniedDialog(
-                    onOpenSettings = { PermissionHelper.openAppSettings(context) }
-                )
-            }
-            else -> {}
-        }
+        PermissionFlowDialogs(
+            state = flowState,
+            recordingMode = recordingMode,
+            onRationaleGrant = {
+                flowState.prepareForRequest()
+                requestNextPermissions()
+            },
+            onOpenSettings = { PermissionHelper.openAppSettings(context) },
+        )
 
         if (showStopConfirm) {
             AlertDialog(

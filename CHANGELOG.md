@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Resolved all static analysis (lint) errors and warnings** — the project now builds clean with zero lint findings. Fixes include locale-safe number formatting in CSV exports and UI, correct Compose modifier parameter ordering, removal of redundant SDK version checks, and deletion of unused string/color resources.
 - **Themed/monochrome launcher icon** is now properly defined so the icon renders correctly on Android 13+ themed launchers.
+- **Indoor recording no longer gets stuck at the permissions dialog for existing users** — the physical activity permission is now requested at runtime as intended when starting an indoor session, instead of incorrectly routing to system Settings. The permission decision logic has been unified across all permission checkpoints in the app.
 
 ## [1.2.0] - 2026-06-12
 

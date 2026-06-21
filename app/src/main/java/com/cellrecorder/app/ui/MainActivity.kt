@@ -17,10 +17,9 @@ import com.cellrecorder.app.BuildConfig
 import com.cellrecorder.app.service.RecordingService
 import com.cellrecorder.app.ui.navigation.AppNavGraph
 import com.cellrecorder.app.ui.navigation.Routes
-import com.cellrecorder.app.ui.shared.PermissionDeniedDialog
+import com.cellrecorder.app.ui.shared.PermissionFlowDialogs
+import com.cellrecorder.app.ui.shared.PermissionFlowState
 import com.cellrecorder.app.ui.shared.PermissionHelper
-import com.cellrecorder.app.ui.shared.PermissionRationaleDialog
-import com.cellrecorder.app.ui.shared.PermissionUiState
 import com.cellrecorder.app.ui.theme.CellRecorderTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -30,7 +29,7 @@ class MainActivity : ComponentActivity() {
     private val foregroundPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        isRequestingPermissions = false
+        flowState.isRequestingPermissions = false
         PermissionHelper.logPermissionState(this, "fg-result")
         handleForegroundResult()
     }
@@ -38,15 +37,17 @@ class MainActivity : ComponentActivity() {
     private val backgroundPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
-        isRequestingPermissions = false
+        flowState.isRequestingPermissions = false
         PermissionHelper.logPermissionState(this, "bg-result")
         handlePermissionResult()
     }
 
-    private var permissionState: PermissionUiState by mutableStateOf(PermissionUiState.Checking)
+    private val flowState = PermissionFlowState(
+        _permissionState = mutableStateOf(null),
+        _hasAttemptedOnce = mutableStateOf(false),
+        _isRequestingPermissions = mutableStateOf(false),
+    )
     private var pendingSessionId by mutableStateOf<Long?>(null)
-    private var isRequestingPermissions by mutableStateOf(false)
-    private var hasAttemptedOnce by mutableStateOf(false)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,19 +72,15 @@ class MainActivity : ComponentActivity() {
 
                     AppNavGraph(navController = navController)
 
-                    when (permissionState) {
-                        PermissionUiState.ShowRationale -> PermissionRationaleDialog(
-                            onGrant = {
-                                permissionState = PermissionUiState.Checking
-                                isRequestingPermissions = true
-                                requestNextPermissions()
-                            }
-                        )
-                        PermissionUiState.ShowSettings -> PermissionDeniedDialog(
-                            onOpenSettings = { PermissionHelper.openAppSettings(this@MainActivity) }
-                        )
-                        else -> {}
-                    }
+                    PermissionFlowDialogs(
+                        state = flowState,
+                        recordingMode = "OUTDOOR",
+                        onRationaleGrant = {
+                            flowState.prepareForRequest()
+                            requestNextPermissions()
+                        },
+                        onOpenSettings = { PermissionHelper.openAppSettings(this@MainActivity) },
+                    )
                 }
             }
         }
@@ -91,7 +88,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!isRequestingPermissions) {
+        if (!flowState.isRequestingPermissions) {
             checkPermissionState()
         }
     }
@@ -103,11 +100,10 @@ class MainActivity : ComponentActivity() {
 
     private fun checkPermissionState() {
         PermissionHelper.logPermissionState(this, "check-state")
-        permissionState = if (PermissionHelper.allGranted(this)) {
-            PermissionUiState.AllGranted
-        } else {
-            PermissionUiState.ShowRationale
-        }
+        val missing = PermissionHelper.missingAllForMode("OUTDOOR", this)
+        flowState.permissionState = PermissionHelper.decidePermissionState(
+            flowState.hasAttemptedOnce, missing, this
+        )
     }
 
     private fun requestNextPermissions() {
@@ -130,7 +126,7 @@ class MainActivity : ComponentActivity() {
                 }, 200)
             }
             else -> {
-                isRequestingPermissions = false
+                flowState.isRequestingPermissions = false
                 handlePermissionResult()
             }
         }
@@ -138,7 +134,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleForegroundResult() {
         if (PermissionHelper.allForegroundGranted(this) && PermissionHelper.missingBackgroundPermissions(this).isNotEmpty()) {
-            isRequestingPermissions = true
+            flowState.isRequestingPermissions = true
             mainHandler.postDelayed({
                 val missingBg = PermissionHelper.missingBackgroundPermissions(this)
                 if (BuildConfig.DEBUG) android.util.Log.d("MainActivity", "Foreground done, launching background: ${missingBg.toList()}")
@@ -151,14 +147,9 @@ class MainActivity : ComponentActivity() {
 
     private fun handlePermissionResult() {
         PermissionHelper.logPermissionState(this, "handle-result")
-        permissionState = when {
-            PermissionHelper.allGranted(this) -> PermissionUiState.AllGranted
-            hasAttemptedOnce -> PermissionUiState.ShowSettings
-            PermissionHelper.hasPermanentDenial(this) -> PermissionUiState.ShowSettings
-            else -> {
-                hasAttemptedOnce = true
-                PermissionUiState.ShowRationale
-            }
+        val missing = PermissionHelper.missingAllForMode("OUTDOOR", this)
+        flowState.handleResult(missing, this) {
+            // All permissions granted — navigation proceeds normally
         }
     }
 
