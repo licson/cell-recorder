@@ -74,4 +74,4 @@
 - [x] 9.3 Run `./gradlew :app:lintDebug` and confirm no new lint warnings
 - [x] 9.4 Run `./gradlew :app:assembleDebug` and confirm the debug APK builds (migrations registered correctly)
 - [x] 9.5 Manually verify on the emulator that launching the app, navigating to each screen (SessionList, SessionDetail, Replay, Statistics, LiveInfo, Recording, Settings), starting + stopping a recording, and importing + exporting a session all behave identically to before (sanity check, since the only production behavior change is the migration bug fix which affects v1/v2 upgraders only)
-- [ ] 9.6 Commit the change locally with a descriptive message (e.g., `Add instrumented test coverage and fix missing migrations 1→3`)
+- [x] 9.6 Commit the change locally with a descriptive message (e.g., `Add instrumented test coverage and fix missing migrations 1→3`)
