@@ -13,6 +13,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -156,5 +157,68 @@ class SpeedTestRecordDaoTest {
 
         val records = dao.getBySessionIdOnce(sessionId)
         assertTrue(records.isEmpty())
+    }
+
+    @Test
+    fun getAvgBps_handlesNullRows() = runBlocking {
+        // Only null rows -> AVG returns null (WHERE downloadBps IS NOT NULL filters them all out)
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadBps = null, uploadBps = null, succeeded = true))
+        assertNull(dao.getAvgDownloadBps().first())
+        assertNull(dao.getAvgUploadBps().first())
+
+        // Add a non-null row -> AVG should be computed only over the non-null row
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadBps = 100_000_000L, uploadBps = 20_000_000L, succeeded = true))
+
+        val avgDownload = dao.getAvgDownloadBps().first()
+        val avgUpload = dao.getAvgUploadBps().first()
+        assertNotNull(avgDownload)
+        assertNotNull(avgUpload)
+        assertEquals(100_000_000.0, avgDownload!!, 1.0)
+        assertEquals(20_000_000.0, avgUpload!!, 1.0)
+    }
+
+    @Test
+    fun getSuccessRate_allFailed_returnsZero() = runBlocking {
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = false))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = false))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = false))
+
+        val rate = dao.getSuccessRate().first()
+        assertNotNull(rate)
+        assertEquals(0.0, rate!!, 0.001)
+    }
+
+    @Test
+    fun getSuccessRate_allSucceeded_returnsOne() = runBlocking {
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
+
+        val rate = dao.getSuccessRate().first()
+        assertNotNull(rate)
+        assertEquals(1.0, rate!!, 0.001)
+    }
+
+    @Test
+    fun getBySessionIdAndTimestampRange_inclusiveBoundaries() = runBlocking {
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, timestamp = 1000L))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, timestamp = 2000L))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, timestamp = 3000L))
+
+        // BETWEEN is inclusive on both ends -> all 3 records match
+        val filtered = dao.getBySessionIdAndTimestampRange(sessionId, 1000L, 3000L).first()
+        assertEquals(3, filtered.size)
+    }
+
+    @Test
+    fun getBySessionIdAndTimestampRange_justOutsideBoundaries() = runBlocking {
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, timestamp = 1000L))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, timestamp = 2000L))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, timestamp = 3000L))
+
+        // 1000 < 1001 and 3000 > 2999 -> only the 2000 record falls in range
+        val filtered = dao.getBySessionIdAndTimestampRange(sessionId, 1001L, 2999L).first()
+        assertEquals(1, filtered.size)
+        assertEquals(2000L, filtered[0].timestamp)
     }
 }

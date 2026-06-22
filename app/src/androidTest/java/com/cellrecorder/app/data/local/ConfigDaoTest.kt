@@ -103,4 +103,46 @@ class ConfigDaoTest {
         val config = dao.get().first()
         assertEquals("second", config!!.pingDestination)
     }
+
+    @Test
+    fun roundTripLatencySpikeSigma() = runBlocking {
+        dao.update(AppConfigEntity(latencySpikeSigma = 5.5))
+
+        val config = dao.get().first()
+        assertNotNull(config)
+        assertEquals(5.5, config!!.latencySpikeSigma, 0.001)
+    }
+
+    @Test
+    fun roundTripIndoorStepLengthM() = runBlocking {
+        dao.update(AppConfigEntity(indoorStepLengthM = 0.8f))
+
+        val config = dao.get().first()
+        assertNotNull(config)
+        assertEquals(0.8f, config!!.indoorStepLengthM, 0.001f)
+    }
+
+    @Test
+    fun roundTripSpeedTestEnabled() = runBlocking {
+        dao.update(AppConfigEntity(speedTestEnabled = true))
+
+        val config = dao.get().first()
+        assertNotNull(config)
+        assertEquals(true, config!!.speedTestEnabled)
+    }
+
+    @Test
+    fun roundTripNrGnbBitLength() = runBlocking {
+        dao.update(AppConfigEntity(nrGnbBitLength = 28))
+
+        val config = dao.get().first()
+        assertNotNull(config)
+        assertEquals(28, config!!.nrGnbBitLength)
+    }
+
+    @Test
+    fun getReturnsNullWhenNoConfigInserted() = runBlocking {
+        val config = dao.get().first()
+        assertNull(config)
+    }
 }

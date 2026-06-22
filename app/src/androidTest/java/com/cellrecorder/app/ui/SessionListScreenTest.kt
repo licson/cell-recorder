@@ -3,11 +3,13 @@ package com.cellrecorder.app.ui
 import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.cellrecorder.app.HiltTestActivity
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.SessionRepository
@@ -21,24 +23,29 @@ import com.cellrecorder.app.domain.usecase.import_.ImportSessionUseCase
 import com.cellrecorder.app.ui.sessionlist.SessionListScreen
 import com.cellrecorder.app.ui.sessionlist.SessionListViewModel
 import com.cellrecorder.app.ui.theme.CellRecorderTheme
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@Ignore("Requires test runner without process isolation")
+@HiltAndroidTest
 @RunWith(AndroidJUnit4::class)
 @MediumTest
 class SessionListScreenTest {
 
-    @get:Rule
-    val composeTestRule = createAndroidComposeRule<androidx.activity.ComponentActivity>()
+    @get:Rule(order = 0)
+    val hiltRule = HiltAndroidRule(this)
+
+    @get:Rule(order = 1)
+    val composeTestRule = createAndroidComposeRule<HiltTestActivity>()
 
     private lateinit var viewModel: SessionListViewModel
 
     @Before
     fun setUp() {
+        hiltRule.inject()
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
@@ -78,7 +85,7 @@ class SessionListScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("No sessions yet.").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No sessions yet.", substring = true).assertIsDisplayed()
     }
 
     @Test
@@ -94,7 +101,7 @@ class SessionListScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("New Session").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("New Session").assertIsDisplayed()
     }
 
     @Test
@@ -110,7 +117,7 @@ class SessionListScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Settings").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Settings").assertIsDisplayed()
     }
 
     @Test
@@ -126,7 +133,7 @@ class SessionListScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Import recording").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Import").assertIsDisplayed()
     }
 
     @Test
@@ -142,6 +149,6 @@ class SessionListScreenTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Select sessions").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Select").assertIsDisplayed()
     }
 }

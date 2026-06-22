@@ -3,6 +3,7 @@ package com.cellrecorder.app.viewmodel
 import android.app.Application
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import com.cellrecorder.app.BuildConfig
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.repository.ConfigRepository
 import com.cellrecorder.app.domain.usecase.GetConfigUseCase
@@ -20,6 +21,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import javax.inject.Inject
 
 @HiltAndroidTest
@@ -47,6 +49,8 @@ class SettingsViewModelTest {
         runBlocking {
             configRepository.update(AppConfigEntity())
         }
+        val crashDir = File(app.filesDir, "crash_logs")
+        if (crashDir.exists()) crashDir.listFiles()?.forEach { it.delete() }
         val getConfigUseCase = GetConfigUseCase(configRepository)
         val updateConfigUseCase = UpdateConfigUseCase(configRepository)
         viewModel = SettingsViewModel(getConfigUseCase, updateConfigUseCase, app)
@@ -120,7 +124,7 @@ class SettingsViewModelTest {
     fun getVersionDisplay_returnsVersionString() {
         val version = viewModel.getVersionDisplay()
         assertNotNull(version)
-        assert(version.contains("1.2.0"))
+        assert(version.contains(BuildConfig.VERSION_NAME))
     }
 
     @Test
@@ -134,5 +138,48 @@ class SettingsViewModelTest {
     fun getLatestCrashLog_returnsNullWhenNoCrash() = runBlocking {
         val log = viewModel.getLatestCrashLog()
         assertNull(log)
+    }
+
+    @Test
+    fun updateRecordingInterval_invalidIgnored() = runBlocking {
+        viewModel.updateRecordingInterval("0")
+        viewModel.updateRecordingInterval("-1")
+        viewModel.updateRecordingInterval("100")
+        val config = viewModel.config.first { it.recordingIntervalMs == 5000L }
+        assertEquals(5000L, config.recordingIntervalMs)
+    }
+
+    @Test
+    fun updateLocationChangeThreshold_invalidIgnored() = runBlocking {
+        viewModel.updateLocationChangeThreshold("-1")
+        viewModel.updateLocationChangeThreshold("2000")
+        val config = viewModel.config.first { it.locationChangeThresholdM == 10f }
+        assertEquals(10f, config.locationChangeThresholdM, 0.01f)
+    }
+
+    @Test
+    fun updateNrGnbBitLength_invalidIgnored() = runBlocking {
+        viewModel.updateNrGnbBitLength("0")
+        viewModel.updateNrGnbBitLength("-1")
+        viewModel.updateNrGnbBitLength("36")
+        viewModel.updateNrGnbBitLength("100")
+        val config = viewModel.config.first { it.nrGnbBitLength == 24 }
+        assertEquals(24, config.nrGnbBitLength)
+    }
+
+    @Test
+    fun getLatestCrashLog_returnsSeededContent() = runBlocking {
+        val crashDir = File(app.filesDir, "crash_logs").apply { mkdirs() }
+        val logContent = "java.lang.RuntimeException: test crash\n\tat com.example.Test.test(Test.java:10)"
+        val logFile = File(crashDir, "crash_test.txt")
+        try {
+            logFile.writeText(logContent)
+
+            val result = viewModel.getLatestCrashLog()
+            assertNotNull(result)
+            assertEquals(logContent, result)
+        } finally {
+            logFile.delete()
+        }
     }
 }

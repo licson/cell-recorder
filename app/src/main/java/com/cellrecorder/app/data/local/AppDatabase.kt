@@ -35,6 +35,41 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         const val DATABASE_NAME = "cell_recorder.db"
 
+        val MIGRATION_1_2 = Migration(1, 2) { db ->
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN subscriptionId INTEGER")
+            db.execSQL("ALTER TABLE cell_records ADD COLUMN simSlotIndex INTEGER")
+        }
+
+        val MIGRATION_2_3 = Migration(2, 3) { db ->
+            db.execSQL(
+                """CREATE TABLE IF NOT EXISTS `app_config_new` (
+                    `id` INTEGER NOT NULL,
+                    `pingDestination` TEXT NOT NULL,
+                    `pingIntervalMs` INTEGER NOT NULL,
+                    `pingTimeoutMs` INTEGER NOT NULL,
+                    `recordingIntervalMs` INTEGER NOT NULL,
+                    `locationChangeThresholdM` REAL NOT NULL,
+                    `gpsAccuracyThresholdM` REAL NOT NULL,
+                    `maxRecordingDurationMin` INTEGER NOT NULL,
+                    `nrGnbBitLength` INTEGER NOT NULL,
+                    `cellInfoRefreshIntervalSec` INTEGER NOT NULL,
+                    PRIMARY KEY(`id`)
+                )"""
+            )
+            db.execSQL(
+                """INSERT INTO `app_config_new`
+                   (`id`, `pingDestination`, `pingIntervalMs`, `pingTimeoutMs`, `recordingIntervalMs`,
+                    `locationChangeThresholdM`, `gpsAccuracyThresholdM`, `maxRecordingDurationMin`,
+                    `nrGnbBitLength`, `cellInfoRefreshIntervalSec`)
+                   SELECT `id`, `pingDestination`, `pingIntervalMs`, `pingTimeoutMs`, `recordingIntervalMs`,
+                          `locationChangeThresholdM`, `gpsAccuracyThresholdM`, `maxRecordingDurationMin`,
+                          `nrGnbBitLength`, 5
+                   FROM `app_config`"""
+            )
+            db.execSQL("DROP TABLE `app_config`")
+            db.execSQL("ALTER TABLE `app_config_new` RENAME TO `app_config`")
+        }
+
         val MIGRATION_3_4 = Migration(3, 4) { db ->
             db.execSQL("ALTER TABLE sessions ADD COLUMN primarySimSlot INTEGER")
         }
