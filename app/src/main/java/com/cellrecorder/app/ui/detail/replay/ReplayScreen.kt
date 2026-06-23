@@ -11,6 +11,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -26,6 +28,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -34,6 +37,8 @@ import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.detail.ratColor
+import com.cellrecorder.app.ui.detail.rsrpColor
+import com.cellrecorder.app.ui.shared.formatCellId
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.IndoorPathLegend
 import com.cellrecorder.app.ui.shared.TooltipIconButton
@@ -74,7 +79,7 @@ fun ReplayScreen(
     }
 
     val entities = remember(filteredRecords) { filteredRecords.map { it.record } }
-    val currentEntity = remember(currentRecord) { currentRecord?.record }
+    val currentWrapper = remember(currentRecord) { currentRecord }
 
     val positionSpeedTestMarker = remember(currentIndex, speedTestMarkers) {
         speedTestMarkers.lastOrNull { it.timelineIndex <= currentIndex }
@@ -134,7 +139,7 @@ fun ReplayScreen(
                         .fillMaxHeight()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    StatsPanel(record = currentEntity)
+                    StatsPanel(record = currentWrapper)
 
                     RatTimelineBar(
                         records = entities,
@@ -229,7 +234,7 @@ fun ReplayScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
                     item {
-                        StatsPanel(record = currentEntity)
+                        StatsPanel(record = currentWrapper)
                     }
 
                     item {
@@ -675,37 +680,117 @@ private fun SpeedSelector(
 }
 
 @Composable
-private fun StatsPanel(record: CellRecordEntity?) {
+private fun StatsPanel(record: CellRecordWithCaBands?) {
+    var expanded by remember { mutableStateOf(false) }
+    val hasExpandableData = record != null && (record.record.rat.startsWith("5G_NSA") && record.record.anchorPci != null || record.caBands.isNotEmpty())
+
     Surface(
         tonalElevation = 2.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         if (record != null) {
+            val entity = record.record
             Column(modifier = Modifier.padding(8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                    StatItem("#", "#${(record.simSlotIndex ?: 0) + 1}", weight = 0.6f, valueColor = ratColor(record.rat))
-                    StatItem("PLMN", formatPlmn(record.mcc, record.mnc), weight = 1f)
-                    StatItem("RAT", record.rat, weight = 0.7f, valueColor = ratColor(record.rat))
-                    StatItem("Band", BandResolver.formatBand(record.bandNumber, record.earfcn, record.rat), weight = 0.6f)
-                    StatItem("ARFCN", record.earfcn?.toString() ?: "---", weight = 0.8f)
-                    StatItem("Ping", record.avgLatencyMs?.let { String.format(Locale.US, "%.0f ms", it) } ?: "---", weight = 0.8f)
+                    StatItem("#", "#${(entity.simSlotIndex ?: 0) + 1}", weight = 0.6f, valueColor = ratColor(entity.rat))
+                    StatItem("PLMN", formatPlmn(entity.mcc, entity.mnc), weight = 1f)
+                    StatItem("RAT", entity.rat, weight = 0.7f, valueColor = ratColor(entity.rat))
+                    val bandText = if (record.caBands.isNotEmpty()) {
+                        "${BandResolver.formatBand(entity.bandNumber, entity.earfcn, entity.rat)}+${record.caBands.size}"
+                    } else {
+                        BandResolver.formatBand(entity.bandNumber, entity.earfcn, entity.rat)
+                    }
+                    StatItem("Band", bandText, weight = 0.6f)
+                    StatItem("ARFCN", entity.earfcn?.toString() ?: "---", weight = 0.8f)
+                    if (hasExpandableData) {
+                        Icon(
+                            imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (expanded) "Collapse" else "Expand",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 Spacer(Modifier.height(2.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                     Box(Modifier.weight(0.6f)) { }
-                    StatItem("Cell ID", formatCellId(record), weight = 1.2f, valueFontFamily = FontFamily.Monospace)
-                    StatItem("PCI", record.pci?.toString() ?: "---", weight = 0.6f)
-                    StatItem("RSRP", record.rsrp?.toString() ?: "---", weight = 0.7f)
-                    StatItem("RSRQ", record.rsrq?.toString() ?: "---", weight = 0.6f)
-                    StatItem("SINR", record.sinr?.toString() ?: "---", weight = 0.6f)
+                    StatItem("Cell ID", formatCellId(entity), weight = 1.2f, valueFontFamily = FontFamily.Monospace)
+                    StatItem("PCI", entity.pci?.toString() ?: "---", weight = 0.6f)
+                    val rsrp = entity.rsrp
+                    StatItem("RSRP", entity.rsrp?.toString() ?: "---", weight = 0.7f, valueColor = rsrpColor(rsrp))
+                    val rsrq = entity.rsrq
+                    StatItem("RSRQ", entity.rsrq?.toString() ?: "---", weight = 0.6f, valueColor = rsrpColor(rsrq))
+                    val sinr = entity.sinr
+                    StatItem("SINR", entity.sinr?.toString() ?: "---", weight = 0.6f, valueColor = rsrpColor(sinr))
                 }
-                if (record.rat.startsWith("5G_NSA") && record.anchorPci != null) {
+                if (!expanded && entity.rat.startsWith("5G_NSA") && entity.anchorPci != null) {
                     Spacer(Modifier.height(2.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                         Box(Modifier.weight(0.6f)) { }
-                        StatItem("Anchor", record.anchorPci?.let {
-                            "B${record.anchorBandNumber ?: "?"} PCI $it RSRP ${record.anchorRsrp ?: "---"}"
-                        } ?: "---", weight = 2.5f, valueColor = MaterialTheme.colorScheme.primary)
+                        val aRsrp = entity.anchorRsrp
+                        StatItem(
+                            "Anchor",
+                            "LTE: B${entity.anchorBandNumber ?: "?"} PCI ${entity.anchorPci} RSRP ${entity.anchorRsrp ?: "---"}",
+                            weight = 2.5f,
+                            valueColor = rsrpColor(aRsrp)
+                        )
+                    }
+                }
+                if (expanded && hasExpandableData) {
+                    if (entity.rat.startsWith("5G_NSA") && entity.anchorPci != null) {
+                        Spacer(Modifier.height(4.dp))
+                        HorizontalDivider()
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Anchor Cell",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            StatItem("Band", "B${entity.anchorBandNumber ?: "?"}", weight = 0.6f)
+                            StatItem("ARFCN", entity.anchorEarfcn?.toString() ?: "---", weight = 0.8f)
+                            StatItem("PCI", entity.anchorPci?.toString() ?: "---", weight = 0.6f)
+                            StatItem("TAC", entity.anchorTac?.toString() ?: "---", weight = 0.7f)
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Box(Modifier.weight(0.6f)) { }
+                            val aRsrp = entity.anchorRsrp
+                            val aRsrq = entity.anchorRsrq
+                            val aSinr = entity.anchorSinr
+                            StatItem("RSRP", entity.anchorRsrp?.toString() ?: "---", weight = 0.7f, valueColor = rsrpColor(aRsrp))
+                            StatItem("RSRQ", entity.anchorRsrq?.toString() ?: "---", weight = 0.6f, valueColor = rsrpColor(aRsrq))
+                            StatItem("SINR", entity.anchorSinr?.toString() ?: "---", weight = 0.6f, valueColor = rsrpColor(aSinr))
+                        }
+                    }
+                    if (record.caBands.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        HorizontalDivider()
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "CA Bands",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        record.caBands.forEach { ca ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                                StatItem("Band", "B${ca.bandNumber ?: "?"}", weight = 0.6f)
+                                StatItem("PCI", ca.pci?.toString() ?: "---", weight = 0.6f)
+                                StatItem("EARFCN", ca.earfcn?.toString() ?: "---", weight = 0.8f)
+                                val caRsrp = ca.rsrp
+                                val caRsrq = ca.rsrq
+                                val caSinr = ca.sinr
+                                Box(Modifier.weight(0.6f)) { }
+                                StatItem("RSRP", ca.rsrp?.toString() ?: "---", weight = 0.7f, valueColor = rsrpColor(caRsrp))
+                                StatItem("RSRQ", ca.rsrq?.toString() ?: "---", weight = 0.6f, valueColor = rsrpColor(caRsrq))
+                                StatItem("SINR", ca.sinr?.toString() ?: "---", weight = 0.6f, valueColor = rsrpColor(caSinr))
+                            }
+                            Spacer(Modifier.height(2.dp))
+                        }
                     }
                 }
             }
@@ -744,10 +829,3 @@ private fun RowScope.StatItem(
 }
 
 private fun formatPlmn(mcc: String?, mnc: String?): String = com.cellrecorder.app.ui.shared.formatPlmn(mcc, mnc)
-
-private fun formatCellId(record: CellRecordEntity): String {
-    if (record.enbOrGnbId != null && record.lcid != null) {
-        return "${record.enbOrGnbId}:${record.lcid}"
-    }
-    return record.fullCellIdentity?.toString() ?: "---"
-}

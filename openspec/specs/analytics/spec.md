@@ -244,6 +244,23 @@ The system SHALL exclude indoor sessions from geographic-dependent analytics. In
 - WHEN mobility classification runs
 - THEN all points are classified as "indoor" regardless of speed characteristics
 
+### Requirement: Band Distribution with RAT Context
+
+The system SHALL compute band usage distribution per SIM and tag each band entry with its source RAT, using qualified band names in the UI.
+
+#### Scenario: Band distribution tagged with RAT
+- GIVEN a session with recorded points
+- WHEN analytics are generated
+- THEN each band entry in the distribution is tagged with the source RAT from the primary record
+- AND CA bands inherit the RAT of their parent record
+- AND the distribution is sorted by count descending within each RAT group
+
+#### Scenario: Qualified band labels in UI
+- GIVEN the band distribution chart is rendered in AnalyticsPanel or StatisticsScreen
+- THEN legend labels use qualified band names (e.g., "B3" for LTE, "n78" for 5G)
+- AND NR bands are grouped with cool tone colors (cyan/teal range)
+- AND LTE bands are grouped with warm tone colors (blue/indigo range)
+
 ### Requirement: Speedtest Analytics — Throughput Correlations
 
 The system SHALL compute correlations between throughput and cellular conditions per session. Speedtest data and RSRP/band semantics are defined in `speedtest/spec.md` and `cell-info/spec.md`.

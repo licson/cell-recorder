@@ -7,7 +7,8 @@ data class RatDistribution(
 
 data class BandDistribution(
     val bandNumber: Int,
-    val count: Int
+    val count: Int,
+    val rat: String? = null
 )
 
 data class SimSlotDistribution(
@@ -30,5 +31,6 @@ data class RatDistributionPerSim(
 data class BandDistributionPerSim(
     val simSlotIndex: Int,
     val bandNumber: Int,
-    val count: Int
+    val count: Int,
+    val rat: String? = null
 )

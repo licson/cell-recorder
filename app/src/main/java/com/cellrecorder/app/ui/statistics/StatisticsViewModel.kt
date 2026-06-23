@@ -81,7 +81,12 @@ class StatisticsViewModel @Inject constructor(
 
     val bandDistributionPerSim: StateFlow<Map<Int, List<BandDistribution>>> =
         cellRecordRepository.getBandDistributionPerSim()
-            .map { list -> list.groupBy { it.simSlotIndex }.mapValues { (_, items) -> items.map { BandDistribution(it.bandNumber, it.count) } } }
+            .map { list ->
+                list.groupBy { it.simSlotIndex }
+                    .mapValues { (_, items) ->
+                        items.map { BandDistribution(it.bandNumber, it.count, it.rat) }
+                    }
+            }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val simSlotDistribution: StateFlow<List<SimSlotDistribution>> =

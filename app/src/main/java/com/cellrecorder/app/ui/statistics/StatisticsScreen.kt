@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.domain.model.BandDistribution
+import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.model.RatDistribution
 import com.cellrecorder.app.ui.detail.ratColor
 import java.util.Locale
@@ -27,6 +28,14 @@ import java.util.Locale
 private val bandColors = listOf(
     Color(0xFF1565C0), Color(0xFF7B1FA2), Color(0xFFC62828), Color(0xFF2E7D32),
     Color(0xFFE65100), Color(0xFF00838F), Color(0xFF4E342E), Color(0xFF37474F)
+)
+
+private val nrColors = listOf(
+    Color(0xFF00695C), Color(0xFF00838F), Color(0xFF0097A7), Color(0xFF00BCD4)
+)
+
+private val lteColors = listOf(
+    Color(0xFF1565C0), Color(0xFF283593), Color(0xFF3F51B5), Color(0xFF5C6BC0)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,11 +97,24 @@ fun StatisticsScreen(
                 bandDistributionPerSim.forEach { (simSlotIndex, distributions) ->
                     if (distributions.isNotEmpty()) {
                         item(key = "band_sim_$simSlotIndex") {
+                            val groupedItems = distributions.groupBy { it.rat?.startsWith("5G") == true }.toSortedMap(compareByDescending { it })
+                            val stackedItems = groupedItems.flatMap { (isNr, group) ->
+                                group.mapIndexed { index, item ->
+                                    val color = if (isNr) {
+                                        nrColors[index % nrColors.size]
+                                    } else {
+                                        lteColors[index % lteColors.size]
+                                    }
+                                    StackedItem(
+                                        BandResolver.formatBand(item.bandNumber, earfcn = null, rat = item.rat ?: ""),
+                                        item.count,
+                                        color
+                                    )
+                                }
+                            }
                             SimBarCard(
                                 simLabel = "SIM ${simSlotIndex + 1}",
-                                items = distributions.mapIndexed { i, it ->
-                                    StackedItem("Band ${it.bandNumber}", it.count, bandColors[i % bandColors.size])
-                                },
+                                items = stackedItems,
                                 total = distributions.sumOf { it.count }
                             )
                         }

@@ -1,5 +1,13 @@
 package com.cellrecorder.app.service
 
+data class CaBandDetail(
+    val band: String,
+    val pci: String,
+    val rsrp: String,
+    val rsrq: String,
+    val sinr: String
+)
+
 data class SimLiveState(
     val subscriptionId: Int = 0,
     val simSlotIndex: Int = 0,
@@ -14,7 +22,15 @@ data class SimLiveState(
     val rsrq: String = "---",
     val sinr: String = "---",
     val caBands: List<String> = emptyList(),
-    val anchorInfo: String = ""
+    val anchorInfo: String = "",
+    val anchorBand: String = "",
+    val anchorPci: String = "",
+    val anchorArfcn: String = "",
+    val anchorTac: String = "",
+    val anchorRsrp: String = "",
+    val anchorRsrq: String = "",
+    val anchorSinr: String = "",
+    val caBandDetails: List<CaBandDetail> = emptyList()
 )
 
 data class RecordingState(

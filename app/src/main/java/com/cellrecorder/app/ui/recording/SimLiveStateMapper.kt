@@ -2,6 +2,7 @@ package com.cellrecorder.app.ui.recording
 
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
+import com.cellrecorder.app.service.CaBandDetail
 import com.cellrecorder.app.service.SimLiveState
 import com.cellrecorder.app.ui.shared.formatPlmn
 
@@ -35,7 +36,23 @@ object SimLiveStateMapper {
             },
             anchorInfo = if (snapshot.rat.startsWith("5G_NSA") && snapshot.anchorPci != null) {
                 "B${snapshot.anchorBandNumber ?: "?"} PCI ${snapshot.anchorPci} RSRP ${snapshot.anchorRsrp ?: "---"}"
-            } else ""
+            } else "",
+            anchorBand = snapshot.anchorBandNumber?.toString() ?: "",
+            anchorPci = snapshot.anchorPci?.toString() ?: "",
+            anchorArfcn = snapshot.anchorEarfcn?.toString() ?: "",
+            anchorTac = snapshot.anchorTac?.toString() ?: "",
+            anchorRsrp = snapshot.anchorRsrp?.toString() ?: "",
+            anchorRsrq = snapshot.anchorRsrq?.toString() ?: "",
+            anchorSinr = snapshot.anchorSinr?.toString() ?: "",
+            caBandDetails = snapshot.caBands.map { ca ->
+                CaBandDetail(
+                    band = ca.bandNumber?.toString() ?: "?",
+                    pci = ca.pci?.toString() ?: "?",
+                    rsrp = ca.rsrp?.toString() ?: "---",
+                    rsrq = ca.rsrq?.toString() ?: "---",
+                    sinr = ca.sinr?.toString() ?: "---"
+                )
+            }
         )
     }
 

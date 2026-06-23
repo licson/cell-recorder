@@ -102,11 +102,11 @@ interface CellRecordDao {
     fun getRatDistribution(): Flow<List<RatDistribution>>
 
     @Query("""
-        SELECT bandNumber, COUNT(*) AS count FROM (
-            SELECT bandNumber FROM cell_records WHERE bandNumber IS NOT NULL
+        SELECT bandNumber, rat, COUNT(*) AS count FROM (
+            SELECT bandNumber, rat FROM cell_records WHERE bandNumber IS NOT NULL
             UNION ALL
-            SELECT bandNumber FROM cell_record_ca_bands WHERE bandNumber IS NOT NULL
-        ) GROUP BY bandNumber ORDER BY count DESC LIMIT :limit
+            SELECT cb.bandNumber, cr.rat FROM cell_record_ca_bands cb INNER JOIN cell_records cr ON cb.cellRecordId = cr.id WHERE cb.bandNumber IS NOT NULL
+        ) GROUP BY bandNumber, rat ORDER BY count DESC LIMIT :limit
     """)
     fun getBandDistribution(limit: Int = 8): Flow<List<BandDistribution>>
 
@@ -134,17 +134,17 @@ interface CellRecordDao {
     fun getRatDistributionPerSim(): Flow<List<RatDistributionPerSim>>
 
     @Query("""
-        SELECT simSlotIndex, bandNumber, COUNT(*) AS count FROM (
-            SELECT cr.simSlotIndex, cr.bandNumber 
-            FROM cell_records cr 
+        SELECT simSlotIndex, bandNumber, rat, COUNT(*) AS count FROM (
+            SELECT cr.simSlotIndex, cr.bandNumber, cr.rat
+            FROM cell_records cr
             WHERE cr.simSlotIndex IS NOT NULL AND cr.bandNumber IS NOT NULL
             UNION ALL
-            SELECT cr.simSlotIndex, cb.bandNumber 
-            FROM cell_record_ca_bands cb 
-            INNER JOIN cell_records cr ON cb.cellRecordId = cr.id 
+            SELECT cr.simSlotIndex, cb.bandNumber, cr.rat
+            FROM cell_record_ca_bands cb
+            INNER JOIN cell_records cr ON cb.cellRecordId = cr.id
             WHERE cr.simSlotIndex IS NOT NULL AND cb.bandNumber IS NOT NULL
-        ) 
-        GROUP BY simSlotIndex, bandNumber 
+        )
+        GROUP BY simSlotIndex, bandNumber, rat
         ORDER BY simSlotIndex ASC, count DESC
     """)
     fun getBandDistributionPerSim(): Flow<List<BandDistributionPerSim>>

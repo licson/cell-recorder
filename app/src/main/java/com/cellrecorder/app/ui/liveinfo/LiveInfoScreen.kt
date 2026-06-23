@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.service.SimLiveState
 import com.cellrecorder.app.ui.detail.ratColor
+import com.cellrecorder.app.ui.detail.rsrpColor
 import com.cellrecorder.app.ui.detail.replay.MetricChart
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -107,19 +108,72 @@ private fun LiveSimCard(
             }
             Spacer(Modifier.height(4.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                LiveStatItem("RSRP", sim.rsrp, Modifier.weight(1f))
-                LiveStatItem("RSRQ", sim.rsrq, Modifier.weight(1f))
-                LiveStatItem("SINR", sim.sinr, Modifier.weight(1f))
+                val rsrpValue = sim.rsrp.toIntOrNull()
+                val rsrqValue = sim.rsrq.toIntOrNull()
+                val sinrValue = sim.sinr.toIntOrNull()
+                LiveStatItem("RSRP", sim.rsrp, Modifier.weight(1f), valueColor = rsrpColor(rsrpValue))
+                LiveStatItem("RSRQ", sim.rsrq, Modifier.weight(1f), valueColor = rsrpColor(rsrqValue))
+                LiveStatItem("SINR", sim.sinr, Modifier.weight(1f), valueColor = rsrpColor(sinrValue))
             }
 
-            if (sim.caBands.isNotEmpty()) {
+            if (sim.caBandDetails.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider()
                 Spacer(Modifier.height(4.dp))
-                LiveStatItem("CA Bands", sim.caBands.joinToString(", "), Modifier.fillMaxWidth())
+                Text(
+                    text = "CA Bands",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(4.dp))
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    sim.caBandDetails.forEach { ca ->
+                        val caRsrp = ca.rsrp.toIntOrNull()
+                        SuggestionChip(
+                            onClick = { },
+                            label = {
+                                Text(
+                                    text = "B${ca.band} PCI ${ca.pci}",
+                                    color = rsrpColor(caRsrp),
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        )
+                    }
+                }
             }
 
-            if (sim.anchorInfo.isNotEmpty()) {
+            if (sim.rat.startsWith("5G_NSA") && sim.anchorInfo.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider()
                 Spacer(Modifier.height(4.dp))
-                LiveStatItem("Anchor", sim.anchorInfo, Modifier.fillMaxWidth(), valueColor = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = "Anchor Cell",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    LiveStatItem("Band", "B${sim.anchorBand}", Modifier.weight(1f))
+                    LiveStatItem("ARFCN", sim.anchorArfcn, Modifier.weight(1f))
+                    LiveStatItem("PCI", sim.anchorPci, Modifier.weight(1f))
+                    LiveStatItem("TAC", sim.anchorTac, Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    val aRsrp = sim.anchorRsrp.toIntOrNull()
+                    val aRsrq = sim.anchorRsrq.toIntOrNull()
+                    val aSinr = sim.anchorSinr.toIntOrNull()
+                    LiveStatItem("RSRP", sim.anchorRsrp, Modifier.weight(1f), valueColor = rsrpColor(aRsrp))
+                    LiveStatItem("RSRQ", sim.anchorRsrq, Modifier.weight(1f), valueColor = rsrpColor(aRsrq))
+                    LiveStatItem("SINR", sim.anchorSinr, Modifier.weight(1f), valueColor = rsrpColor(aSinr))
+                }
             }
 
             if (rsrpHistory.isNotEmpty() || sinrHistory.isNotEmpty()) {

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Expandable SimCard on RecordingScreen** — tap a SIM card to expand it and see full 5G NSA anchor cell details (band, PCI, ARFCN, TAC, RSRP, RSRQ, SINR) and structured Carrier Aggregation band rows with per-band signal. The collapsed state shows a compact anchor summary or a `+N` CA badge so you always know when extra bands are active.
+- **Structured CA band chips on Live Info** — CA bands are now shown as individual chips in a flowing layout, each with its PCI and color-coded RSRP, making it easy to spot which secondary band has the best signal.
+- **Record detail bottom sheet** — tapping any record in the session detail list now opens a bottom sheet showing the full primary cell info, all CA bands with per-band signal, the LTE anchor cell for 5G NSA, location details, and connectivity stats.
+- **Signal quality color coding** — RSRP, RSRQ, and SINR values are now color-coded (green/cyan/orange/red) on the RecordingScreen, LiveInfoScreen, ReplayScreen, and the new record detail sheet, so you can instantly scan signal quality without reading numbers.
+- **Analytics band labels now use qualified names** — band distribution charts show `B3` for LTE and `n78` for 5G instead of generic "Band 3" / "Band 78". NR and LTE bands are grouped separately with cool (cyan/teal) and warm (blue/indigo) color ranges.
+- **Real insight cards in analytics** — the analytics panel now displays actual computed insights (Massive MIMO Candidate, Load Balancing Detected, Cross-Site Handoff Impact) instead of the placeholder robot emoji. When no insights are available, a compact empty state is shown.
+- **ReplayScreen parity with live recording** — the replay stats panel is now expandable and shows the same structured anchor and CA band detail as the live recording screen, plus color-coded signal values.
+- **Statistics screen band labels** — the global band distribution chart now uses qualified `B3`/`n78` labels and groups NR vs LTE bands with distinct colors, matching the session analytics panel.
 - **Coarse location permission** — the app now declares `ACCESS_COARSE_LOCATION` alongside `ACCESS_FINE_LOCATION`, as required on Android 12 and later so the system can offer users a coarse-only location grant.
 - **Network state permission** — declared `ACCESS_NETWORK_STATE` so the speedtest's Wi-Fi detection works correctly and cellular tests are skipped when on Wi-Fi.
 
@@ -16,12 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Updated all libraries and Android build tools to their latest versions** for long-term compatibility, security patches, and continued support in future Android Studio releases. This includes the Android Gradle Plugin, Kotlin, Compose, Hilt, Room, and all test libraries.
 - **Launcher icon now supports Android 13+ themed icons** — added a monochrome layer so the app icon adapts to themed home screens.
+- Shared signal-quality color helpers (`rsrpColor`, `ratColor`, etc.) and cell-formatting utilities (`formatCellId`, `formatPlmn`) are now centralized in `ui/shared/` to eliminate duplication across screens.
 
 ### Fixed
 
 - **Resolved all static analysis (lint) errors and warnings** — the project now builds clean with zero lint findings. Fixes include locale-safe number formatting in CSV exports and UI, correct Compose modifier parameter ordering, removal of redundant SDK version checks, and deletion of unused string/color resources.
 - **Themed/monochrome launcher icon** is now properly defined so the icon renders correctly on Android 13+ themed launchers.
 - **Indoor recording no longer gets stuck at the permissions dialog for existing users** — the physical activity permission is now requested at runtime as intended when starting an indoor session, instead of incorrectly routing to system Settings. The permission decision logic has been unified across all permission checkpoints in the app.
+- **Session detail RSRQ column header** now correctly reads "RSRQ (dBm)" instead of the duplicate "RSRP (dBm)".
+- **SimRecordRow now displays RSRQ** in its own column instead of showing latency/relative coordinates in the RSRQ slot.
 
 ## [1.2.0] - 2026-06-12
 

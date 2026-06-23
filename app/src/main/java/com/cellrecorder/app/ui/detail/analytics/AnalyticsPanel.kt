@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.cellrecorder.app.domain.analytics.model.CorrelationBin
 import com.cellrecorder.app.domain.analytics.model.SessionAnalytics
 import com.cellrecorder.app.domain.analytics.model.SpeedTestSessionAnalytics
+import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.analytics.components.AnomalyInspectorSheet
 import com.cellrecorder.app.ui.analytics.components.AnomalyList
 import com.cellrecorder.app.ui.analytics.components.CoverageBar
@@ -156,11 +157,24 @@ fun AnalyticsPanel(
             analytics.bandDistributionPerSim.forEach { (simSlot, items) ->
                 if (items.isNotEmpty()) {
                     item(key = "band_sim_$simSlot") {
+                        val groupedItems = items.groupBy { it.rat.startsWith("5G") }.toSortedMap(compareByDescending { it })
+                        val stackedItems = groupedItems.flatMap { (isNr, group) ->
+                            group.mapIndexed { index, item ->
+                                val color = if (isNr) {
+                                    nrColors[index % nrColors.size]
+                                } else {
+                                    lteColors[index % lteColors.size]
+                                }
+                                StackedItem(
+                                    BandResolver.formatBand(item.bandNumber, earfcn = null, rat = item.rat),
+                                    item.count,
+                                    color
+                                )
+                            }
+                        }
                         SimBarCard(
                             simLabel = "SIM ${simSlot + 1}",
-                            items = items.mapIndexed { i, it ->
-                                StackedItem("Band ${it.bandNumber}", it.count, bandColors[i % bandColors.size])
-                            },
+                            items = stackedItems,
                             total = items.sumOf { it.count }
                         )
                     }
@@ -170,7 +184,7 @@ fun AnalyticsPanel(
 
         // Section 7: AI Insights
         item(key = "insight") {
-            InsightCard()
+            InsightCard(insights = analytics.insightCards)
         }
 
         // Section 8: Speed Test (if data exists)
@@ -348,6 +362,14 @@ private data class StackedItem(
 private val bandColors = listOf(
     Color(0xFF1565C0), Color(0xFF7B1FA2), Color(0xFFC62828), Color(0xFF2E7D32),
     Color(0xFFE65100), Color(0xFF00838F), Color(0xFF4E342E), Color(0xFF37474F)
+)
+
+private val nrColors = listOf(
+    Color(0xFF00695C), Color(0xFF00838F), Color(0xFF0097A7), Color(0xFF00BCD4)
+)
+
+private val lteColors = listOf(
+    Color(0xFF1565C0), Color(0xFF283593), Color(0xFF3F51B5), Color(0xFF5C6BC0)
 )
 
 @Composable

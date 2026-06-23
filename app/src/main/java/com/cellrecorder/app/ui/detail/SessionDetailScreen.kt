@@ -315,6 +315,14 @@ fun SessionDetailScreen(
             }
         )
     }
+
+    val selected = selectedRecord
+    if (selected != null) {
+        RecordDetailSheet(
+            wrapper = selected,
+            onDismiss = { viewModel.selectRecord(null) }
+        )
+    }
 }
 
 @Composable
@@ -450,13 +458,23 @@ private fun SimRecordRow(
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.weight(1f)
         )
+        val bandText = if (wrapper.caBands.isNotEmpty()) {
+            "${BandResolver.formatBand(record.bandNumber, record.earfcn, record.rat)}+${wrapper.caBands.size}"
+        } else {
+            BandResolver.formatBand(record.bandNumber, record.earfcn, record.rat)
+        }
         Text(
-            text = BandResolver.formatBand(record.bandNumber, record.earfcn, record.rat),
+            text = bandText,
             style = MaterialTheme.typography.labelSmall,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = record.rsrp?.toString() ?: "---",
+            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = record.rsrq?.toString() ?: "---",
             style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
             modifier = Modifier.weight(1f)
         )
@@ -472,7 +490,7 @@ private fun SimRecordRow(
                 modifier = Modifier.weight(1f)
             )
         } else {
-Text(
+            Text(
                 text = record.avgLatencyMs?.let { String.format(Locale.US, "%.0f ms", it) } ?: "---",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                 modifier = Modifier.weight(1f)

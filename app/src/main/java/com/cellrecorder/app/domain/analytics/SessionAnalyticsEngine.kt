@@ -89,31 +89,36 @@ class SessionAnalyticsEngine {
         recordsWithCa: List<CellRecordWithCaBands>,
         bySim: Map<Int, List<CellRecordEntity>>
     ): Map<Int, List<BandDistItem>> {
-        val caBySim = mutableMapOf<Int, MutableMap<Int, Int>>()
+        val caBySim = mutableMapOf<Int, MutableMap<Int, Pair<Int, String>>>()
         for ((sim, recs) in bySim) {
             caBySim.getOrPut(sim) { mutableMapOf() }
         }
         for (wrapper in recordsWithCa) {
             val sim = wrapper.record.simSlotIndex ?: 0
+            val rat = wrapper.record.rat
             for (caBand in wrapper.caBands) {
                 val band = caBand.bandNumber ?: continue
                 val map = caBySim.getOrPut(sim) { mutableMapOf() }
-                map[band] = (map[band] ?: 0) + 1
+                val current = map[band]
+                map[band] = (current?.first ?: 0) + 1 to rat
             }
         }
 
         return bySim.mapValues { (sim, recs) ->
-            val primaryCounts = recs.filter { it.bandNumber != null }
-                .groupBy { it.bandNumber }
-                .mapValues { it.value.size }
-                .toMutableMap()
-
-            val caCounts = caBySim[sim] ?: emptyMap()
-            caCounts.forEach { (band, count) ->
-                primaryCounts[band] = (primaryCounts[band] ?: 0) + count
+            val primaryCounts = mutableMapOf<Int, Pair<Int, String>>()
+            for (rec in recs) {
+                val band = rec.bandNumber ?: continue
+                val current = primaryCounts[band]
+                primaryCounts[band] = (current?.first ?: 0) + 1 to rec.rat
             }
 
-            primaryCounts.map { (band, count) -> BandDistItem(band!!, count) }
+            val caCounts = caBySim[sim] ?: emptyMap()
+            caCounts.forEach { (band, pair) ->
+                val current = primaryCounts[band]
+                primaryCounts[band] = (current?.first ?: 0) + pair.first to (current?.second ?: pair.second)
+            }
+
+            primaryCounts.map { (band, pair) -> BandDistItem(band!!, pair.first, pair.second) }
                 .sortedByDescending { it.count }
         }
     }
