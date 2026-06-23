@@ -4,6 +4,25 @@
 
 Defines how the system measures network connectivity through ICMP ping during active recording sessions, including latency and packet loss calculation.
 
+## Scope
+
+This spec covers ICMP ping measurement. It does not define:
+- Speedtest throughput measurement (see `speedtest/spec.md`).
+- Recording lifecycle (see `recording/spec.md`).
+- Service mechanics (see `service/spec.md`).
+- UI display of ping results (see `ui/spec.md`).
+- Analytics on ping data (see `analytics/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — when ping runs during recording.
+- `service/spec.md` — how the ping process lifecycle is managed.
+- `process-cleanup/spec.md` — how ping processes are terminated on stop.
+- `speedtest/spec.md` — how speedtest complements ping (independent measurement).
+- `analytics/spec.md` — how ping latency and packet loss are analyzed.
+- `ui/spec.md` — how ping status is displayed on screen.
+- `test-foundation/spec.md` — unit test coverage for ping parsing.
+
 ## Requirements
 
 ### Requirement: Continuous Ping During Recording
@@ -99,7 +118,7 @@ The system SHALL compute the packet loss percentage from the sliding window at e
 
 ### Requirement: Speedtest as Separate Measurement
 
-The system SHALL provide throughput measurement as a separate, complementary measurement to ICMP ping, not as a replacement.
+The system SHALL provide throughput measurement as a separate, complementary measurement to ICMP ping, not as a replacement. Speedtest protocol is defined in `speedtest/spec.md`.
 
 #### Scenario: Speedtest measures throughput
 - GIVEN an active recording with speedtest enabled

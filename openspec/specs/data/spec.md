@@ -4,11 +4,31 @@
 
 Defines the formats and behavior for exporting and importing session data via CSV and GeoJSON files.
 
+## Scope
+
+This spec covers data persistence formats, export/import, and schema evolution. It does not define:
+- Cell identity processing (see `cell-info/spec.md`).
+- Session management (see `sessions/spec.md`).
+- Analytics computation (see `analytics/spec.md`).
+- Speedtest protocol (see `speedtest/spec.md`).
+- Indoor positioning (see `indoor/spec.md`).
+- UI dialogs (see `ui/spec.md`).
+
+## Related Specs
+
+- `cell-info/spec.md` — anchor cell and CA band semantics in exported data.
+- `sessions/spec.md` — when export/import is triggered from the UI.
+- `recording/spec.md` — what data is produced during recording.
+- `speedtest/spec.md` — speedtest data export format.
+- `indoor/spec.md` — indoor coordinate handling in export/import.
+- `analytics/spec.md` — database indices used by analytics queries.
+- `instrumented-test-coverage/spec.md` — DAO and migration test requirements.
+
 ## Requirements
 
 ### Requirement: CSV Export
 
-The system SHALL allow exporting a session's data as a CSV file. For `5G_NSA` records, the CSV SHALL include anchor cell columns.
+The system SHALL allow exporting a session's data as a CSV file. For `5G_NSA` records, the CSV SHALL include anchor cell columns. Anchor cell semantics are defined in `cell-info/spec.md`.
 
 #### Scenario: Export to CSV
 - GIVEN a session with recorded points
@@ -20,7 +40,7 @@ The system SHALL allow exporting a session's data as a CSV file. For `5G_NSA` re
 
 ### Requirement: GeoJSON Export
 
-The system SHALL allow exporting a session's data as a GeoJSON FeatureCollection. For `5G_NSA` records, the Feature properties SHALL include anchor cell fields.
+The system SHALL allow exporting a session's data as a GeoJSON FeatureCollection. For `5G_NSA` records, the Feature properties SHALL include anchor cell fields. Anchor cell semantics are defined in `cell-info/spec.md`.
 
 #### Scenario: Export to GeoJSON
 - GIVEN a session with recorded points
@@ -116,7 +136,7 @@ The system SHALL allow importing cell records from a CSV file by parsing the fil
 
 ### Requirement: Batch Re-Split
 
-The system SHALL allow the user to re-apply the cell ID split formula to all points in an existing session, including 5G NSA records.
+The system SHALL allow the user to re-apply the cell ID split formula to all points in an existing session, including 5G NSA records. Cell ID split logic is defined in `cell-info/spec.md`.
 
 #### Scenario: Batch re-split
 - GIVEN a session with recorded points
@@ -168,7 +188,7 @@ The system SHALL store speedtest results in a separate Room entity, not mixed wi
 
 ### Requirement: Speedtest CSV Export
 
-The system SHALL include speedtest data in session export when speedtest records exist.
+The system SHALL include speedtest data in session export when speedtest records exist. Speedtest data semantics are defined in `speedtest/spec.md`.
 
 #### Scenario: Speedtest CSV export
 - GIVEN a session with speedtest records

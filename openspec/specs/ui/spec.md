@@ -4,6 +4,35 @@
 
 Defines the user interface screens, navigation structure, and interactive behavior of the application.
 
+## Scope
+
+This spec covers screen layouts, controls, navigation, and visual feedback. It does not define:
+- Recording lifecycle or triggers (see `recording/spec.md`).
+- Foreground service mechanics (see `service/spec.md`).
+- Cell identity processing (see `cell-info/spec.md`).
+- Ping measurement (see `connectivity/spec.md`).
+- Speedtest protocol (see `speedtest/spec.md`).
+- Indoor positioning math (see `indoor/spec.md`).
+- Permission UI logic (see `permission-flow/spec.md`).
+- Post-session analytics (see `analytics/spec.md`).
+- Data formats or persistence (see `data/spec.md`).
+- Database concurrency (see `thread-safety/spec.md`, `db-write-safety/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — what the recording screen monitors and controls.
+- `service/spec.md` — how the notification interacts with the service.
+- `sessions/spec.md` — session list, detail, replay, and export/import UI triggers.
+- `analytics/spec.md` — analytics panels displayed in session detail and statistics.
+- `data/spec.md` — export/import dialog behavior and format choices.
+- `cell-info/spec.md` — how live cell data is rendered on screen.
+- `connectivity/spec.md` — how ping status is displayed.
+- `speedtest/spec.md` — how speedtest status and results are displayed.
+- `indoor/spec.md` — indoor canvas, tracking confidence, drift radius, and origin reset UI.
+- `permission-flow/spec.md` — how permission rationale and settings dialogs are rendered.
+- `test-foundation/spec.md` — UI smoke test coverage requirements.
+- `instrumented-test-coverage/spec.md` — Compose screen test coverage requirements.
+
 ## Requirements
 
 ### Requirement: Bottom Navigation
@@ -38,7 +67,7 @@ The system SHALL display real-time cell information for all active SIMs.
 
 ### Requirement: Recording Screen
 
-The system SHALL provide a screen for controlling and monitoring an active recording. The screen layout SHALL differ based on recording mode: outdoor mode shows an OSM map with GPS status; indoor mode shows a 2D canvas with tracking confidence and drift indicators.
+The system SHALL provide a screen for controlling and monitoring an active recording. The screen layout SHALL differ based on recording mode: outdoor mode shows an OSM map with GPS status; indoor mode shows a 2D canvas with tracking confidence and drift indicators. Recording lifecycle is defined in `recording/spec.md`; indoor positioning is defined in `indoor/spec.md`.
 
 #### Scenario: Recording screen layout
 - GIVEN a session has been created
@@ -76,7 +105,7 @@ The system SHALL provide a screen for controlling and monitoring an active recor
 
 ### Requirement: Settings Screen
 
-The system SHALL provide a settings screen for configuring recording and analytics parameters, including indoor-specific settings.
+The system SHALL provide a settings screen for configuring recording and analytics parameters, including indoor-specific settings. Configuration defaults and ranges are defined in `indoor/spec.md` and `recording/spec.md`.
 
 #### Scenario: Settings sections
 - GIVEN the Settings screen
@@ -123,7 +152,7 @@ The system SHALL display aggregate statistics across all sessions.
 
 ### Requirement: Replay Screen — Speedtest Summary
 
-The system SHALL display a dynamic speedtest summary card during session replay that updates based on the current playback position.
+The system SHALL display a dynamic speedtest summary card during session replay that updates based on the current playback position. Speedtest marker behavior is defined in `speedtest/spec.md` and `sessions/spec.md`.
 
 #### Scenario: Auto-updating speedtest summary
 - GIVEN replay mode is active
@@ -145,7 +174,7 @@ The system SHALL display a dynamic speedtest summary card during session replay 
 
 ### Requirement: Statistics Screen — Speedtest Overview
 
-The system SHALL display a conditional speedtest overview card on the global statistics screen.
+The system SHALL display a conditional speedtest overview card on the global statistics screen. Speedtest data semantics are defined in `speedtest/spec.md` and `analytics/spec.md`.
 
 #### Scenario: Speedtest global stats
 - GIVEN the Statistics tab is selected
@@ -165,7 +194,7 @@ The system SHALL provide an indoor recording settings section for configuring st
 
 ### Requirement: Indoor Path Canvas
 
-The system SHALL display a 2D path canvas for indoor recording and indoor session detail/replay views.
+The system SHALL display a 2D path canvas for indoor recording and indoor session detail/replay views. Indoor positioning logic is defined in `indoor/spec.md`; indoor session replay is defined in `sessions/spec.md`.
 
 #### Scenario: Indoor canvas layout
 - GIVEN an active indoor recording or indoor session detail view
@@ -204,7 +233,7 @@ The system SHALL support the existing `MapDisplayMode` options on the indoor pat
 
 ### Requirement: Tracking Confidence Indicator
 
-The system SHALL display a tracking confidence indicator during indoor recording.
+The system SHALL display a tracking confidence indicator during indoor recording. Drift estimation is defined in `indoor/spec.md`.
 
 #### Scenario: Confidence state displayed
 - GIVEN an active indoor recording
@@ -221,7 +250,7 @@ The system SHALL display a tracking confidence indicator during indoor recording
 
 ### Requirement: Origin Reset Button
 
-The system SHALL provide a "Reset Origin" button on the indoor recording screen.
+The system SHALL provide a "Reset Origin" button on the indoor recording screen. Origin reset logic is defined in `indoor/spec.md`.
 
 #### Scenario: Reset origin button visible
 - GIVEN an active indoor recording
@@ -236,7 +265,7 @@ The system SHALL provide a "Reset Origin" button on the indoor recording screen.
 
 ### Requirement: Drift Radius Visualization
 
-The system SHALL display a drift radius circle on the indoor path canvas.
+The system SHALL display a drift radius circle on the indoor path canvas. Drift estimation is defined in `indoor/spec.md`.
 
 #### Scenario: Drift radius rendered
 - GIVEN an active indoor recording
@@ -247,7 +276,7 @@ The system SHALL display a drift radius circle on the indoor path canvas.
 
 ### Requirement: Indoor Recording Screen Layout
 
-The system SHALL provide an indoor recording screen layout adapted from the outdoor recording screen.
+The system SHALL provide an indoor recording screen layout adapted from the outdoor recording screen. Indoor positioning and service integration are defined in `indoor/spec.md` and `service/spec.md`.
 
 #### Scenario: Indoor recording screen layout
 - GIVEN an indoor recording session has been started
@@ -269,7 +298,7 @@ The system SHALL provide an indoor recording screen layout adapted from the outd
 
 ### Requirement: Ping Latency Display in Indoor Recording
 
-The system SHALL display current ping latency in the indoor recording screen's live stats bar.
+The system SHALL display current ping latency in the indoor recording screen's live stats bar. Ping measurement is defined in `connectivity/spec.md`.
 
 #### Scenario: Ping latency shown in indoor mode
 - GIVEN an active indoor recording
@@ -279,7 +308,7 @@ The system SHALL display current ping latency in the indoor recording screen's l
 
 ### Requirement: Sensor Health Warning in Indoor UI
 
-The system SHALL display a sensor health warning when step detection is not receiving events.
+The system SHALL display a sensor health warning when step detection is not receiving events. Step detection logic is defined in `indoor/spec.md`.
 
 #### Scenario: Sensor health warning visible
 - GIVEN an active indoor recording with no step events for 10+ seconds

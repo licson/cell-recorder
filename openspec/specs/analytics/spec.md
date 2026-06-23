@@ -4,6 +4,27 @@
 
 Defines the post-hoc analyses the system computes on recorded session data, including coverage analysis, signal statistics, anomaly detection, handoff detection, mobility classification, and network insight generation.
 
+## Scope
+
+This spec covers analytics computed on recorded session data. It does not define:
+- How recording produces the data (see `recording/spec.md`).
+- How cell identities are interpreted (see `cell-info/spec.md`).
+- How ping data is collected (see `connectivity/spec.md`).
+- How speedtest data is collected (see `speedtest/spec.md`).
+- How the UI displays analytics (see `ui/spec.md`).
+- How indoor positioning works (see `indoor/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — the data source for analytics; defines indoor recording mode.
+- `cell-info/spec.md` — cell identity and RAT definitions used in analytics.
+- `connectivity/spec.md` — ping latency and packet loss semantics.
+- `speedtest/spec.md` — speedtest data semantics and correlation fields.
+- `ui/spec.md` — how analytics panels are rendered.
+- `sessions/spec.md` — where analytics are triggered and displayed.
+- `test-foundation/spec.md` — unit test coverage for analytics engines.
+- `instrumented-test-coverage/spec.md` — integration test coverage for analytics.
+
 ## Global Behavior
 
 The engine sorts cell records by timestamp once at the start of `analyze()`. All downstream functions operate on sorted data.
@@ -195,7 +216,7 @@ The system SHALL generate insight cards based on handoff analysis. 5G insight ca
 
 ### Requirement: Speedtest Analytics — Per-Session Summary
 
-The system SHALL compute throughput summary statistics for sessions that contain speedtest records.
+The system SHALL compute throughput summary statistics for sessions that contain speedtest records. Speedtest data semantics are defined in `speedtest/spec.md`.
 
 #### Scenario: Speedtest summary computed
 - GIVEN a session with speedtest records
@@ -209,7 +230,7 @@ The system SHALL compute throughput summary statistics for sessions that contain
 
 ### Requirement: Indoor Session Analytics Exclusion
 
-The system SHALL exclude indoor sessions from geographic-dependent analytics.
+The system SHALL exclude indoor sessions from geographic-dependent analytics. Indoor recording mode is defined in `recording/spec.md`.
 
 #### Scenario: Indoor sessions excluded from geographic analytics
 - GIVEN a session with `recordingMode = "INDOOR"`
@@ -225,7 +246,7 @@ The system SHALL exclude indoor sessions from geographic-dependent analytics.
 
 ### Requirement: Speedtest Analytics — Throughput Correlations
 
-The system SHALL compute correlations between throughput and cellular conditions per session.
+The system SHALL compute correlations between throughput and cellular conditions per session. Speedtest data and RSRP/band semantics are defined in `speedtest/spec.md` and `cell-info/spec.md`.
 
 #### Scenario: RSRP-download correlation
 - GIVEN a session with speedtest records

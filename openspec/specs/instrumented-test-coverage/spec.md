@@ -4,6 +4,24 @@
 
 Defines the coverage contract for the instrumented (androidTest) test layer: ViewModels, Compose screens, UseCases, DAOs, repositories, and migrations. Ensures integration regressions are caught during development instead of in the field.
 
+## Scope
+
+This spec covers device/emulator test coverage. It does not define:
+- JVM unit test coverage (see `test-foundation/spec.md`).
+- Feature behavior (see the relevant capability spec).
+
+## Related Specs
+
+- `test-foundation/spec.md` — JVM unit test coverage requirements.
+- `data/spec.md` — database schema and migration requirements under test.
+- `recording/spec.md` — recording lifecycle behavior verified by ViewModel tests.
+- `sessions/spec.md` — session management behavior verified by ViewModel and screen tests.
+- `ui/spec.md` — screen rendering behavior verified by Compose smoke tests.
+- `analytics/spec.md` — analytics computation verified by integration tests.
+- `cell-info/spec.md` — cell entity fields verified by DAO round-trip tests.
+- `speedtest/spec.md` — speedtest entity fields verified by DAO round-trip tests.
+- `permission-flow/spec.md` — permission helper behavior verified by unit tests.
+
 ## Requirements
 
 ### Requirement: Instrumented test coverage for ViewModels with DB-only dependencies

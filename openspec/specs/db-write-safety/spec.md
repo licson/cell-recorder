@@ -4,6 +4,20 @@
 
 Ensures that critical database writes during recording shutdown complete reliably, even when the service scope is cancelled, and prevents redundant stop operations from causing state inconsistencies.
 
+## Scope
+
+This spec covers database durability during service teardown. It does not define:
+- Recording lifecycle (see `recording/spec.md`).
+- Service lifecycle (see `service/spec.md`).
+- Thread safety (see `thread-safety/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — when recording stops and finalizes.
+- `service/spec.md` — how the service scope is cancelled on stop.
+- `thread-safety/spec.md` — how concurrent state access is protected.
+- `instrumented-test-coverage/spec.md` — migration and DAO test requirements.
+
 ## Requirements
 
 ### Requirement: Session database writes survive service scope cancellation

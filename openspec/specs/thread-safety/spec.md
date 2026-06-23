@@ -4,6 +4,19 @@
 
 Defines thread-safety requirements for shared mutable state accessed by concurrent coroutines during active recording sessions, ensuring consistent snapshots and preventing lost updates.
 
+## Scope
+
+This spec covers concurrency constraints on recording state. It does not define:
+- Recording behavior (see `recording/spec.md`).
+- Service lifecycle (see `service/spec.md`).
+- Database write guarantees (see `db-write-safety/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — the recording lifecycle that produces concurrent state updates.
+- `service/spec.md` — the service context where concurrent jobs run.
+- `db-write-safety/spec.md` — database durability during concurrent shutdown.
+
 ## Requirements
 
 ### Requirement: Thread-safe state snapshots for shared recording objects

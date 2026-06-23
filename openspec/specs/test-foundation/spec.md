@@ -4,6 +4,23 @@
 
 Defines the coverage contract for the JVM unit test layer (`app/src/test/`): pure-logic domain components, extensions to existing tests for documented behavioral gaps, and extraction of pure logic from Android-coupled classes so that logic can be unit-tested without a device. Ensures pure-logic regressions are caught at the JVM level and that behavior-preserving refactors are guarded by characterization tests.
 
+## Scope
+
+This spec covers JVM unit test coverage and pure-logic extraction. It does not define:
+- Instrumented test coverage (see `instrumented-test-coverage/spec.md`).
+- Feature behavior (see the relevant capability spec).
+
+## Related Specs
+
+- `instrumented-test-coverage/spec.md` — androidTest coverage requirements.
+- `cell-info/spec.md` — band resolution logic under test.
+- `connectivity/spec.md` — ping parsing logic under test.
+- `recording/spec.md` — GPS state machine and extrapolation logic under test.
+- `indoor/spec.md` — indoor step detection and drift logic under test.
+- `speedtest/spec.md` — speedtest config parsing and analytics under test.
+- `data/spec.md` — CSV and GeoJSON import parser logic under test.
+- `permission-flow/spec.md` — permission helper logic under test.
+
 ## Requirements
 
 ### Requirement: Pure-logic domain components SHALL have unit tests

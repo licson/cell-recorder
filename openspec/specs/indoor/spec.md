@@ -4,6 +4,22 @@
 
 Defines the indoor position tracking system using IMU-based pedestrian dead reckoning, including step detection, heading estimation, drift modeling, origin reset, and required permissions.
 
+## Scope
+
+This spec covers the indoor positioning subsystem only. It does not define:
+- The recording lifecycle (see `recording/spec.md`).
+- The foreground service mechanics (see `service/spec.md`).
+- Permission UI flow (see `permission-flow/spec.md`).
+- Indoor screen rendering (see `ui/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — how indoor recording mode is triggered and stopped.
+- `service/spec.md` — how the foreground service initializes indoor positioning instead of GPS.
+- `permission-flow/spec.md` — how `ACTIVITY_RECOGNITION` is requested.
+- `ui/spec.md` — how the indoor canvas, tracking confidence, and drift radius are displayed.
+- `test-foundation/spec.md` — pure-logic extraction requirements for indoor step detection.
+
 ## Requirements
 
 ### Requirement: Step Detection Position Tracking
@@ -36,20 +52,20 @@ The system SHALL estimate indoor position using Android's `TYPE_STEP_DETECTOR` s
 
 ### Requirement: Activity Recognition Permission Check
 
-The system SHALL require `android.permission.ACTIVITY_RECOGNITION` for indoor recording on Android 10+ (API 29+). The permission SHALL be gated at the screen layer before an indoor session is allowed to start, using the unified permission decision logic defined in the `permission-flow` capability. The permission SHALL be requested at runtime when the user attempts to start an indoor session and the permission is not granted.
+The system SHALL require `android.permission.ACTIVITY_RECOGNITION` for indoor recording on Android 10+ (API 29+). The permission SHALL be gated at the screen layer before an indoor session is allowed to start, using the unified permission decision logic defined in `permission-flow/spec.md`. The permission SHALL be requested at runtime when the user attempts to start an indoor session and the permission is not granted.
 
 #### Scenario: Permission required before indoor recording
 - GIVEN the user attempts to start an indoor recording on API 29+
 - WHEN `ACTIVITY_RECOGNITION` is not granted
 - THEN indoor recording SHALL NOT start
-- AND a permission request is shown (rationale dialog, then system request) per the `permission-flow` capability
+- AND a permission request is shown (rationale dialog, then system request) per `permission-flow/spec.md`
 - AND an error message informs the user that activity recognition permission is required
 
 #### Scenario: Permission denied prevents indoor recording
 - GIVEN the user attempts to start an indoor recording on API 29+
 - WHEN `ACTIVITY_RECOGNITION` is permanently denied
 - THEN indoor recording SHALL NOT start
-- AND the user is directed to system Settings per the `permission-flow` capability
+- AND the user is directed to system Settings per `permission-flow/spec.md`
 
 #### Scenario: Permission not required for outdoor recording
 - GIVEN the user attempts to start an outdoor recording
@@ -73,7 +89,7 @@ The system SHALL maintain and expose the current indoor position state including
 - GIVEN an active indoor recording
 - THEN `IndoorPositionCollector` exposes `originResetTimestampMs` (the wall-clock time of the last origin reset)
 - AND `RecordingState.timeSinceOriginResetMs` is populated as `now - originResetTimestampMs` by `RecordingService.stateUpdateJob`
-- AND `TrackingConfidenceIndicator` displays this elapsed time
+- AND the tracking confidence indicator displays this elapsed time (see `ui/spec.md`)
 
 ### Requirement: Drift Estimation
 
@@ -113,7 +129,7 @@ The system SHALL allow the user to reset the indoor position to a new (0,0) orig
 - AND the path has a visible discontinuity at the reset point
 - AND new path segments continue from (0,0)
 - AND `RecordingState.recordedDiscontinuities` includes the index of the pre-reset path point (the last point before the origin reset), so that the line from the pre-reset point to the post-reset (0,0) point is not drawn
-- AND `IndoorPathCanvas` renders an orange break/gap marker at that index and does not draw a line across it
+- AND `IndoorPathCanvas` renders an orange break/gap marker at that index and does not draw a line across it (see `ui/spec.md`)
 
 ### Requirement: Step Length Configuration
 
@@ -142,3 +158,33 @@ The system SHALL use a configurable time interval for indoor recording triggers.
 - WHEN the user adjusts the indoor recording interval
 - THEN `indoorRecordingIntervalMs` is updated to the new value
 - AND the new value is used for subsequent indoor recordings
+
+### Requirement: Accelerometer Step Detection Fallback
+
+The system SHALL provide accelerometer-based step detection as a fallback when `TYPE_STEP_DETECTOR` is unavailable, permission is denied, or sensor registration fails.
+
+#### Scenario: Falling back to accelerometer when TYPE_STEP_DETECTOR not available
+- GIVEN the user attempts to start an indoor recording
+- WHEN `TYPE_STEP_DETECTOR` returns null from `getDefaultSensor()` or `registerListener()` returns false
+- THEN the system starts accelerometer-based step detection using `TYPE_ACCELEROMETER`
+- AND steps are detected by monitoring acceleration magnitude peaks
+
+#### Scenario: Falling back to accelerometer when registration fails
+- GIVEN the `ACTIVITY_RECOGNITION` permission is granted
+- WHEN `TYPE_STEP_DETECTOR.registerListener()` returns false
+- THEN the system falls back to accelerometer-based step detection
+- AND indoor recording proceeds with the fallback
+
+#### Scenario: Accelerometer step detection algorithm
+- GIVEN the accelerometer fallback is active
+- WHEN accelerometer sensor events are received
+- THEN the acceleration magnitude is computed as `sqrt(x² + y² + z²)`
+- AND a low-pass filter (alpha = 0.1) smooths the magnitude signal
+- AND a step is detected when the filtered magnitude exceeds 1.15× the gravity baseline
+- AND a cooldown of 350ms is enforced between detected steps
+- AND each detected step increments the position by `indoorStepLengthM` in the current heading direction
+
+#### Scenario: Accelerometer fallback registers on IMU thread
+- GIVEN the accelerometer fallback is active
+- THEN the sensor listener is registered with `SENSOR_DELAY_GAME` for responsive step detection
+- AND the sensor events are delivered on the main looper for thread-safe state updates

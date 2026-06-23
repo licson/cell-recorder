@@ -3,6 +3,24 @@
 ## Purpose
 
 Defines how the system collects and processes cellular network information from all active SIM subscriptions, including carrier aggregation bands and cell identity splitting.
+
+## Scope
+
+This spec covers cell data interpretation and identity processing. It does not define:
+- Recording lifecycle (see `recording/spec.md`).
+- How cell data is displayed (see `ui/spec.md`).
+- How cell data is exported (see `data/spec.md`).
+- How analytics use cell data (see `analytics/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — when cell data is collected during recording.
+- `data/spec.md` — how cell data is exported (anchor columns, CA bands).
+- `analytics/spec.md` — how analytics use RAT, band, and cell identity.
+- `ui/spec.md` — how live cell data is displayed.
+- `test-foundation/spec.md` — unit test coverage for band resolution.
+- `instrumented-test-coverage/spec.md` — DAO round-trip tests for cell entities.
+
 ## Requirements
 ### Requirement: Cell Info Collection per Subscription
 
@@ -76,7 +94,7 @@ The system SHALL allow the user to configure the NR gNB bit length used for cell
 
 ### Requirement: Batch Re-Split
 
-The system SHALL allow the user to re-apply the cell ID split formula to all points in an existing session.
+The system SHALL allow the user to re-apply the cell ID split formula to all points in an existing session. Batch re-split is invoked from the session list; see `sessions/spec.md` and `data/spec.md` for the user flow.
 
 #### Scenario: Batch re-split
 - GIVEN a session with recorded points

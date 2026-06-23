@@ -4,6 +4,22 @@
 
 Defines the unified permission decision logic and shared UI state that every runtime permission checkpoint in the app uses to determine whether to show a rationale dialog, direct the user to system Settings, or proceed with the gated action. Guarantees identical behavior across `MainActivity` cold-start, `RecordingScreen` Start button, and any future permission checkpoints.
 
+## Scope
+
+This spec covers permission decision logic only. It does not define:
+- Which permissions the service needs (see `service/spec.md`).
+- Indoor-specific permission requirements (see `indoor/spec.md`).
+- How UI screens render dialogs (see `ui/spec.md`).
+- Recording lifecycle (see `recording/spec.md`).
+
+## Related Specs
+
+- `service/spec.md` — which permissions the foreground service declares and requires.
+- `indoor/spec.md` — `ACTIVITY_RECOGNITION` requirements for indoor recording.
+- `recording/spec.md` — how permission gating affects recording start.
+- `ui/spec.md` — how rationale and settings dialogs are rendered.
+- `test-foundation/spec.md` — unit test coverage for permission helper logic.
+
 ## Requirements
 
 ### Requirement: Unified Permission Decision Logic
@@ -36,7 +52,7 @@ The system SHALL use a single, shared permission decision function to determine 
 
 ### Requirement: Rationale Shown Before Every Runtime Request
 
-The system SHALL show the in-app rationale dialog before launching any runtime permission request, except when the permission is permanently denied (in which case the Settings dialog is shown instead). The system SHALL NOT skip the rationale dialog for never-asked permissions. The rationale dialog SHALL list all permissions about to be requested and their purposes, and SHALL adapt its content to the recording mode (e.g., include the physical activity permission only for indoor mode).
+The system SHALL show the in-app rationale dialog before launching any runtime permission request, except when the permission is permanently denied (in which case the Settings dialog is shown instead). The system SHALL NOT skip the rationale dialog for never-asked permissions. The rationale dialog SHALL list all permissions about to be requested and their purposes, and SHALL adapt its content to the recording mode (e.g., include the physical activity permission only for indoor mode). Indoor permission requirements are defined in `indoor/spec.md`.
 
 #### Scenario: Rationale shown before first request
 - GIVEN the user has never been asked for a permission

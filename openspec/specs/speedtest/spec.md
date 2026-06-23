@@ -4,6 +4,27 @@
 
 Defines the behavior of continuous throughput measurement during active recording sessions using a custom Kotlin implementation of the Speedtest.net HTTP protocol, including server discovery, download/upload measurement, WiFi skip policy, and data collection.
 
+## Scope
+
+This spec covers the speedtest protocol and measurement. It does not define:
+- Recording lifecycle (see `recording/spec.md`).
+- Ping measurement (see `connectivity/spec.md`).
+- Service mechanics (see `service/spec.md`).
+- UI display of speedtest results (see `ui/spec.md`).
+- Analytics on speedtest data (see `analytics/spec.md`).
+- Data export formats (see `data/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — when speedtest runs during recording.
+- `connectivity/spec.md` — how ping operates independently of speedtest.
+- `service/spec.md` — how the speedtest job is managed within the service.
+- `data/spec.md` — speedtest data export format.
+- `analytics/spec.md` — speedtest analytics and correlations.
+- `ui/spec.md` — speedtest status and results displayed on screen.
+- `test-foundation/spec.md` — unit test coverage for speedtest config parsing and analytics.
+- `instrumented-test-coverage/spec.md` — DAO round-trip tests for speedtest entities.
+
 ## HTTP Client
 
 All HTTP requests SHALL use a shared `OkHttpClient` instance with connection pooling (8 idle connections, 30s keep-alive) to enable TLS session resumption and reduce connection establishment overhead across parallel measurement threads.

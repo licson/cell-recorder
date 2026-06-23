@@ -4,6 +4,27 @@
 
 Defines how the system manages recording sessions: listing, viewing details, replaying, and deleting sessions.
 
+## Scope
+
+This spec covers session CRUD, replay, and detail views. It does not define:
+- Recording lifecycle or triggers (see `recording/spec.md`).
+- Cell identity processing (see `cell-info/spec.md`).
+- Analytics computation (see `analytics/spec.md`).
+- Speedtest protocol (see `speedtest/spec.md`).
+- Indoor positioning (see `indoor/spec.md`).
+- Data export/import formats (see `data/spec.md`).
+- UI screen rendering (see `ui/spec.md`).
+
+## Related Specs
+
+- `recording/spec.md` — session creation and recording lifecycle.
+- `analytics/spec.md` — analytics panels displayed in session detail.
+- `data/spec.md` — export/import formats triggered from session list.
+- `cell-info/spec.md` — cell identity and RAT definitions used in replay.
+- `speedtest/spec.md` — speedtest data displayed in replay.
+- `ui/spec.md` — screen layouts and controls for session views.
+- `indoor/spec.md` — indoor session positioning and canvas behavior.
+
 ## Requirements
 
 ### Requirement: Session List
@@ -98,7 +119,7 @@ The system SHALL display an analytics panel alongside the map.
 
 ### Requirement: Session Replay
 
-The system SHALL replay a session's recorded path with animated playback. For `5G_NSA` records, the replay stats panel SHALL display both the NR cell data and the LTE anchor cell data.
+The system SHALL replay a session's recorded path with animated playback. For `5G_NSA` records, the replay stats panel SHALL display both the NR cell data and the LTE anchor cell data. 5G NSA anchor semantics are defined in `cell-info/spec.md`.
 
 #### Scenario: Replay started
 - GIVEN a session with recorded points
@@ -122,7 +143,7 @@ The system SHALL replay a session's recorded path with animated playback. For `5
 
 ### Requirement: Session Replay — Speedtest Markers
 
-The system SHALL display speedtest markers on the replay timeline when speedtest records exist for the session.
+The system SHALL display speedtest markers on the replay timeline when speedtest records exist for the session. Speedtest data semantics are defined in `speedtest/spec.md`.
 
 #### Scenario: Speedtest markers on timeline
 - GIVEN a session with speedtest records and replay mode is active
@@ -145,7 +166,7 @@ The system SHALL display speedtest markers on the replay timeline when speedtest
 
 ### Requirement: Indoor Session Detail
 
-The system SHALL display an indoor session's detail view with a 2D path canvas instead of a map, preserving all non-geographic functionality from the outdoor detail view.
+The system SHALL display an indoor session's detail view with a 2D path canvas instead of a map, preserving all non-geographic functionality from the outdoor detail view. Indoor positioning is defined in `indoor/spec.md`.
 
 #### Scenario: Indoor session detail loaded
 - GIVEN the user taps an indoor session in the list
@@ -176,7 +197,7 @@ The system SHALL display an indoor session's detail view with a 2D path canvas i
 
 ### Requirement: Indoor Session Replay
 
-The system SHALL replay an indoor session's recorded path with animated playback on a 2D canvas, preserving the same time-based controls and panels as outdoor replay.
+The system SHALL replay an indoor session's recorded path with animated playback on a 2D canvas, preserving the same time-based controls and panels as outdoor replay. Indoor positioning is defined in `indoor/spec.md`.
 
 #### Scenario: Indoor replay started
 - GIVEN an indoor session with recorded points

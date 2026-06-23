@@ -4,6 +4,33 @@
 
 Manages the lifecycle of recording sessions, including creation, start/stop controls, location-based point triggers, GPS accuracy filtering, sensor fusion fallback during GPS loss, multi-SIM data capture, and indoor recording mode with IMU-based position tracking.
 
+## Scope
+
+This spec covers the recording lifecycle and data-capture triggers. It does not cover:
+- Foreground service mechanics (see `service/spec.md`).
+- Cell identity processing (see `cell-info/spec.md`).
+- Ping measurement (see `connectivity/spec.md`).
+- Speedtest protocol details (see `speedtest/spec.md`).
+- Indoor PDR math and sensor fallback (see `indoor/spec.md`).
+- Permission UI flow (see `permission-flow/spec.md`).
+- Screen rendering (see `ui/spec.md`).
+- Database migration (see `data/spec.md`).
+
+## Related Specs
+
+- `service/spec.md` — how the foreground service hosts recording.
+- `cell-info/spec.md` — how cell data is interpreted during recording.
+- `connectivity/spec.md` — how ping runs alongside recording.
+- `speedtest/spec.md` — how speedtest runs alongside recording.
+- `indoor/spec.md` — how indoor positioning replaces GPS.
+- `permission-flow/spec.md` — how runtime permissions gate recording start.
+- `ui/spec.md` — how the recording screen displays state.
+- `data/spec.md` — how recorded points are persisted and exported.
+- `thread-safety/spec.md` — concurrency constraints on recording state.
+- `db-write-safety/spec.md` — database finalization on stop.
+- `process-cleanup/spec.md` — subprocess cleanup when recording stops.
+- `test-foundation/spec.md` — pure-logic extraction for testable recording components.
+
 ## Requirements
 
 ### Requirement: Session Creation
@@ -17,7 +44,7 @@ The system SHALL allow the user to create a named recording session.
 
 ### Requirement: Recording Start
 
-The system SHALL start a foreground service when the user initiates a recording. For indoor sessions, the service SHALL use `IndoorPositionCollector` instead of `LocationCollector` and SHALL NOT start GPS-based location collection.
+The system SHALL start a foreground service when the user initiates a recording. For indoor sessions, the service SHALL use `IndoorPositionCollector` instead of `LocationCollector` and SHALL NOT start GPS-based location collection. See `indoor/spec.md` for indoor positioning details and `service/spec.md` for foreground service mechanics.
 
 #### Scenario: Start recording from recording screen
 - GIVEN a session with `endedAt = null`
@@ -32,10 +59,11 @@ The system SHALL start a foreground service when the user initiates a recording.
 - AND the service begins collecting cell data using time-based triggers
 - AND position is estimated via `IndoorPositionCollector`
 - AND no GPS location requests are made
+- (Indoor positioning details: `indoor/spec.md`; service mechanics: `service/spec.md`)
 
 ### Requirement: Recording Stop
 
-The system SHALL stop the foreground service and finalize the session when the user ends the recording. The stop operation SHALL be idempotent and the database finalization SHALL survive service scope cancellation.
+The system SHALL stop the foreground service and finalize the session when the user ends the recording. The stop operation SHALL be idempotent and the database finalization SHALL survive service scope cancellation. See `db-write-safety/spec.md` for shutdown write guarantees and `service/spec.md` for service termination.
 
 #### Scenario: Stop recording via button
 - GIVEN an active recording
@@ -112,6 +140,7 @@ The system SHALL continue recording using sensor-based dead reckoning when GPS f
 - GIVEN an active indoor recording
 - THEN GPS loss extrapolation SHALL NOT be used
 - AND no fallback recording job for GPS loss detection is launched
+- (Indoor positioning is governed by `indoor/spec.md`)
 
 ### Requirement: Multi-SIM Recording
 
@@ -207,6 +236,7 @@ The system SHALL support an indoor recording mode that uses IMU-based pedestrian
 - THEN the recording service begins collecting cell data using time-based triggers
 - AND position is estimated via `IndoorPositionCollector` instead of `LocationCollector`
 - AND no GPS location requests are made
+- (Indoor positioning details: `indoor/spec.md`)
 
 #### Scenario: Time-based recording triggers for indoor
 - GIVEN an active indoor recording
@@ -214,6 +244,7 @@ The system SHALL support an indoor recording mode that uses IMU-based pedestrian
 - THEN a new point is recorded with the current indoor position (relativeX, relativeY)
 - AND `locationSource = "INDOOR_IMU"`, `isLocationEstimated = false`
 - AND `latitude`, `longitude`, `altitude`, `accuracy` are set to sentinel `0.0`/`0f` values (the `CellRecordEntity` columns are non-nullable, so `null` is not representable; 0 is used as a sentinel and indoor records are identified by `locationSource = "INDOOR_IMU"` and non-null `relativeX`/`relativeY`)
+- (Indoor positioning configuration: `indoor/spec.md`)
 
 #### Scenario: No GPS distance triggers in indoor mode
 - GIVEN an active indoor recording
@@ -230,3 +261,4 @@ The system SHALL store the indoor movement path using the same efficient data st
 - THEN the (relativeX, relativeY) pair is appended to the path buffer
 - AND the path buffer uses the same O(1) insertion/removal structure as outdoor mode
 - AND the path is exposed via `recordedPathSnapshot` for the recording screen
+- (Path rendering: `ui/spec.md`)

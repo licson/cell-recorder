@@ -4,6 +4,19 @@
 
 Ensures that ping processes are reliably terminated on all cancellation paths, preventing zombie processes when flow collectors are cancelled or processes hang indefinitely.
 
+## Scope
+
+This spec covers subprocess cleanup during recording shutdown. It does not define:
+- Ping measurement behavior (see `connectivity/spec.md`).
+- Service lifecycle (see `service/spec.md`).
+- Recording lifecycle (see `recording/spec.md`).
+
+## Related Specs
+
+- `connectivity/spec.md` — ping process behavior and output parsing.
+- `service/spec.md` — how the service manages the ping job lifecycle.
+- `recording/spec.md` — when recording stops and triggers cleanup.
+
 ## Requirements
 
 ### Requirement: Reliable ping process cleanup on flow cancellation
