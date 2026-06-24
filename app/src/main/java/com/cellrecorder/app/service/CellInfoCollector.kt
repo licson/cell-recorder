@@ -213,20 +213,37 @@ class CellInfoCollector @Inject constructor(
     }
 
     private fun extractCaBands(primary: CellLte, subCells: List<ICell>): List<CaBandSnapshot> {
-        return subCells.filter { cell ->
-            cell is CellLte && cell != primary && cell.connectionStatus is SecondaryConnection
-        }.map { cell ->
-            cell as CellLte
+        val secondaryCells = subCells.filter { cell ->
+            cell is CellLte && cell !== primary && cell.connectionStatus is SecondaryConnection
+        }
+        if (secondaryCells.isNotEmpty()) {
+            return secondaryCells.map { cell ->
+                cell as CellLte
+                CaBandSnapshot(
+                    bandNumber = cell.band?.downlinkEarfcn?.let { BandTableLte.map(it).number } ?: cell.band?.number,
+                    earfcn = cell.band?.downlinkEarfcn,
+                    pci = cell.pci,
+                    rsrp = cell.signal?.rsrp?.toInt(),
+                    rsrq = cell.signal?.rsrq?.toInt(),
+                    sinr = cell.signal?.snr?.toInt(),
+                    rssi = cell.signal?.rssi,
+                    cqi = cell.signal?.cqi,
+                    timingAdvance = cell.signal?.timingAdvance
+                )
+            }
+        }
+        // Fallback: aggregatedBands from primary cell (no per-band signal metrics available)
+        return primary.aggregatedBands.orEmpty().map { aggBand ->
             CaBandSnapshot(
-                bandNumber = cell.band?.downlinkEarfcn?.let { BandTableLte.map(it).number } ?: cell.band?.number,
-                earfcn = cell.band?.downlinkEarfcn,
-                pci = cell.pci,
-                rsrp = cell.signal?.rsrp?.toInt(),
-                rsrq = cell.signal?.rsrq?.toInt(),
-                sinr = cell.signal?.snr?.toInt(),
-                rssi = cell.signal?.rssi,
-                cqi = cell.signal?.cqi,
-                timingAdvance = cell.signal?.timingAdvance
+                bandNumber = aggBand.number,
+                earfcn = null,
+                pci = null,
+                rsrp = null,
+                rsrq = null,
+                sinr = null,
+                rssi = null,
+                cqi = null,
+                timingAdvance = null
             )
         }
     }
