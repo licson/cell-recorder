@@ -1,6 +1,5 @@
 package com.cellrecorder.app.ui.recording
 
-import android.content.Context
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -10,8 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
@@ -24,7 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -32,17 +28,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.BuildConfig
-import com.cellrecorder.app.service.CaBandDetail
 import com.cellrecorder.app.service.RecordingService
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.SimLiveState
-import com.cellrecorder.app.ui.detail.rsrpColor
-import com.cellrecorder.app.ui.detail.ratColor
+import com.cellrecorder.app.ui.shared.CellInfoPanel
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.IndoorPathLegend
 import com.cellrecorder.app.ui.shared.PermissionFlowDialogs
 import com.cellrecorder.app.ui.shared.PermissionFlowState
 import com.cellrecorder.app.ui.shared.TrackingConfidenceIndicator
+import com.cellrecorder.app.ui.shared.toCellInfoData
 import java.util.Locale
 import com.cellrecorder.app.ui.shared.PermissionHelper
 import com.cellrecorder.app.ui.shared.TooltipIconButton
@@ -504,8 +499,9 @@ private fun LiveStatsBar(
 
 @Composable
 private fun SimCard(sim: SimLiveState) {
+    val data = sim.toCellInfoData()
+    val hasExpandableData = data.anchorCell != null || data.caBands.isNotEmpty()
     var expanded by remember { mutableStateOf(false) }
-    val hasExpandableData = sim.anchorInfo.isNotEmpty() || sim.caBandDetails.isNotEmpty()
 
     Card(
         modifier = Modifier
@@ -518,129 +514,13 @@ private fun SimCard(sim: SimLiveState) {
         )
     ) {
         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                StatItem("#", "#${sim.simSlotIndex + 1}", weight = 0.6f, valueColor = ratColor(sim.rat))
-                StatItem("PLMN", sim.plmn, weight = 1f)
-                StatItem("TAC", sim.tac, weight = 0.7f)
-                StatItem("RAT", sim.rat, weight = 0.7f, valueColor = ratColor(sim.rat))
-                val bandText = if (sim.caBandDetails.isNotEmpty()) {
-                    "${sim.bandNumber}+${sim.caBandDetails.size}"
-                } else sim.bandNumber
-                StatItem("Band", bandText, weight = 0.6f)
-                StatItem("ARFCN", sim.earfcn, weight = 0.8f)
-                if (hasExpandableData) {
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (expanded) "Collapse" else "Expand",
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(Modifier.height(2.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                Box(Modifier.weight(0.6f)) { }
-                StatItem("Cell ID", sim.cellId, weight = 1.2f, valueFontFamily = FontFamily.Monospace)
-                StatItem("PCI", sim.pci, weight = 0.6f)
-                val rsrpValue = sim.rsrp.toIntOrNull()
-                StatItem("RSRP", sim.rsrp, weight = 0.7f, valueColor = rsrpColor(rsrpValue))
-                StatItem("RSRQ", sim.rsrq, weight = 0.6f)
-                StatItem("SINR", sim.sinr, weight = 0.6f)
-            }
-            if (!expanded && sim.rat.startsWith("5G_NSA") && sim.anchorInfo.isNotEmpty()) {
-                Spacer(Modifier.height(2.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                    Box(Modifier.weight(0.6f)) { }
-                    val anchorRsrpValue = sim.anchorRsrp.toIntOrNull()
-                    StatItem(
-                        "Anchor",
-                        "LTE: B${sim.anchorBand} PCI ${sim.anchorPci} RSRP ${sim.anchorRsrp}",
-                        weight = 2.5f,
-                        valueColor = if (anchorRsrpValue != null) rsrpColor(anchorRsrpValue) else MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            if (expanded) {
-                if (sim.rat.startsWith("5G_NSA") && sim.anchorInfo.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    HorizontalDivider()
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Anchor Cell",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                        StatItem("Band", "B${sim.anchorBand}", weight = 0.6f)
-                        StatItem("ARFCN", sim.anchorArfcn, weight = 0.8f)
-                        StatItem("PCI", sim.anchorPci, weight = 0.6f)
-                        StatItem("TAC", sim.anchorTac, weight = 0.7f)
-                    }
-                    Spacer(Modifier.height(2.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                        val aRsrp = sim.anchorRsrp.toIntOrNull()
-                        val aRsrq = sim.anchorRsrq.toIntOrNull()
-                        val aSinr = sim.anchorSinr.toIntOrNull()
-                        Box(Modifier.weight(0.6f)) { }
-                        StatItem("RSRP", sim.anchorRsrp, weight = 0.7f, valueColor = rsrpColor(aRsrp))
-                        StatItem("RSRQ", sim.anchorRsrq, weight = 0.6f, valueColor = rsrpColor(aRsrq))
-                        StatItem("SINR", sim.anchorSinr, weight = 0.6f, valueColor = rsrpColor(aSinr))
-                    }
-                }
-                if (sim.caBandDetails.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    HorizontalDivider()
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "CA Bands",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    sim.caBandDetails.forEach { ca ->
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                            StatItem("Band", "B${ca.band}", weight = 0.6f)
-                            StatItem("PCI", ca.pci, weight = 0.6f)
-                            val caRsrp = ca.rsrp.toIntOrNull()
-                            val caRsrq = ca.rsrq.toIntOrNull()
-                            val caSinr = ca.sinr.toIntOrNull()
-                            Box(Modifier.weight(0.6f)) { }
-                            StatItem("RSRP", ca.rsrp, weight = 0.7f, valueColor = rsrpColor(caRsrp))
-                            StatItem("RSRQ", ca.rsrq, weight = 0.6f, valueColor = rsrpColor(caRsrq))
-                            StatItem("SINR", ca.sinr, weight = 0.6f, valueColor = rsrpColor(caSinr))
-                        }
-                        Spacer(Modifier.height(2.dp))
-                    }
-                }
-            }
+            CellInfoPanel(
+                data = data,
+                isExpandable = true,
+                expanded = expanded,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-    }
-}
-
-@Composable
-private fun RowScope.StatItem(
-    label: String,
-    value: String,
-    weight: Float = 1f,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface,
-    valueFontFamily: FontFamily = FontFamily.Default
-) {
-    Column(modifier = Modifier.weight(weight), horizontalAlignment = Alignment.Start) {
-        Text(
-            text = value.ifEmpty { "---" },
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = valueFontFamily),
-            color = valueColor,
-            maxLines = 1
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            maxLines = 1
-        )
     }
 }
 

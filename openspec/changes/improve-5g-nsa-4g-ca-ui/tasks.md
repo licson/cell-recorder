@@ -50,3 +50,17 @@
 - [x] 6.4 Verify LiveInfoScreen CA chips and anchor rows render correctly
 - [x] 6.5 Verify SessionDetailScreen bottom sheet opens on tap and shows all sections
 - [x] 6.6 Verify analytics band labels show "n78"/"B3" format and chart groups by RAT
+
+## 7. Shared CellInfoPanel Refactoring
+
+- [x] 7.1 Create `CellInfoData`, `CaBandInfo`, `AnchorCellInfo` data classes in `ui/shared/CellInfoPanel.kt`
+- [x] 7.2 Add `SimLiveState.toCellInfoData()` conversion function with CA combo notation (`B3+2`)
+- [x] 7.3 Add `CellRecordWithCaBands.toCellInfoData()` conversion function with RAT-aware band formatting
+- [x] 7.4 Implement `CellInfoPanel` composable with `isExpandable`, `expanded`, `onExpandToggle` parameters
+- [x] 7.5 Support compact anchor row in collapsed state, full structured anchor/CA rows in expanded state
+- [x] 7.6 Apply signal quality colors (rsrpColor, rsrqColor, sinrColor) consistently across all fields
+- [x] 7.7 Refactor `RecordingScreen.SimCard` to use `CellInfoPanel(isExpandable = true)` — remove ~120 lines of duplicated anchor/CA logic
+- [x] 7.8 Refactor `ReplayScreen.StatsPanel` to use `CellInfoPanel(isExpandable = true)` — remove ~120 lines of duplicated anchor/CA logic
+- [x] 7.9 Refactor `LiveInfoScreen.LiveSimCard` to use `CellInfoPanel(isExpandable = false)` — replaces FlowRow chips with structured CA band rows, adds CA combo notation
+- [x] 7.10 Delete duplicated `StatItem`, `LiveStatItem`, `SuggestionChip`, `FlowRow` composables from all three screens
+- [x] 7.11 Verify `./gradlew assembleDebug` builds successfully after refactoring

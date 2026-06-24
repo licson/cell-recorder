@@ -10,14 +10,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.service.SimLiveState
-import com.cellrecorder.app.ui.detail.ratColor
-import com.cellrecorder.app.ui.detail.rsrpColor
 import com.cellrecorder.app.ui.detail.replay.MetricChart
+import com.cellrecorder.app.ui.shared.CellInfoPanel
+import com.cellrecorder.app.ui.shared.toCellInfoData
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +77,8 @@ private fun LiveSimCard(
     rsrpHistory: List<Int?>,
     sinrHistory: List<Int?>
 ) {
+    val data = sim.toCellInfoData()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
@@ -93,89 +94,11 @@ private fun LiveSimCard(
                 color = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.height(8.dp))
-
-            Row(modifier = Modifier.fillMaxWidth()) {
-                LiveStatItem("PLMN", sim.plmn, Modifier.weight(1f))
-                LiveStatItem("RAT", sim.rat, Modifier.weight(1f), valueColor = ratColor(sim.rat))
-                LiveStatItem("Band", sim.bandNumber, Modifier.weight(1f))
-                LiveStatItem("ARFCN", sim.earfcn, Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                LiveStatItem("Cell ID", sim.cellId, Modifier.weight(1f), valueFontFamily = FontFamily.Monospace)
-                LiveStatItem("PCI", sim.pci, Modifier.weight(1f))
-                LiveStatItem("TAC", sim.tac, Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                val rsrpValue = sim.rsrp.toIntOrNull()
-                val rsrqValue = sim.rsrq.toIntOrNull()
-                val sinrValue = sim.sinr.toIntOrNull()
-                LiveStatItem("RSRP", sim.rsrp, Modifier.weight(1f), valueColor = rsrpColor(rsrpValue))
-                LiveStatItem("RSRQ", sim.rsrq, Modifier.weight(1f), valueColor = rsrpColor(rsrqValue))
-                LiveStatItem("SINR", sim.sinr, Modifier.weight(1f), valueColor = rsrpColor(sinrValue))
-            }
-
-            if (sim.caBandDetails.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "CA Bands",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(4.dp))
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    sim.caBandDetails.forEach { ca ->
-                        val caRsrp = ca.rsrp.toIntOrNull()
-                        SuggestionChip(
-                            onClick = { },
-                            label = {
-                                Text(
-                                    text = "B${ca.band} PCI ${ca.pci}",
-                                    color = rsrpColor(caRsrp),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
-                        )
-                    }
-                }
-            }
-
-            if (sim.rat.startsWith("5G_NSA") && sim.anchorInfo.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Anchor Cell",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(4.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    LiveStatItem("Band", "B${sim.anchorBand}", Modifier.weight(1f))
-                    LiveStatItem("ARFCN", sim.anchorArfcn, Modifier.weight(1f))
-                    LiveStatItem("PCI", sim.anchorPci, Modifier.weight(1f))
-                    LiveStatItem("TAC", sim.anchorTac, Modifier.weight(1f))
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    val aRsrp = sim.anchorRsrp.toIntOrNull()
-                    val aRsrq = sim.anchorRsrq.toIntOrNull()
-                    val aSinr = sim.anchorSinr.toIntOrNull()
-                    LiveStatItem("RSRP", sim.anchorRsrp, Modifier.weight(1f), valueColor = rsrpColor(aRsrp))
-                    LiveStatItem("RSRQ", sim.anchorRsrq, Modifier.weight(1f), valueColor = rsrpColor(aRsrq))
-                    LiveStatItem("SINR", sim.anchorSinr, Modifier.weight(1f), valueColor = rsrpColor(aSinr))
-                }
-            }
-
+            CellInfoPanel(
+                data = data,
+                isExpandable = false,
+                modifier = Modifier.fillMaxWidth()
+            )
             if (rsrpHistory.isNotEmpty() || sinrHistory.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
@@ -203,33 +126,6 @@ private fun LiveSimCard(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun LiveStatItem(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    valueColor: Color = MaterialTheme.colorScheme.onSurface,
-    valueFontFamily: FontFamily = FontFamily.Default
-) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.Start) {
-        Text(
-            text = value.ifEmpty { "---" },
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontFamily = valueFontFamily,
-                fontWeight = FontWeight.SemiBold
-            ),
-            color = valueColor,
-            maxLines = 1
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            maxLines = 1
-        )
     }
 }
 
