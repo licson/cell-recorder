@@ -121,3 +121,29 @@ The system SHALL use dynamic build-config values (e.g., `BuildConfig.VERSION_NAM
 - **WHEN** a test asserts that a string contains the app version (e.g., `getVersionDisplay()` returns a string containing the version name)
 - **THEN** the assertion MUST reference `BuildConfig.VERSION_NAME` (or equivalent dynamic value)
 - **AND** the assertion MUST NOT use a hardcoded literal like `"1.0.3"` or `"1.2.0"`
+
+### Requirement: Real-network smoke test for the speedtest engine
+
+The system SHALL provide a real-network instrumented smoke test for `SpeedTestEngine.runTest` that exercises the full HTTP/protocol code path against live speedtest.net endpoints. The test SHALL be `@Ignore`'d by default so it does not run in CI, and SHALL be manually un-ignored on a physical device to verify the engine end-to-end. This is the only automated test that invokes the engine's live execution path; JVM unit tests cover only the extracted pure-logic helpers.
+
+#### Scenario: Real-network smoke test covers the full engine flow
+
+- **WHEN** a developer manually runs `SpeedTestEngineRealNetworkTest` on a physical device with a cellular connection
+- **THEN** the test suite exercises config fetch, server discovery, gauge phase, and multi-threaded download against real speedtest.net endpoints
+- **AND** at least one test in the suite exercises multi-threaded upload (with `uploadEnabled = true`)
+- **AND** the test asserts that a server is selected, download throughput is positive, and upload throughput is positive when upload is enabled
+
+#### Scenario: Real-network smoke test is ignored in CI
+
+- **WHEN** `./gradlew connectedCheck` runs in CI
+- **THEN** `SpeedTestEngineRealNetworkTest` MUST be skipped via class-level `@Ignore`
+- **AND** the `@Ignore` reason MUST state the verified constraints (real internet, cellular connection, ~30s per cycle) rather than speculation
+
+#### Scenario: Cellular and WiFi tests are conditionally skipped by assumption
+
+- **WHEN** the device is on WiFi
+- **THEN** the cellular-required tests SHALL be skipped via `Assume.assumeTrue` (not fail)
+- **AND** the dedicated WiFi-skip test SHALL run and assert the `SKIPPED_WIFI` result
+- **WHEN** the device is on cellular
+- **THEN** the cellular tests SHALL run
+- **AND** the WiFi-skip test SHALL be skipped via `Assume.assumeTrue`

@@ -46,9 +46,10 @@ object SpeedTestServerSelector {
 
         val closest = if (hasValidClientLocation) {
             filtered
-                .map { it.copy(latencyMs = haversineKm(clientLat, clientLon, it.lat, it.lon)) }
-                .sortedBy { it.latencyMs }
+                .map { it to haversineKm(clientLat, clientLon, it.lat, it.lon) }
+                .sortedBy { it.second }
                 .take(CLOSEST_COUNT)
+                .map { it.first }
         } else {
             filtered.take(CLOSEST_COUNT * 2)
         }

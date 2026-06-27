@@ -18,7 +18,9 @@ class SpeedTestAnalyticsEngineTest {
         ratAtTest: String? = null,
         dataSimSlotIndex: Int? = null,
         serverName: String? = "Server",
-        timestamp: Long = 0
+        timestamp: Long = 0,
+        errorMessage: String? = null,
+        networkType: String? = null
     ): SpeedTestRecordEntity = SpeedTestRecordEntity(
         id = 0,
         sessionId = 1L,
@@ -34,8 +36,8 @@ class SpeedTestAnalyticsEngineTest {
         rsrpAtTest = rsrpAtTest,
         bandAtTest = null,
         succeeded = succeeded,
-        errorMessage = null,
-        networkType = null
+        errorMessage = errorMessage,
+        networkType = networkType
     )
 
     @Nested
@@ -131,6 +133,51 @@ class SpeedTestAnalyticsEngineTest {
                 )
             )
             assertEquals("Server1", result?.serverName)
+        }
+    }
+
+    @Nested
+    inner class AnalyzeWifiSkipExclusion {
+
+        @Test
+        fun `SKIPPED_WIFI records are excluded from sampleCount`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(succeeded = true, downloadBps = 10_000_000L),
+                    record(succeeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI"),
+                    record(succeeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI")
+                )
+            )
+            assertEquals(1, result?.sampleCount)
+            assertEquals(0, result?.failureCount)
+            assertEquals(1.0, result?.successRate ?: 0.0, 1e-9)
+        }
+
+        @Test
+        fun `only SKIPPED_WIFI records returns empty analytics not null`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(succeeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI")
+                )
+            )
+            assertNotNull(result)
+            assertEquals(0, result?.sampleCount)
+            assertEquals(0, result?.failureCount)
+            assertEquals(0.0, result?.successRate ?: -1.0, 1e-9)
+        }
+
+        @Test
+        fun `SKIPPED_WIFI mixed with real failures counts only real failures`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(succeeded = true, downloadBps = 5_000_000L),
+                    record(succeeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI"),
+                    record(succeeded = false, errorMessage = "No data transferred: upload measurement failed")
+                )
+            )
+            assertEquals(2, result?.sampleCount)
+            assertEquals(1, result?.failureCount)
+            assertEquals(0.5, result?.successRate ?: 0.0, 1e-9)
         }
     }
 

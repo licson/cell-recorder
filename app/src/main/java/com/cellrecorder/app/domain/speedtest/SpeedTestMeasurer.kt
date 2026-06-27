@@ -9,9 +9,12 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody
 import okio.BufferedSink
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
 object SpeedTestMeasurer {
@@ -25,6 +28,9 @@ object SpeedTestMeasurer {
     private const val SLICE_INTERVAL_MS = 500L
     private const val GAUGE_DURATION_NS = 2_000_000_000L
 
+    private val MEDIA_TYPE_OCTET_STREAM: MediaType =
+        "application/octet-stream".toMediaType()
+
     data class ThroughputSample(
         val bytesTransferred: Long,
         val elapsedMs: Long,
@@ -37,7 +43,8 @@ object SpeedTestMeasurer {
         val totalElapsedMs: Long,
         val postWarmupBytes: Long,
         val postWarmupMs: Long,
-        val samples: List<ThroughputSample>
+        val samples: List<ThroughputSample>,
+        val anyRequestSucceeded: Boolean = false
     )
 
     suspend fun gaugeDownload(
@@ -107,10 +114,11 @@ object SpeedTestMeasurer {
 
         val semaphore = Semaphore(downloadThreads.coerceAtLeast(1))
         val startTime = System.nanoTime()
-        val deadlineNs = startTime + (testLengthSec + DOWNLOAD_WARMUP_MS / 1000) * 1_000_000_000L
+        val deadlineNs = computeDeadlineNs(startTime, testLengthSec, DOWNLOAD_WARMUP_MS)
         val warmupDeadlineNs = startTime + DOWNLOAD_WARMUP_MS * 1_000_000L
         val totalBytes = AtomicLong(0)
         val postWarmupBytes = AtomicLong(0)
+        val anySuccess = AtomicBoolean(false)
         val samples = mutableListOf<ThroughputSample>()
         val sliceNs = SLICE_INTERVAL_MS * 1_000_000L
         val nextSliceNs = AtomicLong(warmupDeadlineNs + sliceNs)
@@ -133,6 +141,7 @@ object SpeedTestMeasurer {
                             val response = httpClient.client.newCall(request).execute()
                             response.use { resp ->
                                 if (!resp.isSuccessful) return@use
+                                anySuccess.set(true)
 
                                 val input = resp.body?.byteStream() ?: return@use
                                 val buffer = ByteArray(CHUNK_SIZE)
@@ -154,7 +163,7 @@ object SpeedTestMeasurer {
                                         synchronized(sliceLock) {
                                             val sliceNow = System.nanoTime()
                                             if (sliceNow >= nextSliceNs.get()) {
-                                                recordSlice(sliceNow, nextSliceNs, lastSliceBytes, lastSliceTime, totalBytes, sliceNs, samples)
+                                                recordSlice(sliceNow, nextSliceNs, lastSliceBytes, lastSliceTime, postWarmupBytes, sliceNs, samples)
                                             }
                                         }
                                     }
@@ -172,7 +181,7 @@ object SpeedTestMeasurer {
         val elapsedNs = System.nanoTime() - startTime
         val postWarmupNs = (elapsedNs - (warmupDeadlineNs - startTime)).coerceAtLeast(0L)
         val snapshot = synchronized(sliceLock) { samples.toList() }
-        buildResult(totalBytes.get(), elapsedNs / 1_000_000, postWarmupBytes.get(), postWarmupNs / 1_000_000, snapshot)
+        buildResult(totalBytes.get(), elapsedNs / 1_000_000, postWarmupBytes.get(), postWarmupNs / 1_000_000, snapshot, anySuccess.get())
     }
 
     suspend fun measureUpload(
@@ -200,10 +209,11 @@ object SpeedTestMeasurer {
 
         val semaphore = Semaphore(uploadThreads.coerceAtLeast(1))
         val startTime = System.nanoTime()
-        val deadlineNs = startTime + (testLengthSec + UPLOAD_WARMUP_MS / 1000) * 1_000_000_000L
+        val deadlineNs = computeDeadlineNs(startTime, testLengthSec, UPLOAD_WARMUP_MS)
         val warmupDeadlineNs = startTime + UPLOAD_WARMUP_MS * 1_000_000L
         val totalBytes = AtomicLong(0)
         val postWarmupBytes = AtomicLong(0)
+        val anySuccess = AtomicBoolean(false)
         val samples = mutableListOf<ThroughputSample>()
         val sliceNs = SLICE_INTERVAL_MS * 1_000_000L
         val nextSliceNs = AtomicLong(warmupDeadlineNs + sliceNs)
@@ -242,6 +252,7 @@ object SpeedTestMeasurer {
                             val response = httpClient.client.newCall(request).execute()
                             response.use { resp ->
                                 if (!resp.isSuccessful) return@use
+                                anySuccess.set(true)
                                 resp.body?.bytes()
                             }
                         } catch (e: Exception) {
@@ -256,10 +267,10 @@ object SpeedTestMeasurer {
         val elapsedNs = System.nanoTime() - startTime
         val postWarmupNs = (elapsedNs - (warmupDeadlineNs - startTime)).coerceAtLeast(0L)
         val snapshot = synchronized(sliceLock) { samples.toList() }
-        buildResult(totalBytes.get(), elapsedNs / 1_000_000, postWarmupBytes.get(), postWarmupNs / 1_000_000, snapshot)
+        buildResult(totalBytes.get(), elapsedNs / 1_000_000, postWarmupBytes.get(), postWarmupNs / 1_000_000, snapshot, anySuccess.get())
     }
 
-    private fun createStreamingUploadBody(
+    internal fun createStreamingUploadBody(
         payload: ByteArray,
         totalBytes: AtomicLong,
         postWarmupBytes: AtomicLong,
@@ -273,7 +284,9 @@ object SpeedTestMeasurer {
         sliceLock: Any
     ): RequestBody {
         return object : RequestBody() {
-            override fun contentType(): MediaType? = null
+            override fun contentType(): MediaType = MEDIA_TYPE_OCTET_STREAM
+
+            override fun contentLength(): Long = -1L
 
             override fun writeTo(sink: BufferedSink) {
                 var offset = 0
@@ -295,7 +308,7 @@ object SpeedTestMeasurer {
                         synchronized(sliceLock) {
                             val sliceNow = System.nanoTime()
                             if (sliceNow >= nextSliceNs.get()) {
-                                recordSlice(sliceNow, nextSliceNs, lastSliceBytes, lastSliceTime, totalBytes, sliceNs, samples)
+                                recordSlice(sliceNow, nextSliceNs, lastSliceBytes, lastSliceTime, postWarmupBytes, sliceNs, samples)
                             }
                         }
                     }
@@ -309,13 +322,13 @@ object SpeedTestMeasurer {
         nextSliceNs: AtomicLong,
         lastSliceBytes: AtomicLong,
         lastSliceTime: AtomicLong,
-        totalBytes: AtomicLong,
+        bytesCounter: AtomicLong,
         sliceNs: Long,
         samples: MutableList<ThroughputSample>
     ) {
-        val prevBytes = lastSliceBytes.getAndSet(totalBytes.get())
+        val prevBytes = lastSliceBytes.getAndSet(bytesCounter.get())
         val prevTime = lastSliceTime.getAndSet(now)
-        val sliceBytes = totalBytes.get() - prevBytes
+        val sliceBytes = bytesCounter.get() - prevBytes
         val sliceElapsed = (now - prevTime) / 1_000_000
         if (sliceElapsed > 0 && sliceBytes > 0) {
             samples.add(ThroughputSample(
@@ -333,16 +346,21 @@ object SpeedTestMeasurer {
         totalElapsedMs: Long,
         postWarmupBytes: Long,
         postWarmupMs: Long,
-        samples: List<ThroughputSample>
+        samples: List<ThroughputSample>,
+        anyRequestSucceeded: Boolean
     ): MeasurementResult {
         return MeasurementResult(
             totalBytes = totalBytes,
             totalElapsedMs = totalElapsedMs,
             postWarmupBytes = postWarmupBytes,
             postWarmupMs = postWarmupMs,
-            samples = samples
+            samples = samples,
+            anyRequestSucceeded = anyRequestSucceeded
         )
     }
+
+    internal fun computeDeadlineNs(startTimeNs: Long, testLengthSec: Int, warmupMs: Long): Long =
+        startTimeNs + (testLengthSec * 1000L + warmupMs) * 1_000_000L
 
     private fun selectDownloadSizes(estimatedBps: Long): List<Int> {
         val mbps = estimatedBps / 1_000_000
@@ -352,20 +370,15 @@ object SpeedTestMeasurer {
         return DOWNLOAD_SIZES.drop(3)
     }
 
-    @Volatile
-    private var sharedPayloadCache: Pair<Int, ByteArray>? = null
+    private val uploadPayloadCache = ConcurrentHashMap<Int, ByteArray>()
 
-    private fun buildUploadPayload(size: Int): ByteArray {
-        sharedPayloadCache?.let { (cachedSize, cached) ->
-            if (cachedSize == size) return cached
+    private fun buildUploadPayload(size: Int): ByteArray =
+        uploadPayloadCache.computeIfAbsent(size) {
+            val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            val multiplier = kotlin.math.round(it.toDouble() / chars.length).toInt()
+            val content = "content1=" + (chars.repeat(multiplier)).substring(0, it - 9)
+            content.toByteArray(Charsets.UTF_8)
         }
-        val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        val multiplier = kotlin.math.round(size.toDouble() / chars.length).toInt()
-        val content = "content1=" + (chars.repeat(multiplier)).substring(0, size - 9)
-        val payload = content.toByteArray(Charsets.UTF_8)
-        sharedPayloadCache = size to payload
-        return payload
-    }
 
     private fun buildUserAgent(): String {
         return "Mozilla/5.0 (Linux; Android; en-us) (KHTML, like Gecko) speedtest-cli/2.1.4"

@@ -14,8 +14,5 @@ class SpeedTestHttpClient @Inject constructor() {
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .connectionPool(ConnectionPool(8, 30, TimeUnit.SECONDS))
-        .retryOnConnectionFailure(false)
-        .followRedirects(false)
-        .followSslRedirects(false)
         .build()
 }

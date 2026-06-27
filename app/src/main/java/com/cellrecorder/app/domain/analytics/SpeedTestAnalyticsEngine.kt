@@ -24,14 +24,33 @@ object SpeedTestAnalyticsEngine {
     fun analyze(records: List<SpeedTestRecordEntity>): SpeedTestSessionAnalytics? {
         if (records.isEmpty()) return null
 
-        val succeeded = records.filter { it.succeeded }
+        val measuredRecords = records.filter { it.errorMessage != "SKIPPED_WIFI" }
+        if (measuredRecords.isEmpty()) {
+            return SpeedTestSessionAnalytics(
+                sampleCount = 0,
+                failureCount = 0,
+                successRate = 0.0,
+                avgDownloadBps = null,
+                p95DownloadBps = null,
+                avgUploadBps = null,
+                p95UploadBps = null,
+                serverName = null,
+                downloadByRsrp = emptyList(),
+                downloadByRat = emptyList(),
+                downloadBySim = emptyList(),
+                uploadByRsrp = null,
+                downloadHistogram = emptyList()
+            )
+        }
+
+        val succeeded = measuredRecords.filter { it.succeeded }
         val downloadValues = succeeded.mapNotNull { it.downloadBps }
         val uploadValues = succeeded.mapNotNull { it.uploadBps }
 
         return SpeedTestSessionAnalytics(
-            sampleCount = records.size,
-            failureCount = records.size - succeeded.size,
-            successRate = if (records.isNotEmpty()) succeeded.size.toDouble() / records.size else 0.0,
+            sampleCount = measuredRecords.size,
+            failureCount = measuredRecords.size - succeeded.size,
+            successRate = if (measuredRecords.isNotEmpty()) succeeded.size.toDouble() / measuredRecords.size else 0.0,
             avgDownloadBps = downloadValues.average().toLong().takeIf { downloadValues.isNotEmpty() },
             p95DownloadBps = percentile(downloadValues, 0.95),
             avgUploadBps = uploadValues.average().toLong().takeIf { uploadValues.isNotEmpty() },

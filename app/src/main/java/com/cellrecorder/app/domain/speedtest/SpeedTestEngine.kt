@@ -18,14 +18,17 @@ class SpeedTestEngine @Inject constructor(
     private val httpClient: SpeedTestHttpClient
 ) {
 
+    @Volatile
     private var cachedServer: SpeedTestServerInfo? = null
+    @Volatile
     private var cachedConfig: SpeedTestProtocolConfig? = null
     @Volatile
     private var cachedGaugeBps: Long? = null
+    @Volatile
+    private var gaugeAttempted: Boolean = false
 
     companion object {
         private const val OVERHEAD_COMPENSATION = 1.06
-        private const val SLICE_COUNT = 20
         private const val DISCARD_FASTEST_PCT = 10
         private const val DISCARD_SLOWEST_PCT = 30
     }
@@ -77,7 +80,7 @@ class SpeedTestEngine @Inject constructor(
 
             val serverBaseUrl = server.url.substringBeforeLast("/")
 
-            if (cachedGaugeBps == null) {
+            if (cachedGaugeBps == null && !gaugeAttempted) {
                 onStatus("Gauging")
                 val gaugeResult = SpeedTestMeasurer.gaugeDownload(
                     serverBaseUrl = serverBaseUrl,
@@ -85,6 +88,7 @@ class SpeedTestEngine @Inject constructor(
                     httpClient = httpClient
                 )
                 cachedGaugeBps = gaugeResult
+                gaugeAttempted = true
             }
 
             onStatus("Downloading")
@@ -116,18 +120,20 @@ class SpeedTestEngine @Inject constructor(
                     httpClient = httpClient
                 )
                 uploadBps = computeBps(uploadResult)
-                uploadFailed = uploadResult.postWarmupBytes == 0L && uploadResult.postWarmupMs > 0
+                uploadFailed = !uploadResult.anyRequestSucceeded ||
+                    (uploadResult.postWarmupBytes == 0L && uploadResult.postWarmupMs > 0)
             }
 
-            val downloadFailed = downloadResult.postWarmupBytes == 0L && downloadResult.postWarmupMs > 0
+            val downloadFailed = !downloadResult.anyRequestSucceeded ||
+                (downloadResult.postWarmupBytes == 0L && downloadResult.postWarmupMs > 0)
             val measurementFailed = downloadFailed || (uploadEnabled && uploadFailed)
 
             if (measurementFailed) {
                 invalidateCache()
                 onStatus("Failed")
                 return@withContext SpeedTestResult(
-                    downloadBps = downloadBps,
-                    uploadBps = uploadBps,
+                    downloadBps = if (downloadFailed) null else downloadBps,
+                    uploadBps = if (uploadEnabled && uploadFailed) null else uploadBps,
                     serverId = server.id,
                     serverName = server.name,
                     serverHost = server.host,
@@ -158,7 +164,7 @@ class SpeedTestEngine @Inject constructor(
         }
     }
 
-    private fun computeBps(result: SpeedTestMeasurer.MeasurementResult): Long? {
+    internal fun computeBps(result: SpeedTestMeasurer.MeasurementResult): Long? {
         val warmupFreeSamples = result.samples.filter { it.warmupMs == 0L }
         if (warmupFreeSamples.isEmpty()) {
             if (result.postWarmupBytes <= 0 || result.postWarmupMs <= 0) return null
@@ -196,6 +202,7 @@ class SpeedTestEngine @Inject constructor(
         cachedServer = null
         cachedConfig = null
         cachedGaugeBps = null
+        gaugeAttempted = false
     }
 
     private suspend fun isWifiActive(): Boolean = withContext(Dispatchers.IO) {

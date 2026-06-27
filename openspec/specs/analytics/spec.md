@@ -223,6 +223,13 @@ The system SHALL compute throughput summary statistics for sessions that contain
 - WHEN session analytics are generated
 - THEN average download speed, p95 download speed, average upload speed, p95 upload speed, success rate, sample count, failure count, and server name are computed
 
+#### Scenario: WiFi-skipped speedtest samples excluded from success metrics
+- GIVEN a session with speedtest records where some have `errorMessage = "SKIPPED_WIFI"` (the device was on WiFi at test time)
+- WHEN session analytics are generated
+- THEN WiFi-skipped records are excluded from sample count, failure count, and success rate
+- AND only genuinely attempted cellular measurements are counted toward success rate
+- AND if all records are WiFi-skipped, the summary reports zero samples and zero failures rather than null
+
 #### Scenario: No speedtest data
 - GIVEN a session without speedtest records
 - WHEN session analytics are generated
