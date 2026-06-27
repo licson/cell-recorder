@@ -24,6 +24,7 @@ data class CaBandInfo(
     val bandNumber: String,
     val pci: String,
     val earfcn: String,
+    val rat: String,
     val rsrp: String,
     val rsrq: String,
     val sinr: String
@@ -37,6 +38,7 @@ data class AnchorCellInfo(
     val earfcn: String,
     val pci: String,
     val tac: String,
+    val rat: String,
     val rsrp: String,
     val rsrq: String,
     val sinr: String
@@ -84,9 +86,10 @@ fun SimLiveState.toCellInfoData(): CellInfoData {
         sinr = sinr,
         caBands = caBandDetails.map { ca ->
             CaBandInfo(
-                bandNumber = ca.band,
+                bandNumber = BandResolver.formatBand(ca.band.toIntOrNull(), ca.earfcn, "4G"),
                 pci = ca.pci,
-                earfcn = "---",
+                earfcn = ca.earfcn?.toString() ?: "---",
+                rat = "4G",
                 rsrp = ca.rsrp,
                 rsrq = ca.rsrq,
                 sinr = ca.sinr
@@ -94,10 +97,11 @@ fun SimLiveState.toCellInfoData(): CellInfoData {
         },
         anchorCell = if (rat.startsWith("5G_NSA") && anchorInfo.isNotEmpty()) {
             AnchorCellInfo(
-                bandNumber = anchorBand,
+                bandNumber = BandResolver.formatBand(anchorBand.toIntOrNull(), anchorArfcn.toIntOrNull(), "4G"),
                 earfcn = anchorArfcn,
                 pci = anchorPci,
                 tac = anchorTac,
+                rat = "4G",
                 rsrp = anchorRsrp,
                 rsrq = anchorRsrq,
                 sinr = anchorSinr
@@ -130,9 +134,10 @@ fun CellRecordWithCaBands.toCellInfoData(): CellInfoData {
         sinr = record.sinr?.toString() ?: "---",
         caBands = caBands.map { ca ->
             CaBandInfo(
-                bandNumber = ca.bandNumber?.toString() ?: "?",
+                bandNumber = BandResolver.formatBand(ca.bandNumber, ca.earfcn, "4G"),
                 pci = ca.pci?.toString() ?: "---",
                 earfcn = ca.earfcn?.toString() ?: "---",
+                rat = "4G",
                 rsrp = ca.rsrp?.toString() ?: "---",
                 rsrq = ca.rsrq?.toString() ?: "---",
                 sinr = ca.sinr?.toString() ?: "---"
@@ -140,10 +145,11 @@ fun CellRecordWithCaBands.toCellInfoData(): CellInfoData {
         },
         anchorCell = if (record.rat.startsWith("5G_NSA") && record.anchorPci != null) {
             AnchorCellInfo(
-                bandNumber = record.anchorBandNumber?.toString() ?: "?",
+                bandNumber = BandResolver.formatBand(record.anchorBandNumber, record.anchorEarfcn, "4G"),
                 earfcn = record.anchorEarfcn?.toString() ?: "---",
                 pci = record.anchorPci?.toString() ?: "---",
                 tac = record.anchorTac?.toString() ?: "---",
+                rat = "4G",
                 rsrp = record.anchorRsrp?.toString() ?: "---",
                 rsrq = record.anchorRsrq?.toString() ?: "---",
                 sinr = record.anchorSinr?.toString() ?: "---"
@@ -219,7 +225,7 @@ fun CellInfoPanel(
                 val aRsrp = data.anchorCell.rsrp.toIntOrNull()
                 StatItem(
                     "Anchor",
-                    "LTE: B${data.anchorCell.bandNumber} PCI ${data.anchorCell.pci} RSRP ${data.anchorCell.rsrp}",
+                    "LTE: ${data.anchorCell.bandNumber} PCI ${data.anchorCell.pci} RSRP ${data.anchorCell.rsrp}",
                     weight = 2.5f,
                     valueColor = rsrpColor(aRsrp)
                 )
@@ -242,7 +248,7 @@ fun CellInfoPanel(
                 Spacer(Modifier.height(2.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                     if (isExpandable) Box(Modifier.weight(0.5f)) { }
-                    StatItem("Band", "B${anchor.bandNumber}", weight = 0.6f)
+                    StatItem("Band", anchor.bandNumber, weight = 0.6f)
                     StatItem("ARFCN", anchor.earfcn, weight = 0.8f)
                     StatItem("PCI", anchor.pci, weight = 0.6f)
                     StatItem("TAC", anchor.tac, weight = 0.7f)
@@ -274,7 +280,7 @@ fun CellInfoPanel(
                 data.caBands.forEach { ca ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                         if (isExpandable) Box(Modifier.weight(0.5f)) { }
-                        StatItem("Band", "B${ca.bandNumber}", weight = 0.6f)
+                        StatItem("Band", ca.bandNumber, weight = 0.6f)
                         StatItem("PCI", ca.pci, weight = 0.6f)
                         StatItem("EARFCN", ca.earfcn, weight = 0.8f)
                     }

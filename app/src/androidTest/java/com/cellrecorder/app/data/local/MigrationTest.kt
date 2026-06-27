@@ -230,7 +230,39 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateFullChain1To12() {
+    fun migrateFrom12To13() {
+        val db = helper.createDatabase(TEST_DB, 12)
+        db.execSQL(
+            """INSERT INTO sessions (id, name, createdAt, pointCount, recordingMode) VALUES (1, 'test', 1000, 5, 'OUTDOOR')"""
+        )
+        db.execSQL(
+            """INSERT INTO cell_records (id, sessionId, timestamp, latitude, longitude, altitude, accuracy, rat, isLocationEstimated, locationSource)
+               VALUES (1, 1, 100, 1.0, 2.0, 3.0, 5.0, 'LTE', 0, 'GPS')"""
+        )
+        db.execSQL(
+            """INSERT INTO cell_record_ca_bands (id, cellRecordId, bandNumber, earfcn, pci, rsrp, rsrq, sinr, rssi, cqi, timingAdvance)
+               VALUES (1, 1, 3, 1800, 42, -85, -90, 8, -75, 7, 14)"""
+        )
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 13, true, AppDatabase.MIGRATION_12_13)
+
+        val cellCursor = migratedDb.query("SELECT rat FROM cell_records WHERE id = 1")
+        assertTrue("Cell record should survive migration", cellCursor.moveToFirst())
+        assertEquals("LTE", cellCursor.getString(0))
+        cellCursor.close()
+
+        val caCursor = migratedDb.query("SELECT bandNumber, earfcn, pci, bandwidthKhz FROM cell_record_ca_bands WHERE id = 1")
+        assertTrue("CA band row should survive migration", caCursor.moveToFirst())
+        assertEquals(3, caCursor.getInt(0))
+        assertEquals(1800, caCursor.getInt(1))
+        assertEquals(42, caCursor.getInt(2))
+        assertTrue("bandwidthKhz column should exist and be null after migration", caCursor.isNull(3))
+        caCursor.close()
+    }
+
+    @Test
+    fun migrateFullChain1To13() {
         val db = helper.createDatabase(TEST_DB, 1)
         db.execSQL(
             """INSERT INTO sessions (id, name, createdAt, pointCount) VALUES (1, 'full-chain', 1000, 5)"""
@@ -248,7 +280,7 @@ class MigrationTest {
         db.close()
 
         val migratedDb = helper.runMigrationsAndValidate(
-            TEST_DB, 12, true,
+            TEST_DB, 13, true,
             AppDatabase.MIGRATION_1_2,
             AppDatabase.MIGRATION_2_3,
             AppDatabase.MIGRATION_3_4,
@@ -259,7 +291,8 @@ class MigrationTest {
             AppDatabase.MIGRATION_8_9,
             AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11,
-            AppDatabase.MIGRATION_11_12
+            AppDatabase.MIGRATION_11_12,
+            AppDatabase.MIGRATION_12_13
         )
 
         val sessionCursor = migratedDb.query("SELECT name, pointCount FROM sessions WHERE id = 1")

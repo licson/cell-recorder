@@ -79,7 +79,7 @@ class CellInfoCollector @Inject constructor(
             lcid = fullId?.and((1L shl shift) - 1)?.toInt(),
             cellIdBitLength = fullId?.let { config.nrGnbBitLength },
             pci = nrCell.pci,
-            tac = lteAnchor?.tac,
+            tac = nrCell.tac ?: lteAnchor?.tac,
             bandNumber = BandResolver.resolveBandNumber(
                 nrCell.band?.number, nrCell.band?.downlinkArfcn, "5G_NSA"
             ),
@@ -115,13 +115,16 @@ class CellInfoCollector @Inject constructor(
         config: AppConfigEntity
     ): CellRecordSnapshot {
         val snapshot = when (serving) {
-            is CellLte -> buildLteSnapshot(
-                subId = subId,
-                lteCell = serving,
-                subCells = subCells,
-                rat = if (networkType is NetworkType.Lte && networkType.technology == NetworkType.LTE_CA) "4G_CA" else "4G",
-                networkTypeCode = networkType.technology
-            )
+            is CellLte -> {
+                val caBands = extractCaBands(serving, subCells)
+                buildLteSnapshot(
+                    subId = subId,
+                    lteCell = serving,
+                    subCells = subCells,
+                    rat = if (caBands.isNotEmpty()) "4G_CA" else "4G",
+                    networkTypeCode = networkType.technology
+                )
+            }
             is CellNr -> {
                 val fullId = serving.nci
                 val shift = 36 - config.nrGnbBitLength
@@ -195,6 +198,7 @@ class CellInfoCollector @Inject constructor(
             fullCellIdentity = fullId,
             enbOrGnbId = fullId?.shr(8),
             lcid = fullId?.and(0xFF)?.toInt(),
+            cellIdBitLength = 8,
             pci = lteCell.pci,
             tac = lteCell.tac,
             bandNumber = lteCell.band?.downlinkEarfcn?.let { BandTableLte.map(it).number } ?: lteCell.band?.number,
@@ -228,7 +232,8 @@ class CellInfoCollector @Inject constructor(
                     sinr = cell.signal?.snr?.toInt(),
                     rssi = cell.signal?.rssi,
                     cqi = cell.signal?.cqi,
-                    timingAdvance = cell.signal?.timingAdvance
+                    timingAdvance = cell.signal?.timingAdvance,
+                    bandwidthKhz = cell.bandwidth
                 )
             }
         }

@@ -10,12 +10,8 @@ import org.junit.jupiter.api.Test
 /**
  * Unit tests for [CsvRecordParser].
  *
- * KNOWN BUG (characterized, not fixed here — out of scope):
- * The CSV column `band` is not parsed into `CellRecordEntity.bandNumber` because
- * `parseRow` calls `int("band")` but the column index is stored under the
- * mapped key `"bandNumber"` (per `columnMap["band"] = "bandNumber"`). The lookup
- * under the original key `"band"` returns null. This is a latent production bug
- * worth a separate fix; tests below document the current (buggy) behavior.
+ * The CSV column `band` is now correctly parsed into `CellRecordEntity.bandNumber`
+ * (the parser looks up `"bandNumber"`, the value `columnMap["band"]` resolves to).
  */
 class CsvRecordParserTest {
 
@@ -130,7 +126,7 @@ class CsvRecordParserTest {
             assertEquals("260", r.mnc)
             assertEquals(1800, r.earfcn)
             assertEquals(1234, r.tac)
-            assertNull(r.bandNumber, "Known bug: band column is not mapped (see KDoc)")
+            assertEquals(3, r.bandNumber, "band column maps to bandNumber")
         }
 
         @Test

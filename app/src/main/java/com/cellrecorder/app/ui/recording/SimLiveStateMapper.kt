@@ -50,7 +50,8 @@ object SimLiveStateMapper {
                     pci = ca.pci?.toString() ?: "?",
                     rsrp = ca.rsrp?.toString() ?: "---",
                     rsrq = ca.rsrq?.toString() ?: "---",
-                    sinr = ca.sinr?.toString() ?: "---"
+                    sinr = ca.sinr?.toString() ?: "---",
+                    earfcn = ca.earfcn
                 )
             }
         )

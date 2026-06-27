@@ -1,5 +1,6 @@
 package com.cellrecorder.app.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -29,5 +30,7 @@ data class CellRecordCaBandEntity(
     val sinr: Int? = null,
     val rssi: Int? = null,
     val cqi: Int? = null,
-    val timingAdvance: Int? = null
+    val timingAdvance: Int? = null,
+    @ColumnInfo(name = "bandwidthKhz")
+    val bandwidthKhz: Int? = null
 )

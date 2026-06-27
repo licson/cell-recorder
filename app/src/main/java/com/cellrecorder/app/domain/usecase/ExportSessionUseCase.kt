@@ -32,7 +32,7 @@ class ExportSessionUseCase @Inject constructor() {
     fun exportCsv(session: SessionEntity, records: List<CellRecordWithCaBands>): ExportData {
         val sb = StringBuilder()
         val isIndoor = session.recordingMode == "INDOOR"
-        sb.appendLine("timestamp,lat,lon,alt,accuracy,relative_x,relative_y,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac,is_location_estimated,location_source,ca_bands,anchor_enb_gnb_id,anchor_lcid,anchor_pci,anchor_tac,anchor_band,anchor_earfcn,anchor_bandwidth,anchor_rsrp,anchor_rsrq,anchor_sinr,anchor_rssi,anchor_cqi,anchor_timing_advance")
+        sb.appendLine("timestamp,lat,lon,alt,accuracy,relative_x,relative_y,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,bandwidth,earfcn,tac,is_location_estimated,location_source,ca_bands,anchor_enb_gnb_id,anchor_lcid,anchor_pci,anchor_tac,anchor_band,anchor_earfcn,anchor_bandwidth,anchor_rsrp,anchor_rsrq,anchor_sinr,anchor_rssi,anchor_cqi,anchor_timing_advance")
         for (wrapper in records) {
             val r = wrapper.record
             val caJson = if (wrapper.caBands.isNotEmpty()) {
@@ -48,6 +48,7 @@ class ExportSessionUseCase @Inject constructor() {
                             ca.rssi?.let { put("rssi", it) }
                             ca.cqi?.let { put("cqi", it) }
                             ca.timingAdvance?.let { put("timingAdvance", it) }
+                            ca.bandwidthKhz?.let { put("bandwidth", it) }
                         })
                     }
                 }.toString()
@@ -75,6 +76,7 @@ class ExportSessionUseCase @Inject constructor() {
                     append(csvField(r.mcc)); append(',')
                     append(csvField(r.mnc)); append(',')
                     append(csvField(r.bandNumber)); append(',')
+                    append(csvField(r.bandwidthKhz)); append(',')
                     append(csvField(r.earfcn)); append(',')
                     append(csvField(r.tac)); append(',')
                     append(r.isLocationEstimated); append(',')
@@ -149,6 +151,7 @@ class ExportSessionUseCase @Inject constructor() {
                             put("mcc", r.mcc)
                             put("mnc", r.mnc)
                             put("band", r.bandNumber)
+                            put("bandwidth", r.bandwidthKhz)
                             put("earfcn", r.earfcn)
                             put("tac", r.tac)
                             put("isLocationEstimated", r.isLocationEstimated)
@@ -170,6 +173,7 @@ class ExportSessionUseCase @Inject constructor() {
                                             ca.rssi?.let { put("rssi", it) }
                                             ca.cqi?.let { put("cqi", it) }
                                             ca.timingAdvance?.let { put("timingAdvance", it) }
+                                            ca.bandwidthKhz?.let { put("bandwidth", it) }
                                         })
                                     }
                                 })

@@ -5,7 +5,8 @@ data class CaBandDetail(
     val pci: String,
     val rsrp: String,
     val rsrq: String,
-    val sinr: String
+    val sinr: String,
+    val earfcn: Int? = null
 )
 
 data class SimLiveState(

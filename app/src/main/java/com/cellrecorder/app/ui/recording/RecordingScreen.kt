@@ -518,6 +518,7 @@ private fun SimCard(sim: SimLiveState) {
                 data = data,
                 isExpandable = true,
                 expanded = expanded,
+                onExpandToggle = { if (hasExpandableData) expanded = !expanded },
                 modifier = Modifier.fillMaxWidth()
             )
         }

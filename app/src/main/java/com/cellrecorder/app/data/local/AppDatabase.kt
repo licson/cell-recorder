@@ -22,7 +22,7 @@ import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
         AppConfigEntity::class,
         SpeedTestRecordEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -173,6 +173,10 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_11_12 = Migration(11, 12) { db ->
             db.execSQL("CREATE INDEX IF NOT EXISTS `index_cell_records_session_id_timestamp` ON `cell_records` (`sessionId`, `timestamp`)")
+        }
+
+        val MIGRATION_12_13 = Migration(12, 13) { db ->
+            db.execSQL("ALTER TABLE cell_record_ca_bands ADD COLUMN bandwidthKhz INTEGER")
         }
 
         val CALLBACK = object : Callback() {

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.intOrNull
+import java.util.logging.Logger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -43,8 +44,11 @@ class CsvRecordParser @Inject constructor() {
         "mcc" to "mcc",
         "mnc" to "mnc",
         "band" to "bandNumber",
+        "bandwidth" to "bandwidthKhz",
         "earfcn" to "earfcn",
         "tac" to "tac",
+        "is_location_estimated" to "isLocationEstimated",
+        "location_source" to "locationSource",
         "ca_bands" to "caBands",
         "anchor_enb_gnb_id" to "anchorEnbOrGnbId",
         "anchor_lcid" to "anchorLcid",
@@ -91,7 +95,7 @@ class CsvRecordParser @Inject constructor() {
                 val (record, caBands) = parseRow(cols, colIdx, sessionId, dataLine, errors)
                 if (record != null) {
                     records.add(record)
-                    caBandsList.add(caBands ?: emptyList())
+                    caBandsList.add(caBands)
                 }
             } catch (e: Exception) {
                 errors.add(ParseError(dataLine, e.message ?: "Unexpected error"))
@@ -125,7 +129,7 @@ class CsvRecordParser @Inject constructor() {
         sessionId: Long,
         lineNum: Int,
         errors: MutableList<ParseError>
-    ): Pair<CellRecordEntity?, List<CellRecordCaBandEntity>?> {
+        ): Pair<CellRecordEntity?, List<CellRecordCaBandEntity>> {
         val str = { key: String -> idx[key]?.let { cols.getOrNull(it) }?.takeIf { it.isNotEmpty() } }
         val long = { key: String -> str(key)?.toLongOrNull() }
         val int = { key: String -> str(key)?.toIntOrNull() }
@@ -142,7 +146,7 @@ class CsvRecordParser @Inject constructor() {
 
         if (timestamp == null || (!hasLatLon && !hasRelative)) {
             errors.add(ParseError(lineNum, "Missing or invalid timestamp and coordinates"))
-            return null to null
+            return null to emptyList()
         }
 
         val caBands = parseCaBands(str("caBands"))
@@ -169,9 +173,12 @@ class CsvRecordParser @Inject constructor() {
             packetLossPct = double("packetLossPct"),
             mcc = str("mcc"),
             mnc = str("mnc"),
-            bandNumber = int("band"),
+            bandNumber = int("bandNumber"),
             earfcn = int("earfcn"),
+            bandwidthKhz = int("bandwidthKhz"),
             tac = int("tac"),
+            isLocationEstimated = str("isLocationEstimated")?.toBoolean() ?: false,
+            locationSource = str("locationSource") ?: "GPS",
             anchorEnbOrGnbId = long("anchorEnbOrGnbId"),
             anchorLcid = int("anchorLcid"),
             anchorPci = int("anchorPci"),
@@ -188,8 +195,8 @@ class CsvRecordParser @Inject constructor() {
         ) to caBands
     }
 
-    private fun parseCaBands(jsonStr: String?): List<CellRecordCaBandEntity>? {
-        if (jsonStr.isNullOrBlank()) return null
+    private fun parseCaBands(jsonStr: String?): List<CellRecordCaBandEntity> {
+        if (jsonStr.isNullOrBlank()) return emptyList()
         return try {
             val arr = json.parseToJsonElement(jsonStr).jsonArray
             arr.map { el ->
@@ -204,11 +211,17 @@ class CsvRecordParser @Inject constructor() {
                     sinr = obj["sinr"]?.jsonPrimitive?.intOrNull,
                     rssi = obj["rssi"]?.jsonPrimitive?.intOrNull,
                     cqi = obj["cqi"]?.jsonPrimitive?.intOrNull,
-                    timingAdvance = obj["timingAdvance"]?.jsonPrimitive?.intOrNull
+                    timingAdvance = obj["timingAdvance"]?.jsonPrimitive?.intOrNull,
+                    bandwidthKhz = obj["bandwidth"]?.jsonPrimitive?.intOrNull
                 )
             }
         } catch (e: Exception) {
-            null
+            logger.warning("Malformed ca_bands JSON ignored: ${e.message}")
+            emptyList()
         }
+    }
+
+    companion object {
+        private val logger = Logger.getLogger(CsvRecordParser::class.java.name)
     }
 }

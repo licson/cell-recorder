@@ -9,5 +9,6 @@ data class CaBandSnapshot(
     val sinr: Int? = null,
     val rssi: Int? = null,
     val cqi: Int? = null,
-    val timingAdvance: Int? = null
+    val timingAdvance: Int? = null,
+    val bandwidthKhz: Int? = null
 )

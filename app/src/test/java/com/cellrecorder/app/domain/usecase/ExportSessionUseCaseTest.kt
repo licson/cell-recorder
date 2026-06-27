@@ -72,7 +72,7 @@ class ExportSessionUseCaseTest {
     @Test
     fun `exportCsv produces correct header`() {
         val data = useCase.exportCsv(session, records)
-        assertTrue(data.content.startsWith("timestamp,lat,lon,alt,accuracy,relative_x,relative_y,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,earfcn,tac"))
+        assertTrue(data.content.startsWith("timestamp,lat,lon,alt,accuracy,relative_x,relative_y,subscription_id,sim_slot_index,rat,pci,rsrp,rsrq,sinr,enb_gnb_id,lcid,avg_latency_ms,packet_loss_pct,mcc,mnc,band,bandwidth,earfcn,tac"))
         assertTrue(data.content.contains("ca_bands"))
     }
 

@@ -110,7 +110,10 @@ class GeoJsonRecordParser @Inject constructor() {
                     mnc = str("mnc"),
                     bandNumber = int("band"),
                     earfcn = int("earfcn"),
+                    bandwidthKhz = int("bandwidth"),
                     tac = int("tac"),
+                    isLocationEstimated = str("isLocationEstimated")?.toBoolean() ?: false,
+                    locationSource = str("locationSource") ?: "GPS",
                     anchorEnbOrGnbId = long("anchorEnbGnbId") ?: long("anchor_enb_gnb_id"),
                     anchorLcid = int("anchorLcid"),
                     anchorPci = int("anchorPci"),
@@ -148,7 +151,8 @@ class GeoJsonRecordParser @Inject constructor() {
                 sinr = obj["sinr"]?.jsonPrimitive?.intOrNull,
                 rssi = obj["rssi"]?.jsonPrimitive?.intOrNull,
                 cqi = obj["cqi"]?.jsonPrimitive?.intOrNull,
-                timingAdvance = obj["timingAdvance"]?.jsonPrimitive?.intOrNull
+                timingAdvance = obj["timingAdvance"]?.jsonPrimitive?.intOrNull,
+                bandwidthKhz = obj["bandwidth"]?.jsonPrimitive?.intOrNull
             )
         }
     }

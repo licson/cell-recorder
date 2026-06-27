@@ -95,12 +95,13 @@ class SessionAnalyticsEngine {
         }
         for (wrapper in recordsWithCa) {
             val sim = wrapper.record.simSlotIndex ?: 0
-            val rat = wrapper.record.rat
             for (caBand in wrapper.caBands) {
                 val band = caBand.bandNumber ?: continue
                 val map = caBySim.getOrPut(sim) { mutableMapOf() }
                 val current = map[band]
-                map[band] = (current?.first ?: 0) + 1 to rat
+                // CA bands are LTE secondary cells, so they are always tagged as 4G
+                // (never the parent record's RAT such as 5G_NSA) for band distribution.
+                map[band] = (current?.first ?: 0) + 1 to "4G"
             }
         }
 
@@ -258,7 +259,14 @@ class SessionAnalyticsEngine {
                 val ratChanged = cur.rat != next.rat
                 val bandChanged = cur.bandNumber != null && next.bandNumber != null && cur.bandNumber != next.bandNumber
 
-                if (!cellChanged && !pciChanged && !ratChanged && !bandChanged) continue
+                val anchorEnbChanged = cur.anchorEnbOrGnbId != null && next.anchorEnbOrGnbId != null &&
+                    cur.anchorEnbOrGnbId != next.anchorEnbOrGnbId
+                val anchorPciChanged = cur.anchorPci != null && next.anchorPci != null &&
+                    cur.anchorPci != next.anchorPci
+                val anchorChanged = cur.rat == "5G_NSA" && next.rat == "5G_NSA" &&
+                    !cellChanged && !pciChanged && (anchorEnbChanged || anchorPciChanged)
+
+                if (!cellChanged && !pciChanged && !ratChanged && !bandChanged && !anchorChanged) continue
 
                 val latDelta = next.avgLatencyMs?.let { n ->
                     cur.avgLatencyMs?.let { c -> n - c }
@@ -272,6 +280,7 @@ class SessionAnalyticsEngine {
                     cellChanged && cur.enbOrGnbId == next.enbOrGnbId -> HandoffType.INTRA_SITE_PCI_CHANGE
                     cellChanged && cur.enbOrGnbId != next.enbOrGnbId -> HandoffType.INTER_SITE
                     bandChanged -> HandoffType.BAND_CHANGE
+                    anchorChanged -> HandoffType.NSA_ANCHOR_CHANGE
                     pciChanged -> HandoffType.UNKNOWN_CELL_CHANGE
                     else -> HandoffType.UNKNOWN_CELL_CHANGE
                 }

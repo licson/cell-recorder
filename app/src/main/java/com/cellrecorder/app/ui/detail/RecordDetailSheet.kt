@@ -53,9 +53,9 @@ fun RecordDetailSheet(
             val rsrp = record.rsrp
             DetailRow("RSRP", rsrp?.toString() ?: "---", valueColor = rsrpColor(rsrp))
             val rsrq = record.rsrq
-            DetailRow("RSRQ", rsrq?.toString() ?: "---", valueColor = rsrpColor(rsrq))
+            DetailRow("RSRQ", rsrq?.toString() ?: "---", valueColor = rsrqColor(rsrq))
             val sinr = record.sinr
-            DetailRow("SINR", sinr?.toString() ?: "---", valueColor = rsrpColor(sinr))
+            DetailRow("SINR", sinr?.toString() ?: "---", valueColor = sinrColor(sinr))
             DetailRow("RSSI", record.rssi?.toString() ?: "---")
             DetailRow("CQI", record.cqi?.toString() ?: "---")
             DetailRow("TA", record.timingAdvance?.toString() ?: "---")
@@ -73,15 +73,15 @@ fun RecordDetailSheet(
                         )
                     ) {
                         Column(modifier = Modifier.padding(8.dp)) {
-                            DetailRow("Band", "B${ca.bandNumber ?: "?"}")
+                            DetailRow("Band", BandResolver.formatBand(ca.bandNumber, ca.earfcn, "4G"))
                             DetailRow("EARFCN", ca.earfcn?.toString() ?: "---")
                             DetailRow("PCI", ca.pci?.toString() ?: "---")
                             val caRsrp = ca.rsrp
                             DetailRow("RSRP", caRsrp?.toString() ?: "---", valueColor = rsrpColor(caRsrp))
                             val caRsrq = ca.rsrq
-                            DetailRow("RSRQ", caRsrq?.toString() ?: "---", valueColor = rsrpColor(caRsrq))
+                            DetailRow("RSRQ", caRsrq?.toString() ?: "---", valueColor = rsrqColor(caRsrq))
                             val caSinr = ca.sinr
-                            DetailRow("SINR", caSinr?.toString() ?: "---", valueColor = rsrpColor(caSinr))
+                            DetailRow("SINR", caSinr?.toString() ?: "---", valueColor = sinrColor(caSinr))
                         }
                     }
                 }
@@ -91,16 +91,16 @@ fun RecordDetailSheet(
             if (record.rat.startsWith("5G_NSA") && record.anchorPci != null) {
                 Spacer(Modifier.height(16.dp))
                 SectionTitle("Anchor Cell")
-                DetailRow("Band", "B${record.anchorBandNumber ?: "?"}")
+                DetailRow("Band", BandResolver.formatBand(record.anchorBandNumber, record.anchorEarfcn, "4G"))
                 DetailRow("EARFCN", record.anchorEarfcn?.toString() ?: "---")
                 DetailRow("PCI", record.anchorPci?.toString() ?: "---")
                 DetailRow("TAC", record.anchorTac?.toString() ?: "---")
                 val aRsrp = record.anchorRsrp
                 DetailRow("RSRP", aRsrp?.toString() ?: "---", valueColor = rsrpColor(aRsrp))
                 val aRsrq = record.anchorRsrq
-                DetailRow("RSRQ", aRsrq?.toString() ?: "---", valueColor = rsrpColor(aRsrq))
+                DetailRow("RSRQ", aRsrq?.toString() ?: "---", valueColor = rsrqColor(aRsrq))
                 val aSinr = record.anchorSinr
-                DetailRow("SINR", aSinr?.toString() ?: "---", valueColor = rsrpColor(aSinr))
+                DetailRow("SINR", aSinr?.toString() ?: "---", valueColor = sinrColor(aSinr))
             }
 
             // Location
