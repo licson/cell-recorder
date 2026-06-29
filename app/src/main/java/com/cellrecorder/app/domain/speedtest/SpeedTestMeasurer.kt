@@ -5,8 +5,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
@@ -20,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong
 object SpeedTestMeasurer {
 
     private const val TAG = "SpeedTestMeasurer"
-    private const val CHUNK_SIZE = 65536
+    private const val CHUNK_SIZE = 1048576
     private val DOWNLOAD_SIZES = listOf(350, 500, 750, 1000, 1500, 2000, 2500, 3000, 3500, 4000)
 
     private const val DOWNLOAD_WARMUP_MS = 1500L
@@ -112,7 +110,6 @@ object SpeedTestMeasurer {
             }
         }
 
-        val semaphore = Semaphore(downloadThreads.coerceAtLeast(1))
         val startTime = System.nanoTime()
         val deadlineNs = computeDeadlineNs(startTime, testLengthSec, DOWNLOAD_WARMUP_MS)
         val warmupDeadlineNs = startTime + DOWNLOAD_WARMUP_MS * 1_000_000L
@@ -125,14 +122,20 @@ object SpeedTestMeasurer {
         val lastSliceBytes = AtomicLong(0)
         val lastSliceTime = AtomicLong(warmupDeadlineNs)
         val sliceLock = Any()
+        val urlCount = urls.size
+        val urlIdx = AtomicLong(0)
+        if (urlCount == 0) {
+            return@withContext buildResult(0, 0, 0, 0, emptyList(), false)
+        }
 
         coroutineScope {
-            val jobs = urls.map { url ->
+            val jobs = (0 until downloadThreads.coerceAtLeast(1)).map {
                 launch {
-                    semaphore.withPermit {
+                    while (isActive) {
+                        val now = System.nanoTime()
+                        if (now >= deadlineNs) break
                         try {
-                            if (System.nanoTime() >= deadlineNs || !isActive) return@launch
-
+                            val url = urls[(urlIdx.getAndIncrement().toInt() and 0x7fffffff) % urlCount]
                             val request = Request.Builder()
                                 .url(url)
                                 .header("User-Agent", buildUserAgent())
@@ -147,19 +150,19 @@ object SpeedTestMeasurer {
                                 val buffer = ByteArray(CHUNK_SIZE)
 
                                 while (isActive) {
-                                    val now = System.nanoTime()
-                                    if (now >= deadlineNs) break
+                                    val innerNow = System.nanoTime()
+                                    if (innerNow >= deadlineNs) break
 
                                     val bytesRead = input.read(buffer)
                                     if (bytesRead == -1) break
 
                                     totalBytes.addAndGet(bytesRead.toLong())
 
-                                    if (now >= warmupDeadlineNs) {
+                                    if (innerNow >= warmupDeadlineNs) {
                                         postWarmupBytes.addAndGet(bytesRead.toLong())
                                     }
 
-                                    if (now >= nextSliceNs.get()) {
+                                    if (innerNow >= nextSliceNs.get()) {
                                         synchronized(sliceLock) {
                                             val sliceNow = System.nanoTime()
                                             if (sliceNow >= nextSliceNs.get()) {
@@ -170,7 +173,7 @@ object SpeedTestMeasurer {
                                 }
                             }
                         } catch (e: Exception) {
-                            Log.w(TAG, "Download job failed: ${e.message}")
+                            Log.w(TAG, "Download request failed: ${e.message}")
                         }
                     }
                 }
@@ -207,7 +210,6 @@ object SpeedTestMeasurer {
         }
         val actualRequests = requests.take(uploadMax)
 
-        val semaphore = Semaphore(uploadThreads.coerceAtLeast(1))
         val startTime = System.nanoTime()
         val deadlineNs = computeDeadlineNs(startTime, testLengthSec, UPLOAD_WARMUP_MS)
         val warmupDeadlineNs = startTime + UPLOAD_WARMUP_MS * 1_000_000L
@@ -220,13 +222,20 @@ object SpeedTestMeasurer {
         val lastSliceBytes = AtomicLong(0)
         val lastSliceTime = AtomicLong(warmupDeadlineNs)
         val sliceLock = Any()
+        val requestCount = actualRequests.size
+        val requestIdx = AtomicLong(0)
+        if (requestCount == 0) {
+            return@withContext buildResult(0, 0, 0, 0, emptyList(), false)
+        }
 
         coroutineScope {
-            val jobs = actualRequests.map { (reqUrl, size) ->
+            val jobs = (0 until uploadThreads.coerceAtLeast(1)).map {
                 launch {
-                    semaphore.withPermit {
+                    while (isActive) {
+                        val now = System.nanoTime()
+                        if (now >= deadlineNs) break
                         try {
-                            if (System.nanoTime() >= deadlineNs || !isActive) return@launch
+                            val (reqUrl, size) = actualRequests[(requestIdx.getAndIncrement().toInt() and 0x7fffffff) % requestCount]
 
                             val streamingBody = createStreamingUploadBody(
                                 payload = buildUploadPayload(size),
@@ -256,7 +265,7 @@ object SpeedTestMeasurer {
                                 resp.body?.bytes()
                             }
                         } catch (e: Exception) {
-                            Log.w(TAG, "Upload job failed: ${e.message}")
+                            Log.w(TAG, "Upload request failed: ${e.message}")
                         }
                     }
                 }

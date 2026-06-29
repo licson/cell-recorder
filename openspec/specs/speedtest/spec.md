@@ -122,12 +122,13 @@ The system SHALL measure download speed using multi-threaded HTTP GET requests t
 #### Scenario: Download test executed
 - GIVEN the download URL list
 - WHEN the test runs
-- THEN concurrent HTTP GET requests are made using OkHttp with a semaphore limiting concurrency to `threadcount * 2`
-- AND each response body is read in 64 KB chunks
+- THEN a fixed number of worker coroutines (equal to `threadcount * 2`) each loop through the URL list until the deadline, keeping the network pipe saturated for the full test duration
+- AND each response body is read in 1 MB chunks
 - AND the first 1.5 seconds of data is counted as a warmup period (not used in speed calculation)
 - AND data transferred after the warmup period is used for throughput sampling
 - AND throughput samples are recorded at ~500ms intervals
 - AND reading stops when the configured `testlength` + warmup (seconds) is reached
+- AND a transient failure in one request is caught and the worker continues to the next URL rotation
 
 #### Scenario: Download speed calculated
 - GIVEN completed download transfers
@@ -152,12 +153,14 @@ The system SHALL, when upload is enabled, measure upload speed using multi-threa
 #### Scenario: Upload test executed
 - GIVEN the upload request list
 - WHEN the test runs
-- THEN concurrent HTTP POST requests are made to `{server.url}` using OkHttp
-- AND each request sends the full payload as a `RequestBody`
+- THEN a fixed number of worker coroutines (equal to `threads * 2` from the server config, capped at 16) each loop through the request list until the deadline, keeping the network pipe saturated for the full test duration
+- AND concurrent HTTP POST requests are made to `{server.url}` using OkHttp
+- AND each request sends the full payload as a `RequestBody` with `Content-Length` declared
 - AND the first 3 seconds of data is counted as a warmup period (not used in speed calculation)
 - AND data transferred after the warmup period is used for throughput sampling
 - AND throughput samples are recorded at ~500ms intervals
 - AND upload ends when the configured `testlength` + warmup (seconds) is reached
+- AND a transient failure in one request is caught and the worker continues to the next request rotation
 
 #### Scenario: Upload speed calculated
 - GIVEN completed upload transfers

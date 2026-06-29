@@ -113,7 +113,7 @@ class SpeedTestEngine @Inject constructor(
                     uploadSizes = config.uploadSizes,
                     uploadCount = config.uploadCount,
                     uploadMax = config.uploadMax,
-                    uploadThreads = config.upload.threads,
+                    uploadThreads = (config.upload.threads * 2).coerceAtMost(16),
                     testLengthSec = config.upload.testLengthSec,
                     secure = true,
                     estimatedBps = cachedGaugeBps ?: 0L,
