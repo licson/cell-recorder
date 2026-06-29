@@ -286,7 +286,7 @@ object SpeedTestMeasurer {
         return object : RequestBody() {
             override fun contentType(): MediaType = MEDIA_TYPE_OCTET_STREAM
 
-            override fun contentLength(): Long = -1L
+            override fun contentLength(): Long = payload.size.toLong()
 
             override fun writeTo(sink: BufferedSink) {
                 var offset = 0
