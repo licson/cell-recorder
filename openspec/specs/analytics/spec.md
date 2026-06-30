@@ -121,6 +121,8 @@ The system SHALL detect cell and site handoff events within a session. Handoffs 
 - THEN it is classified as `INTER_SITE`
 - WHEN a band number change occurs without cell identity or PCI change
 - THEN it is classified as `BAND_CHANGE`
+- WHEN the primary cell remains identical on a `5G_NSA` connection but the LTE anchor's `anchorEnbOrGnbId` or `anchorPci` changes
+- THEN it is classified as `NSA_ANCHOR_CHANGE`
 - WHEN a PCI change occurs without a detectable cell identity change
 - THEN it is classified as `UNKNOWN_CELL_CHANGE`
 
@@ -253,13 +255,14 @@ The system SHALL exclude indoor sessions from geographic-dependent analytics. In
 
 ### Requirement: Band Distribution with RAT Context
 
-The system SHALL compute band usage distribution per SIM and tag each band entry with its source RAT, using qualified band names in the UI.
+The system SHALL compute band usage distribution per SIM and tag each band entry with its source RAT, using qualified band names in the UI. For CA bands, the RAT SHALL be `"4G"` (or `"4G_CA"`) since CA bands currently originate from LTE secondary cells, even if the primary record is `5G_NSA`.
 
 #### Scenario: Band distribution tagged with RAT
 - GIVEN a session with recorded points
 - WHEN analytics are generated
-- THEN each band entry in the distribution is tagged with the source RAT from the primary record
-- AND CA bands inherit the RAT of their parent record
+- THEN each band entry in the distribution is tagged with the source RAT
+- AND primary bands inherit the RAT of the primary record
+- AND CA bands use the `"4G"` or `"4G_CA"` RAT to ensure they are labeled as LTE bands in distribution charts
 - AND the distribution is sorted by count descending within each RAT group
 
 #### Scenario: Qualified band labels in UI

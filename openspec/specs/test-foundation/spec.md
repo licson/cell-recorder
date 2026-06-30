@@ -25,7 +25,7 @@ This spec covers JVM unit test coverage and pure-logic extraction. It does not d
 
 ### Requirement: Pure-logic domain components SHALL have unit tests
 
-The system SHALL provide JVM unit tests (under `app/src/test/`) covering the public API of every pure-logic domain component — components whose logic has no Android framework dependency and no I/O side effect. The tests SHALL execute via `./gradlew test` without a device or emulator.
+The system SHALL provide JVM unit tests (under `app/src/test/`) covering the public API of every pure-logic domain component — components whose logic has no Android framework dependency and no I/O side effect. The tests SHALL execute via `./gradlew test` without a device or emulator. The `CellInfoCollector` is considered pure-logic because its single framework dependency (`INetMonster`) is an interface that can be mocked or faked.
 
 The following components are in scope:
 - `domain/model/BandResolver` — band number resolution and `formatBand` prefix selection
@@ -35,6 +35,7 @@ The following components are in scope:
 - `domain/usecase/import_/CsvRecordParser` — CSV line splitting, column mapping, CA-band JSON parsing
 - `domain/usecase/import_/GeoJsonRecordParser` — GeoJSON FeatureCollection parsing, dual-key tolerance, geometry validation
 - `service/GpsStateMachine` — fix-lost detection, settling window, extrapolation age, estimated accuracy (pure state-machine logic)
+- `service/CellInfoCollector` — 5G NSA logic, fallback handling, LTE CA extraction, and cell ID splitting
 
 #### Scenario: BandResolver unit tests exist and pass
 - **WHEN** `./gradlew test` is run
@@ -57,6 +58,12 @@ The following components are in scope:
 - **WHEN** the machine is within the settling period
 - **THEN** `isFixLost()` returns false even if no fresh fix has arrived
 - **AND** `isInSettling()` returns true until the settling window elapses
+
+#### Scenario: CellInfoCollector NSA fallback and CA extraction are verified
+- **WHEN** `CellInfoCollector` processes an NSA network type with no NR cell but an LTE anchor
+- **THEN** it produces a `4G` or `4G_CA` record with full LTE details
+- **WHEN** it processes an LTE cell with secondary cells
+- **THEN** it correctly extracts `CaBandSnapshot` lists with bandwidth and assigns `4G_CA`
 
 ### Requirement: Existing unit tests SHALL be extended to close documented gaps
 

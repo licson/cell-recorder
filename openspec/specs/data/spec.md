@@ -28,19 +28,19 @@ This spec covers data persistence formats, export/import, and schema evolution. 
 
 ### Requirement: CSV Export
 
-The system SHALL allow exporting a session's data as a CSV file. For `5G_NSA` records, the CSV SHALL include anchor cell columns. Anchor cell semantics are defined in `cell-info/spec.md`.
+The system SHALL allow exporting a session's data as a CSV file. For `5G_NSA` records, the CSV SHALL include anchor cell columns. Anchor cell semantics are defined in `cell-info/spec.md`. The CSV export SHALL include the primary cell's `bandwidthKhz` as the `bandwidth` column.
 
 #### Scenario: Export to CSV
 - GIVEN a session with recorded points
 - WHEN the user selects CSV export from the session menu
 - THEN the system opens a document save dialog
-- AND the generated CSV includes columns for timestamp, coordinates, signal metrics, cell identity, carrier aggregation bands, and anchor cell fields for NSA records
+- AND the generated CSV includes columns for timestamp, coordinates, signal metrics, cell identity, primary bandwidth, carrier aggregation bands, and anchor cell fields for NSA records
 - AND the `ca_bands` column contains a JSON array string
 - AND anchor columns are prefixed with `anchor_` (e.g., `anchor_pci`, `anchor_rsrp`)
 
 ### Requirement: GeoJSON Export
 
-The system SHALL allow exporting a session's data as a GeoJSON FeatureCollection. For `5G_NSA` records, the Feature properties SHALL include anchor cell fields. Anchor cell semantics are defined in `cell-info/spec.md`.
+The system SHALL allow exporting a session's data as a GeoJSON FeatureCollection. For `5G_NSA` records, the Feature properties SHALL include anchor cell fields. Anchor cell semantics are defined in `cell-info/spec.md`. The GeoJSON export SHALL include the primary cell's `bandwidthKhz` as the `bandwidth` property.
 
 #### Scenario: Export to GeoJSON
 - GIVEN a session with recorded points
@@ -53,7 +53,7 @@ The system SHALL allow exporting a session's data as a GeoJSON FeatureCollection
 - GIVEN a GeoJSON export
 - WHEN the file is generated
 - THEN each Feature's geometry contains `[lon, lat, alt]` coordinates
-- AND each Feature's properties include all cell and signal attributes
+- AND each Feature's properties include all cell, bandwidth, and signal attributes
 - AND for `5G_NSA` records, anchor cell properties are included
 
 ### Requirement: Indoor CSV Export
@@ -108,7 +108,7 @@ The system SHALL import CSV files containing indoor relative coordinates.
 
 ### Requirement: CSV Import
 
-The system SHALL allow importing cell records from a CSV file by parsing the file once and assigning the session ID to all parsed records. Anchor cell columns are optional and nullable. Indoor sessions with `relativeX` and `relativeY` columns are supported.
+The system SHALL allow importing cell records from a CSV file by parsing the file once and assigning the session ID to all parsed records. Anchor cell columns are optional and nullable. Indoor sessions with `relativeX` and `relativeY` columns are supported. The parser SHALL correctly map the CSV `band` header to the internal `bandNumber` field. The parser SHALL support importing `isLocationEstimated` and `locationSource` fields. The parser SHALL log a warning but continue if the `ca_bands` JSON is malformed.
 
 #### Scenario: Import from CSV with anchor columns
 - GIVEN the import dialog is open
@@ -134,6 +134,23 @@ The system SHALL allow importing cell records from a CSV file by parsing the fil
 - AND the session `recordingMode` is set to `"INDOOR"`
 - AND `latitude` and `longitude` fields default to null
 
+#### Scenario: Import location metadata
+- GIVEN the import dialog is open
+- WHEN the user selects a CSV file that includes `is_location_estimated` and `location_source` columns
+- THEN these fields are parsed and stored on the corresponding records
+
+#### Scenario: Primary band number imported correctly
+- GIVEN the import dialog is open
+- WHEN the user selects a CSV file with a `band` column
+- THEN the value is correctly assigned to the `bandNumber` field of the record
+
+#### Scenario: Malformed CA bands JSON
+- GIVEN the import dialog is open
+- WHEN the user selects a CSV file with a malformed JSON string in the `ca_bands` column
+- THEN the record is successfully parsed
+- AND the `caBands` list for that record is empty
+- AND a warning is logged
+
 ### Requirement: Batch Re-Split
 
 The system SHALL allow the user to re-apply the cell ID split formula to all points in an existing session, including 5G NSA records. Cell ID split logic is defined in `cell-info/spec.md`.
@@ -156,7 +173,7 @@ The system SHALL provide a composite index on `(sessionId, timestamp)` in the `c
 
 ### Requirement: GeoJSON Import
 
-The system SHALL allow importing cell records from a GeoJSON FeatureCollection file. Anchor cell properties are optional and nullable. Indoor sessions with `"indoorMode"` property are supported.
+The system SHALL allow importing cell records from a GeoJSON FeatureCollection file. Anchor cell properties are optional and nullable. Indoor sessions with `"indoorMode"` property are supported. The parser SHALL support importing `isLocationEstimated` and `locationSource` fields.
 
 #### Scenario: Import from GeoJSON with anchor properties
 - GIVEN the import dialog is open
@@ -174,6 +191,11 @@ The system SHALL allow importing cell records from a GeoJSON FeatureCollection f
 - THEN the session `recordingMode` is set to `"INDOOR"`
 - AND `relativeX` and `relativeY` are parsed from the geometry coordinates using the inverse approximate conversion
 - AND `latitude` and `longitude` default to null
+
+#### Scenario: Import location metadata
+- GIVEN the import dialog is open
+- WHEN the user selects a GeoJSON file that includes `isLocationEstimated` and `locationSource` properties
+- THEN these properties are parsed and stored on the corresponding records
 
 ### Requirement: Speedtest Record Entity
 

@@ -324,33 +324,34 @@ The system SHALL display a sensor health warning when step detection is not rece
 
 ### Requirement: Live Info Screen — Structured CA Bands and Anchor
 
-The system SHALL display structured Carrier Aggregation band information and 5G NSA anchor cell details on the Live Info screen.
+The system SHALL display structured Carrier Aggregation band information and 5G NSA anchor cell details on the Live Info screen. Band labels SHALL use RAT-appropriate prefixes (e.g., "B3", "n78").
 
 #### Scenario: CA bands displayed as chips
 - GIVEN the Live Info tab is selected and a SIM has active CA bands
 - THEN each CA band is shown as a chip in a FlowRow layout
-- AND each chip shows the band and PCI
+- AND each chip shows the RAT-appropriate band prefix and PCI
 - AND the chip text is color-coded by the CA band's RSRP value
 
 #### Scenario: Anchor cell displayed in structured rows
 - GIVEN the Live Info tab is selected and a SIM is on 5G NSA
-- THEN the anchor cell section shows structured rows: Band, ARFCN, PCI, TAC
+- THEN the anchor cell section shows structured rows: Band (with "B" prefix), ARFCN, PCI, TAC
 - AND a second row shows RSRP, RSRQ, SINR with signal quality color coding
 
 ### Requirement: Recording Screen — Expandable SimCard
 
-The system SHALL provide an expandable SimCard on the RecordingScreen that reveals full 5G NSA anchor and CA band details when expanded.
+The system SHALL provide an expandable SimCard on the RecordingScreen that reveals full 5G NSA anchor and CA band details when expanded. The card's chevron icon SHALL respond to tap events to toggle expansion. Band labels SHALL use RAT-appropriate prefixes.
 
 #### Scenario: SimCard collapsed state
 - GIVEN the RecordingScreen shows the live stats panel
 - THEN each SimCard shows a compact anchor row for 5G NSA (`LTE: B<band> PCI <pci> RSRP <rsrp>`)
-- AND a CA band count badge (`B<band>+<N>`) when CA bands are active
+- AND a CA band count badge (`<prefix><band>+<N>`) when CA bands are active
 - AND the card is clickable when expandable data exists
 
 #### Scenario: SimCard expanded state
-- GIVEN the user taps a SimCard with anchor or CA data
+- GIVEN the user taps a SimCard with anchor or CA data (or its chevron icon)
 - THEN the card expands to show full anchor details (Band, ARFCN, PCI, TAC, RSRP, RSRQ, SINR)
 - AND structured CA band rows (Band, PCI, EARFCN, RSRP, RSRQ, SINR per band)
+- AND CA bands that have EARFCN data display the actual EARFCN value (not "---")
 - AND all signal values are color-coded by quality
 
 ### Requirement: Signal Quality Color Coding
@@ -368,7 +369,7 @@ The system SHALL apply signal quality color coding to RSRP, RSRQ, and SINR value
 
 ### Requirement: Session Detail Screen — Record Detail Bottom Sheet
 
-The system SHALL display a bottom sheet when a user taps a record in the session detail list, showing the full record data.
+The system SHALL display a bottom sheet when a user taps a record in the session detail list, showing the full record data. Band labels SHALL use RAT-appropriate prefixes.
 
 #### Scenario: Bottom sheet opens on tap
 - GIVEN the SessionDetailScreen record list is visible
@@ -378,17 +379,18 @@ The system SHALL display a bottom sheet when a user taps a record in the session
 #### Scenario: Primary cell section
 - GIVEN the record detail bottom sheet is open
 - THEN the Primary Cell section shows RAT, PLMN, Cell ID, PCI, TAC, Band, ARFCN, BW, RSRP, RSRQ, SINR, RSSI, CQI, TA
-- AND all signal values are color-coded by quality
+- AND all signal values are color-coded by quality using the appropriate color function (RSRP uses rsrpColor, RSRQ uses rsrqColor, SINR uses sinrColor)
 
 #### Scenario: CA Bands section
 - GIVEN the record detail bottom sheet is open and the record has CA bands
-- THEN the CA Bands section shows a card per band with band, EARFCN, PCI, RSRP, RSRQ, SINR
-- AND each signal value is color-coded
+- THEN the CA Bands section shows a card per band with band (using RAT-appropriate prefix), EARFCN, PCI, RSRP, RSRQ, SINR
+- AND each signal value is color-coded using the appropriate color function
 - AND the section is hidden when no CA bands exist
 
 #### Scenario: Anchor Cell section
 - GIVEN the record detail bottom sheet is open and the record is 5G NSA with anchor data
-- THEN the Anchor Cell section shows Band, EARFCN, PCI, TAC, RSRP, RSRQ, SINR
+- THEN the Anchor Cell section shows Band (with "B" prefix), EARFCN, PCI, TAC, RSRP, RSRQ, SINR
+- AND each signal value is color-coded using the appropriate color function
 - AND the section is hidden for non-5G_NSA records or when anchor data is missing
 
 #### Scenario: Location and Connectivity sections
@@ -401,6 +403,30 @@ The system SHALL display a bottom sheet when a user taps a record in the session
 - WHEN the user taps outside the sheet or swipes down
 - THEN the sheet dismisses and the selected record is cleared
 
+### Requirement: Session Detail Record Row CA Badge
+
+The system SHALL display a CA band count badge on session detail record rows when a record has carrier aggregation bands.
+
+#### Scenario: Record row with CA bands
+- GIVEN a session detail record row for a record with CA bands
+- WHEN the row is rendered
+- THEN the Band column shows `<formatted_band> +<N>` where N is the number of CA bands
+
+#### Scenario: Record row without CA bands
+- GIVEN a session detail record row for a record without CA bands
+- WHEN the row is rendered
+- THEN the Band column shows `<formatted_band>` with no count suffix
+
+### Requirement: Session Detail Column Headers
+
+The system SHALL display correct column headers in the session detail records list.
+
+#### Scenario: Column headers match data
+- GIVEN the SessionDetailScreen records list
+- WHEN the column header row is rendered
+- THEN the columns are: #, SIM, PLMN, Band, RSRP (dBm), RSRQ (dBm), and either relX/relY (indoor) or Ping (ms) (outdoor)
+- AND no duplicate header labels exist
+
 ### Requirement: Replay Screen — Expandable StatsPanel
 
 The system SHALL provide an expandable StatsPanel in the ReplayScreen that matches the live RecordingScreen SimCard behavior.
@@ -410,6 +436,7 @@ The system SHALL provide an expandable StatsPanel in the ReplayScreen that match
 - THEN the StatsPanel is expandable when anchor or CA data exists
 - AND the collapsed state shows a compact anchor row and CA band count badge
 - AND the expanded state shows full anchor details and structured CA band rows
+- AND CA bands that have EARFCN data display the actual EARFCN value
 - AND all signal values are color-coded by quality
 
 ### Requirement: Insight Cards
