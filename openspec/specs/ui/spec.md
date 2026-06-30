@@ -424,7 +424,7 @@ The system SHALL display correct column headers in the session detail records li
 #### Scenario: Column headers match data
 - GIVEN the SessionDetailScreen records list
 - WHEN the column header row is rendered
-- THEN the columns are: #, SIM, PLMN, Band, RSRP (dBm), RSRQ (dBm), and either relX/relY (indoor) or Ping (ms) (outdoor)
+- THEN the columns are: #, SIM, PLMN, Band, RSRP (dBm), RSRQ (dB), and either relX/relY (indoor) or Ping (ms) (outdoor)
 - AND no duplicate header labels exist
 
 ### Requirement: Replay Screen — Expandable StatsPanel
