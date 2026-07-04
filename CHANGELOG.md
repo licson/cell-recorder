@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.1] - 2026-06-30
 
 ### Added
-
 - **Expandable SIM cards on the recording screen** — tap a SIM card to expand it and see full 5G NSA anchor cell details (band, PCI, ARFCN, TAC, RSRP, RSRQ, SINR) and structured carrier aggregation band rows with per-band signal. The collapsed state shows a compact anchor summary or a `+N` carrier aggregation badge so you always know when extra bands are active.
 - **Structured carrier aggregation band chips on the Live Info screen** — carrier aggregation bands are now shown as individual chips in a flowing layout, each with its PCI and color-coded RSRP, making it easy to spot which secondary band has the best signal.
 - **Record detail bottom sheet** — tapping any record in the session detail list now opens a bottom sheet showing the full primary cell info, all carrier aggregation bands with per-band signal, the LTE anchor cell for 5G NSA, location details, and connectivity stats.
@@ -21,14 +20,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Statistics screen band labels** — the global band distribution chart now uses qualified `B3`/`n78` labels and groups NR vs LTE bands with distinct colors, matching the session analytics panel.
 - **Approximate location option** — on Android 12 and later, the system can now offer users the choice of approximate (coarse) location instead of requiring precise location, as the platform expects.
 - **Cellular speedtests are skipped on Wi-Fi** — the app now correctly detects when you're on Wi-Fi and skips cellular speedtests instead of attempting them and failing.
+- **Indoor path tracking improvements** — added discontinuity tracking, registration tracking, and a legend for the indoor path canvas.
 
 ### Changed
-
 - **Updated all libraries and build tools to their latest versions** for long-term compatibility, security patches, and continued support in future Android Studio releases.
 - **Launcher icon now supports Android 13+ themed icons** — added a monochrome layer so the app icon adapts to themed home screens.
+- **Speedtest engine migration** — migrated the custom speedtest engine to use OkHttp, significantly improving throughput accuracy.
+- **Enhanced analytics engine** — completely overhauled analytics with SIM-aware detection, robust baselines, and enriched handoff tracking.
+- **Thread safety** — added comprehensive thread safety to the core background recording service to ensure reliable long-term background recording.
 
 ### Fixed
-
+- **Empty cell records during RAT switch** — fixed an issue where switching between 5G SA and NSA/LTE networks would result in empty cell records.
+- **LTE Carrier Aggregation band detection** — fixed an issue where CA secondary bands wouldn't appear by using a fallback detection method when the primary API didn't report them.
+- **Speedtest upload and redirection failures** — fixed several speedtest issues, including chunked upload failures on Ookla servers, OkHttp redirection issues, and zero-bps reporting.
+- **Speedtest throughput maximization** — optimized the speedtest upload logic with worker loops and multiple upload threads to accurately measure high-bandwidth connections.
+- **False packet loss detection** — fixed an issue where the ping sliding window could report incorrect packet loss percentages.
+- **App stability during recording** — fixed process cleanup issues and improved background thread safety to prevent crashes during long recording sessions.
+- **CSV import compatibility** — fixed bugs related to importing CSV session files.
+- **Notification handling** — fixed an issue where the recording notification could behave inconsistently.
 - **Locale-safe number formatting in CSV exports and on screen** — values that depend on locale (like decimal separators) now display correctly regardless of your device's region setting.
 - **Indoor recording no longer gets stuck at the permissions dialog for existing users** — the physical activity permission is now requested at runtime as intended when starting an indoor session, instead of incorrectly routing to system Settings.
 - **Session detail RSRQ column header** now correctly reads "RSRQ (dB)" instead of the duplicate "RSRP (dB)".
@@ -37,7 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2026-06-12
 
 ### Added
-
 - **Continuous speedtest during recording** — measure download and upload throughput at regular intervals while recording cell data, so you can see how signal strength relates to actual network performance. Uses a custom implementation of the Speedtest.net HTTP protocol (no third-party app required).
 - **Speedtest settings** — enable or disable speedtests, toggle upload testing, set the interval between tests, and optionally pin a specific speedtest server in Settings.
 - **Speedtest EULA dialog** — first-time speedtest users see a brief notice about the Speedtest.net terms before enabling the feature.
@@ -59,13 +67,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Indoor export and import** — indoor sessions export relative coordinates in CSV and GeoJSON; GeoJSON files include an `indoorMode` flag so tools can distinguish them from GPS-tracked data.
 
 ### Changed
-
 - The recording screen now shows the path canvas for indoor sessions and the map for outdoor sessions.
 - Heading direction is now calculated using the standard Android sensor API, which is more reliable on devices with 3-element rotation vectors.
 - Database schema updated to v11 to store speedtest records, indoor session mode, relative coordinates, and indoor settings.
 
 ### Fixed
-
 - **Speedtest always failed on Android** because the config fetch sent a gzip header that Android's HTTP stack doesn't expect, and latency pings used the wrong URL scheme.
 - **Speedtest always returned 0 Mbps** because Android 11+ blocks unencrypted HTTP by default — the app now uses the correct network security configuration and upgrades to HTTPS when the server supports it.
 - **Speedtest server was re-discovered on every test** after any error, even unrelated ones. Cache now persists across measurement failures.
@@ -79,63 +85,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.1] - 2026-06-05
 
 ### Added
-
-- Carrier Aggregation support: secondary LTE bands are now recorded alongside the primary band
-- Live Info screen now shows secondary (CA) bands in real time per SIM
-- Band Distribution charts now include secondary CA bands
-- CSV and GeoJSON exports now include secondary CA bands
-- Re-imported sessions correctly restore CA band data
-- When GPS signal is lost during recording, the app now estimates your speed using the accelerometer to keep your position on track until GPS returns
-- 5G NSA (Non-Standalone) recording support: when on a 5G NSA network, the app now correctly records the NR cell (band, PCI, signal) and saves the underlying LTE anchor cell's details alongside it
-- Replay and session detail screens now show the LTE anchor's band, PCI, and signal strength for 5G NSA records
-- Live Info screen now shows the LTE anchor cell info when connected via 5G NSA
-- 5G NSA recordings now include carrier aggregation bands from the LTE anchor
+- **Ping outcome classification** — added advanced tracking and classification for ICMP ping outcomes by parsing the `-O` flag output, improving network diagnostic accuracy.
 
 ### Fixed
+- **False packet loss on startup** — fixed an issue where the app would report false packet loss percentages during startup or when calculating partial time windows.
 
-- Fixed direction tracking during GPS loss — movement now follows the correct heading
-- Fixed 5G NSA recordings being incorrectly labeled as "4G" — now correctly recorded as "5G_NSA"
-- Fixed NR cell data (PCI, RSRP, RSRQ, SINR, band) being lost during 5G NSA sessions
-- Analytics "Massive MIMO Candidate" insight now includes 5G NSA handoff events alongside 5G SA
+## [1.1.0] - 2026-06-04
+
+### Added
+- **Carrier Aggregation support** — secondary LTE bands are now recorded alongside the primary band.
+- **Live Info screen now shows secondary (CA) bands** in real time per SIM.
+- **Band Distribution charts now include secondary CA bands**.
+- **CSV and GeoJSON exports now include secondary CA bands**.
+- **Re-imported sessions correctly restore CA band data**.
+- **5G NSA (Non-Standalone) recording support** — when on a 5G NSA network, the app now correctly records the NR cell (band, PCI, signal) and saves the underlying LTE anchor cell's details alongside it.
+- **Replay and session detail screens now show the LTE anchor's band, PCI, and signal strength** for 5G NSA records.
+- **Live Info screen now shows the LTE anchor cell info** when connected via 5G NSA.
+- **5G NSA recordings now include carrier aggregation bands** from the LTE anchor.
+- **Live ping and packet loss graph** — added a real-time graph to the Live Cell Info screen right below the SIM slots.
+- **Auto-populate new session dialog** — creating a new session now automatically pre-fills a unique preset name to save time.
+- **Accelerometer speed adjustment** — when GPS signal is lost during recording, the app now estimates your speed using the accelerometer to keep your position on track until GPS returns (dead reckoning).
 
 ### Changed
+- **App performance improved** — significantly optimized app performance by introducing batch database writes, O(n) analytics processing, a more efficient long-running ping service, and database indices.
+- **CSV and GeoJSON export format** — now includes anchor cell columns for 5G NSA records (prefixed with `anchor_`).
+- **Room database schema updated** — safely updated to v8 with automatic migration to support new data fields without losing existing data.
 
-- CSV and GeoJSON export now include anchor cell columns for 5G NSA records (prefixed with `anchor_`)
-- Room database schema updated to v8 (automatic migration, no data loss)
+### Fixed
+- **Direction tracking during GPS loss** — movement now follows the correct heading instead of flipping incorrectly.
+- **5G NSA recordings labeled incorrectly** — fixed 5G NSA sessions being incorrectly labeled as "4G" (now properly "5G_NSA").
+- **NR cell data loss** — fixed NR cell data (PCI, RSRP, RSRQ, SINR, band) being lost during 5G NSA sessions.
+- **Analytics "Massive MIMO Candidate" insight** — now correctly includes 5G NSA handoff events alongside 5G SA.
+- **SQLite foreign key constraint errors** — fixed a database crash that could occur during long recording sessions.
+- **Notification tap stopping recording** — fixed a bug where tapping the foreground service notification inadvertently stopped the recording.
+- **Crash in GPS extrapolation mode** — fixed a crash related to matrix multiplication during dead reckoning.
+- **Tile-loading leaks** — implemented proper map lifecycle management to prevent memory leaks from OSMDroid map tiles.
+- **GeoJSON export compatibility** — fixed a JSON serialization issue that caused some GeoJSON exports to fail.
+- **Looper crash on non-GMS devices** — fixed an issue causing app crashes on devices without Google Mobile Services.
 
 ## [1.0.3] - 2026-06-03
 
 ### Added
-
 - Added filter chips to the anomaly inspector for quicker issue navigation
 - Repeated anomaly messages are now grouped, showing how long each issue lasted
 
 ### Fixed
-
 - Fixed floating action button position
 - Fixed extra spacing in landscape mode
 - Fixed duplicate bottom spacing on all screens
 
 ### Changed
-
 - Improved overall UI smoothness and responsiveness
 
 ## [1.0.2] - 2026-06-03
 
 ### Fixed
-
 - Fixed a crash that could occur while recording
 
 ## [1.0.1] - 2026-06-03
 
 ### Fixed
-
 - Fixed version info display on the About screen
 
 ## [1.0.0] - 2026-06-03
 
 ### Added
-
 - Initial release
 - Real-time cell tower recording (signal strength, Cell ID, RAT, frequency bands)
 - GPS coordinate logging during recording sessions
