@@ -117,7 +117,7 @@ The system SHALL replay a tunnel session's recorded data with the same time-base
 - THEN a `RatTimelineBar` is displayed showing RAT segments with a position cursor
 - AND a `ChartGrid` is displayed with RSRP, SINR, ping, and packet loss curves over time
 - AND a vertical cursor on each chart is synced to the replay position
-- AND marker pins are rendered on the timeline per `tunnel/spec.md` and `ui/spec.md`
+- AND marker pins are rendered on the timeline per `markers/spec.md` and `ui/spec.md`
 
 #### Scenario: Tunnel replay speedtest markers
 
@@ -132,7 +132,7 @@ The system SHALL replay a tunnel session's recorded data with the same time-base
 
 ### Requirement: Session Detail Markers Section
 
-The system SHALL display a collapsible "Markers (N)" section on the Session Detail screen for any session that has any markers. The section is not mode-specific (the schema supports markers on any mode), but in v1 markers are only creatable in `TUNNEL` mode. Each expanded row offers edit and delete affordances. Rendering is defined in `ui/spec.md`; the marker data model is defined in `tunnel/spec.md`; marker editing is defined in `tunnel/spec.md`.
+The system SHALL display a collapsible "Markers (N)" section on the Session Detail screen for any session that has any markers, regardless of `recordingMode`. The marker schema is mode-agnostic and markers are creatable on any recording mode. Each expanded row offers edit and delete affordances. Rendering is defined in `ui/spec.md`; the marker data model and editing are defined in `markers/spec.md`.
 
 #### Scenario: Markers section visible for sessions with markers
 
@@ -152,14 +152,14 @@ The system SHALL display a collapsible "Markers (N)" section on the Session Deta
 
 - GIVEN the markers section is expanded
 - WHEN the user taps the edit affordance (e.g., a pencil icon) on a marker row
-- THEN the `MarkerDialog` opens in edit mode, pre-populated with the current `type` and `label` (per `tunnel/spec.md`)
+- THEN the `MarkerDialog` opens in edit mode, pre-populated with the current `type` and `label` (per `markers/spec.md`)
 - AND saving updates the row in place
 - AND the markers section re-renders with the updated row
 - AND the marker's `seq` and `timestamp` are unchanged (the row's position in the list does not move)
 
 ### Requirement: Session Marker Pins on Replay
 
-The system SHALL display session markers as vertical pins on the replay timeline for any session that has markers. In v1 markers are only creatable in `TUNNEL` mode, but the replay rendering is mode-agnostic. Each pin is tappable to open a detail card with edit and delete actions. Rendering is defined in `ui/spec.md`; the marker data model is defined in `tunnel/spec.md`; marker editing is defined in `tunnel/spec.md`.
+The system SHALL display session markers as vertical pins on the replay timeline for any session that has markers. The replay rendering is mode-agnostic. Each pin is tappable to open a detail card with edit and delete actions. Rendering is defined in `ui/spec.md`; the marker data model and editing are defined in `markers/spec.md`.
 
 #### Scenario: Marker pins rendered on replay timeline
 

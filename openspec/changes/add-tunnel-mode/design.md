@@ -48,45 +48,50 @@ The recorded data model (`CellRecordEntity`) has non-nullable `latitude`/`longit
 
 ```
 session_markers
-──────────────────────────────────────────────
+─────────────────────────────────────────────
  id           INTEGER PK AUTOINCREMENT
  sessionId    INTEGER FK → sessions.id (CASCADE)
  timestamp    INTEGER NOT NULL  (wall clock, indexed)
  seq          INTEGER NOT NULL  (per-session counter, starts at 1)
- type         TEXT NOT NULL    (STATION | TUNNEL_ENTRY | TUNNEL_EXIT | STOP | NOTE)
+ type         TEXT NOT NULL    (WAYPOINT | SEGMENT_START | SEGMENT_END | STOP | NOTE)
  label        TEXT             (free text, nullable)
-──────────────────────────────────────────────
+─────────────────────────────────────────────
  INDEX (sessionId, timestamp)
 ```
 
-**Rationale:** Keeping markers in their own table leaves `cell_records` schema untouched and matches the precedent of `SpeedTestRecordEntity` having its own table. A generic schema (not tunnel-specific columns) lets markers be reused on other modes in the future without another migration. The per-session `seq` counter is preserved on insert so markers can be re-ordered by their original creation order, not just wall-clock time (relevant if multiple markers are batched, e.g., import).
+The schema is mode-agnostic: no `latitude`/`longitude`/`relativeX`/`relativeY` columns. Markers are temporal-only in v1 — they capture a moment on the timeline, not a geographic position. This may be revisited as a v2 ("spatial markers") if users on outdoor/indoor sessions find themselves wanting the marker to also capture the current position.
+
+**Rationale:** Keeping markers in their own table leaves `cell_records` schema untouched and matches the precedent of `SpeedTestRecordEntity` having its own table. A generic schema (not tunnel-specific columns) lets markers be reused on any mode without another migration. The per-session `seq` counter is preserved on insert so markers can be re-ordered by their original creation order, not just wall-clock time (relevant if multiple markers are batched, e.g., import).
 
 **Alternatives considered:**
 - *Marker rows inside `cell_records` with a `markerType` column:* Rejected. Would require a schema migration on the hottest table in the app, and the row semantics are completely different (markers have no cell info).
-- *A `relativeX`/`relativeY`-style marker:* Rejected. Tunnel markers are temporal, not spatial.
+- *A `relativeX`/`relativeY`-style marker:* Rejected. Even in v1 markers are temporal, not spatial.
 - *`type` as an enum constant stored as `Int`:* Rejected. Text is more debuggable in SQLite, matches the codebase's pattern of storing `recordingMode` and `locationSource` as text, and the cardinality is small enough that index performance is a non-issue.
+- *Marker schema with position columns (`lat`/`lon`/`relX`/`relY`) for "spatial markers":* Rejected for v1. Temporal-only markers get 80% of the architectural value at 30% of the work. Spatial capture can land as a v2 once we observe how users use markers in practice. See D12 for the decision record on Scope 1 vs Scope 2.
 
-### D3. Marker UI: quick-tap, long-press, and persistent notification
+### D3. Marker UI: quick-tap, long-press, and persistent notification (universal)
 
-**Choice:** The Mark button appears on `RecordingScreen` only when `isTunnel && isRecording`. Quick tap creates a `NOTE` marker with auto-label `"#<seq> HH:MM:SS"`. Long-press opens a small dialog with the five type chips, an optional label field, and a confirm button. Additionally, a "Mark Note" action button is added to the ongoing foreground notification during tunnel mode.
+**Choice:** The Mark button appears on `RecordingScreen` whenever recording is active, regardless of recording mode (OUTDOOR, INDOOR, TUNNEL). Quick tap creates a `NOTE` marker with auto-label `"NOTE #<seq> HH:MM:SS"`. Long-press opens a small dialog with the five type chips, an optional label field, and a confirm button. Additionally, a "Mark Note" action button is added to the ongoing foreground notification for every recording mode.
 
-**Rationale:** A moving train means typing is impractical most of the time. The quick-tap path is the 80% case; long-press is the power-user path for distinguishing stations from tunnel entry/exit. Auto-label includes the sequence number so the user can later correlate "#3 14:32:05" with offline notes. Long-press avoids the dialog hijacking the screen on accidental taps. The notification action allows users to drop a marker directly from the lock screen without unlocking their phone or navigating back to the app, which is critical for reducing friction while standing on a moving train.
+**Rationale:** A moving train means typing is impractical most of the time, but the same "bookmark this moment" affordance is useful on any recording (a junction on a drive, a room on a walk, a station in a tunnel). The quick-tap path is the 80% case; long-press is the power-user path for distinguishing waypoint types. Auto-label includes the sequence number so the user can later correlate "NOTE #3 14:32:05" with offline notes. Long-press avoids the dialog hijacking the screen on accidental taps. The notification action allows users to drop a marker directly from the lock screen without unlocking their phone or navigating back to the app, which is critical for reducing friction while standing on a moving train, and is equally useful for drive/walk sessions where the phone is often locked.
 
 **Alternatives considered:**
-- *Always show the dialog:* Rejected. Too slow when the user is repeatedly stamping stations as they pass.
-- *Two separate buttons (Mark Note / Mark Station):* Rejected. Crowds the action row; the long-press shortcut handles it.
+- *Tunnel-only markers:* Rejected during exploration. The "mark a moment" pattern is generically useful; artificially restricting it to tunnel mode would be a missed opportunity and would leave outdoor/indoor without a feature that is cheap to add (the data layer is mode-agnostic by construction).
+- *Always show the dialog:* Rejected. Too slow when the user is repeatedly stamping landmarks as they pass.
+- *Two separate buttons per type:* Rejected. Crowds the action row; the long-press shortcut handles it.
 - *Voice input:* Rejected for v1; out of scope.
 - *Volume key interception:* Rejected. While highly tactile, Android only delivers volume key events reliably when the app is in the foreground and the screen is on. The notification action provides background/lock-screen reliability without hardware hijacking.
 
-### D4. Markers in Replay and Session Detail
+### D4. Markers in Replay and Session Detail (universal)
 
-**Choice:** Replay timeline draws markers as vertical pins at their timestamp's x-position. Session Detail gains a collapsible "Markers (N)" section above the existing cell-records list, showing each marker as a row (`#seq  type  label  timestamp`).
+**Choice:** Replay timeline draws markers as vertical pins at their timestamp's x-position, for any session with markers (any mode). Session detail gains a collapsible "Markers (N)" section above the existing cell-records list, showing each marker as a row (`#seq  type  label  timestamp`).
 
-**Rationale:** Replay already groups records by timestamp on a timeline (`SessionDetailViewModel.TimestampGroup`), so adding marker pins is a natural extension. The Session Detail section is the user's reading view; a collapsible section keeps it from dominating the cell-records list.
+**Rationale:** Replay already groups records by timestamp on a timeline (`SessionDetailViewModel.TimestampGroup`), so adding marker pins is a natural extension. The Session Detail section is the user's reading view; a collapsible section keeps it from dominating the cell-records list. Because markers are mode-agnostic, the rendering rules are owned by the `markers` and `ui` specs rather than the `tunnel` spec.
 
 **Alternatives considered:**
 - *Markers in Replay only:* Rejected per user preference (both requested).
 - *Markers as a separate screen reachable from Session Detail:* Rejected. Adds a navigation hop and a new screen; a collapsible section is enough.
+- *Tunnel-only rendering:* Rejected. The data layer is mode-agnostic; the rendering should be too.
 
 ### D5. Export: parallel markers CSV + GeoJSON Point features
 
@@ -112,9 +117,11 @@ session_markers
 
 ### D7. Recording-mode string: `"TUNNEL"`
 
-**Choice:** `SessionEntity.recordingMode` stores `"TUNNEL"`. UI selector adds a third `FilterChip` to the New Session dialog. `isTunnel` flag computed locally on screens as `recordingMode == "TUNNEL"`.
+**Choice:** `SessionEntity.recordingMode` stores `"TUNNEL"` for tunnel sessions. UI selector adds a third `FilterChip` to the New Session dialog. `isTunnel` flag computed locally on screens as `recordingMode == "TUNNEL"`.
 
 **Rationale:** Matches the existing `OUTDOOR` / `INDOOR` text-constant convention; no enum refactor needed.
+
+**Note:** The `isTunnel` flag drives the tunnel-specific UI (no map, no canvas, placeholder panel, tunnel permission path). It does NOT gate the Mark button — the Mark button visibility rule is `isRecording` (per D3 and D12), not `isTunnel && isRecording`.
 
 ### D8. Marker editing: type and label editable in place
 
@@ -157,10 +164,10 @@ On every marker insert OR edit with a non-null, non-empty `label`, upsert into t
 ### D10. Type-aware marker dialog: hide label for boundaries
 
 **Choice:** The `MarkerDialog` conditionally renders the label field based on the selected type:
-- `TUNNEL_ENTRY`, `TUNNEL_EXIT`: the label field is NOT shown. The type is the entire semantic content of the marker; there's nothing meaningful to label.
-- `STATION`, `STOP`, `NOTE`: the label field IS shown, optional, single-line. Recent-label chips (per D9) appear above the field for these three types when recents exist.
+- `SEGMENT_START`, `SEGMENT_END`: the label field is NOT shown. The type is the entire semantic content of the marker; there's nothing meaningful to label.
+- `WAYPOINT`, `STOP`, `NOTE`: the label field IS shown, optional, single-line. Recent-label chips (per D9) appear above the field for these three types when recents exist.
 
-**Rationale:** Five chips plus an always-visible label field creates decision fatigue on a moving train. Hiding the field for the two boundary types removes a "what do I type for TUNNEL_ENTRY?" question the user shouldn't have to answer. For the remaining three types, the field is optional — auto-label (per D11) is sufficient if the user skips typing.
+**Rationale:** Five chips plus an always-visible label field creates decision fatigue on a moving train. Hiding the field for the two boundary types removes a "what do I type for SEGMENT_START?" question the user shouldn't have to answer. For the remaining three types, the field is optional — auto-label (per D11) is sufficient if the user skips typing.
 
 **Alternatives considered:**
 - *Always show the label field:* Rejected. Creates a "do I fill this in?" question for boundary markers that has no good answer.
@@ -168,13 +175,44 @@ On every marker insert OR edit with a non-null, non-empty `label`, upsert into t
 
 ### D11. Auto-label format: type-prefixed
 
-**Choice:** The auto-label generated for the quick-tap and notification paths uses the format `<TYPE> #<seq> HH:MM:SS` (e.g., `STATION #5 14:32:05`), not the originally planned `#<seq> HH:MM:SS`.
+**Choice:** The auto-label generated for the quick-tap and notification paths uses the format `<TYPE> #<seq> HH:MM:SS` (e.g., `NOTE #5 14:32:05`), not the originally planned `#<seq> HH:MM:SS`.
 
-**Rationale:** The quick-tap and notification paths skip the dialog, so the type isn't visible anywhere on the timeline pin without opening it. A type-prefixed auto-label makes the pin self-describing — the user can tell a STATION from a NOTE on the timeline without an extra tap. The length cost is small (~8 chars) and the user can edit the label after recording (per D8) if they want to replace it with a station name.
+**Rationale:** The quick-tap and notification paths skip the dialog, so the type isn't visible anywhere on the timeline pin without opening it. A type-prefixed auto-label makes the pin self-describing — the user can tell a `WAYPOINT` from a `NOTE` on the timeline without an extra tap. The length cost is small (~8 chars) and the user can edit the label after recording (per D8) if they want to replace it with a more specific name. Because the quick-tap and notification paths always create `NOTE` markers, the auto-label for those paths is `NOTE #N HH:MM:SS`.
 
 **Alternatives considered:**
-- *Short type codes (`S#5 14:32:05`):* Rejected. Ambiguous (S = STATION or STOP?), harder to read in CSV exports.
+- *Short type codes (`N#5 14:32:05`):* Rejected. Ambiguous (W = WAYPOINT or STOP's "wait"?), harder to read in CSV exports.
 - *No type prefix (`#5 14:32:05`):* Rejected. The original plan; loses self-describing affordance on the timeline.
+
+### D12. Universal markers — Scope 1 (temporal-only) chosen over tunnel-only
+
+**Choice:** Markers are a first-class, mode-agnostic concept. The `session_markers` schema carries no position columns, and the Mark button is visible on any active recording (OUTDOOR, INDOOR, or TUNNEL). The "Mark Note" notification action is universal across modes. Marker rendering (timeline pins, Session Detail section) is universal. This is the "Scope 1" path from the exploration: temporal-only, no schema change beyond the two new tables, no map/canvas pin integration.
+
+**Rationale:** The "mark a moment" pattern is generically useful. A drive-test user may want to bookmark "we crossed a bridge here", an indoor walker may want to bookmark "I just entered Room 5", and a tunnel rider bookmarks "station boundary". The data layer is mode-agnostic by construction (the `session_markers` schema has no mode column, no position columns), so the only cost of universality is the UI visibility rule change (`isRecording` instead of `isTunnel && isRecording`) and the notification action becoming universal. Temporal-only is chosen over spatial capture ("Scope 2") for v1 to land the architectural value with the least complexity: timeline pins are trivial, map/canvas pins are not. Spatial capture is deferred to a v2 proposal if observation shows users on outdoor/indoor want markers to also capture position.
+
+**Alternatives considered:**
+- *Tunnel-only markers (the original D2/D3 framing):* Rejected. Artificially restricts a useful feature to one mode; the data layer is already mode-agnostic, so the restriction is purely a UI guard that adds no architectural value.
+- *Spatial markers (Scope 2):* Rejected for v1. Would require adding `latitude`/`longitude`/`relativeX`/`relativeY` columns to `session_markers`, capturing position at tap (with stale-fix handling for outdoor GPS, and PDR-state capture for indoor), and integrating marker pins into both the OSM `Marker` overlay pipeline and the indoor path `Canvas` pipeline. Significant work for a feature whose temporal-only form already gets most of the value.
+- *Per-mode type enum sets:* Rejected. Five generalized types (`WAYPOINT`, `SEGMENT_START`, `SEGMENT_END`, `STOP`, `NOTE`) cover all three modes' use cases without mode-specific chip swapping or per-(mode,type) recent-labels keying.
+
+### D13. Type enum generalization
+
+**Choice:** The marker type enum is generalized from the tunnel-flavored set to a universal set usable on any recording mode:
+
+| Old (tunnel-flavored) | New (universal) | Covers |
+|---|---|---|
+| `STATION` | `WAYPOINT` | A station, a junction, a landmark, a POI |
+| `TUNNEL_ENTRY` | `SEGMENT_START` | A route-segment boundary (tunnel entry, a segment start) |
+| `TUNNEL_EXIT` | `SEGMENT_END` | A route-segment boundary (tunnel exit, a segment end) |
+| `STOP` | `STOP` | A pause in movement (signal stop, station stop, traffic stop) |
+| `NOTE` | `NOTE` | The free-form catch-all |
+| (no equivalent) | (none) | — |
+
+**Rationale:** The original enum (`STATION`, `TUNNEL_ENTRY`, `TUNNEL_EXIT`, `STOP`, `NOTE`) only made sense in tunnel mode. `STATION` is nonsensical on an office indoor walk, and `TUNNEL_ENTRY` is nonsensical on an outdoor drive. Generalizing to `WAYPOINT`/`SEGMENT_START`/`SEGMENT_END` keeps the same 5-chip UX (no cognitive expansion) while making every chip meaningful on every mode. Since this is the first version of the marker feature, there is no backward-compatibility concern — no existing exports contain the old enum values.
+
+**Alternatives considered:**
+- *Keep the old enum and allow cross-pollination (a user can technically mark a `TUNNEL_ENTRY` on an outdoor session):* Rejected. Silly-but-harmless is still silly.
+- *Per-mode type sets (OUTDOOR has its own chips, INDOOR has its own chips, TUNNEL has its own chips):* Rejected. Forces the `MarkerDialog` to swap chip sets per mode, and the `recent_marker_labels` table to become per-(mode,type) keyed, increasing complexity for marginal cognitive gain.
+- *Drop the enum, go label-only:* Rejected. Loses structured querying (can't easily filter "all WAYPOINT markers" later). The `NOTE` type + free-text `label` covers anything outside the enum.
 
 ## Risks / Trade-offs
 
@@ -196,11 +234,17 @@ On every marker insert OR edit with a non-null, non-empty `label`, upsert into t
 - **[Import path complexity]** Today the import path detects indoor via the presence of `relativeX` / `relativeY` columns or the `"indoorMode"` GeoJSON flag. Tunnel adds a third branch.
   → Mitigation: Detection is independent: tunnel CSV is a separate file, so the import flow checks for `markers_*.csv` presence first; for GeoJSON, `"tunnelMode": true` is checked independently of `"indoorMode"`. Add unit tests covering all three mode-detection branches.
 
-- **[Marker types vs. free-form drift]** A fixed enum (`STATION | TUNNEL_ENTRY | TUNNEL_EXIT | STOP | NOTE`) might not cover everything the user encounters (e.g., "junction", "depot", "changeover").
+- **[Marker types vs. free-form drift]** A fixed enum (`WAYPOINT | SEGMENT_START | SEGMENT_END | STOP | NOTE`) might not cover everything the user encounters (e.g., "junction", "depot", "changeover").
   → Mitigation: The `NOTE` type + free-text `label` field covers anything outside the enum. New types can be added to the enum later without a schema migration (text column).
 
 - **[Marker button on accidental tap]** Quick tap creates a marker the user didn't intend.
-  → Mitigation: Markers are visible immediately on the timeline and the Session Detail section, with an inline delete affordance. Deletion is a soft-delete (no undo), but the marker count is small and the action is rare. Long-press is the dialog path, not the deletion path.
+  → Mitigation: Markers are visible immediately on the timeline and the Session Detail section, with an inline delete affordance. Deletion is a hard-delete (no undo), but the marker count is small and the action is rare. Long-press is the dialog path, not the deletion path.
+
+- **[Marker clutter on outdoor/indoor sessions]** A 30-minute drive with 20 markers could clutter the Replay timeline. The same is true, in principle, of any session with many markers.
+  → Mitigation: Replay timeline pins are rendered vertically and already share space with speedtest markers; if clutter becomes a real problem, add pin clustering or fade-out at low zoom in a future iteration. The Session Detail "Markers (N)" section is collapsible by default, so reading view is not affected.
+
+- **[Universal markers without spatial capture loses outdoor/indoor context]** On outdoor/indoor sessions, a temporal-only marker pin on the Replay timeline does not show the user where the marker is on the map/canvas — only when.
+  → Mitigation: Accepted for v1 per D12. The marker's `timestamp` can be cross-referenced with the cell-record at the same timestamp to recover position on the map/canvas at view time. A future "spatial markers" v2 can bake position capture in.
 
 - **[Schema migration ordering]** Adding `session_markers` requires a new `Migration` and a `@Database(version = N+1)` bump. Existing users upgrade transparently.
   → Mitigation: The migration is purely additive (`CREATE TABLE`), so it follows the established pattern. Add a `MigrationTest` case following the precedent in `MigrationTest.kt`. Update the `Database upgrade path coverage` requirement in `data/spec.md` if the requirement needs to mention the new version (it currently states the rule generically).
@@ -208,15 +252,16 @@ On every marker insert OR edit with a non-null, non-empty `label`, upsert into t
 ## Migration Plan
 
 1. Bump `@Database(version = N+1)` in `AppDatabase.kt` and add a `Migration_N_to_N+1` that `CREATE TABLE`s `session_markers` (per D2) AND `CREATE TABLE`s `recent_marker_labels` (per D9) with their FKs, indexes, and columns. Register the migration in `DatabaseModule.addMigrations(...)`.
-2. Add `SessionMarkerEntity` + `SessionMarkerDao` + `SessionMarkerRepository`; add `RecentMarkerLabelEntity` + `RecentMarkerLabelDao` + `RecentMarkerLabelRepository`. No data backfill needed (both tables start empty).
+2. Add `SessionMarkerEntity` + `SessionMarkerDao` + `SessionMarkerRepository`; add `RecentMarkerLabelEntity` + `RecentMarkerLabelDao` + `RecentMarkerLabelRepository`. No data backfill needed (both tables start empty). The `MarkerType` enum uses the generalized set (`WAYPOINT`, `SEGMENT_START`, `SEGMENT_END`, `STOP`, `NOTE`) per D13.
 3. Add the `TUNNEL` arm to `RecordingService` and `PointRecorder.recordTunnelPoint(...)`. No `cell_records` schema change.
-4. Add the Mark button + type-aware `MarkerDialog` (per D10) + recent-labels chips (per D9) to `RecordingScreen`. Wire `RecordingViewModel` to call the repositories.
-5. Add markers to `ExportSessionUseCase` and `ImportSessionUseCase`. The `recent_marker_labels` table is NOT exported.
-6. Add marker pins to `ReplayScreen` (tappable to open editable `MarkerDialog` in edit mode) and a collapsible "Markers (N)" section with per-row edit and delete affordances to `SessionDetailScreen`.
-7. Update `PermissionHelper` to handle the tunnel-mode permission path.
-8. Update specs: `recording`, `service`, `permission-flow`, `data`, `ui`, `sessions` delta; new `tunnel` spec.
+4. Add the Mark button + type-aware `MarkerDialog` (per D10) + recent-labels chips (per D9) to `RecordingScreen`. Mark button visibility rule is `isRecording` (any mode) per D12. Wire `RecordingViewModel` to call the repositories.
+5. Add the "Mark Note" notification action universally across all recording modes (per D3, D12).
+6. Add markers to `ExportSessionUseCase` and `ImportSessionUseCase`. The `recent_marker_labels` table is NOT exported. For non-tunnel sessions with markers, the `markers_*.csv` companion and GeoJSON marker `Point` features are emitted; the `"tunnelMode": true` flag is only emitted for tunnel sessions.
+7. Add marker pins to `ReplayScreen` (tappable to open editable `MarkerDialog` in edit mode) and a collapsible "Markers (N)" section with per-row edit and delete affordances to `SessionDetailScreen`, for any session with markers (any mode).
+8. Update `PermissionHelper` to handle the tunnel-mode permission path. Markers need no permissions on any mode (no sensors, no location touched).
+9. Update specs: new `markers` spec; `recording`, `service`, `permission-flow`, `data`, `ui`, `sessions` deltas; `tunnel` spec slimmed to tunnel-only bits (sentinels, sampling cadence, permissions).
 
-**Rollback:** Each step is independently revertible. Reverting step 1 (the migration) leaves unused `session_markers` and `recent_marker_labels` tables on existing installs; if necessary, follow up with a column-drop migration (using the table-rebuild pattern per `data/spec.md`'s column-dropping scenario). Tunnel sessions recorded before rollback remain valid — their `cell_records` rows have `locationSource = "TUNNEL"` and are simply not filterable by the rolled-back UI. The `recent_marker_labels` table can be dropped with no data loss (it is purely derived).
+**Rollback:** Each step is independently revertible. Reverting step 1 (the migration) leaves unused `session_markers` and `recent_marker_labels` tables on existing installs; if necessary, follow up with a column-drop migration (using the table-rebuild pattern per `data/spec.md`'s column-dropping scenario). Tunnel sessions recorded before rollback remain valid — their `cell_records` rows have `locationSource = "TUNNEL"` and are simply not filterable by the rolled-back UI. The `recent_marker_labels` table can be dropped with no data loss (it is purely derived). Rolling back the Mark button visibility rule (step 4) leaves the Mark button tunnel-only — compatible with the original v1 plan.
 
 ## Open Questions
 
@@ -225,3 +270,4 @@ On every marker insert OR edit with a non-null, non-empty `label`, upsert into t
 - **Markers shared across re-imports:** When importing a CSV that contains a `markers_*.csv` companion, should the import reset `seq` to start at 1, or preserve the original `seq` values? (Recommendation: preserve original `seq` from the file; the parser treats `seq` as authoritative when present, otherwise assigns sequentially on insert.)
 - **Empty-tunnel-session export:** A tunnel session with zero cell records but several markers — should the export still emit the (empty) cell-records CSV plus the markers CSV? (Recommendation: yes, mirror the speedtest behavior where the file is emitted whenever the session has any matching records, but skip the markers file when the session has zero markers.)
 - **Clear recents affordance:** Should the Settings screen gain a "Clear recent marker labels" button to reset the `recent_marker_labels` table? (Recommendation: defer to v2. The table is small and unobtrusive; if it accumulates cruft, a manual reset can ship later.)
+- **Spatial markers trigger:** What observation should prompt the v2 "spatial markers" proposal (D12)? User request, data showing outdoor/indoor sessions regularly have markers but the user wants map pins, or both? (Recommendation: revisit after 1-2 months of v1 use; if users on outdoor/indoor add markers but report temporal-only is insufficient, that's the trigger.)
