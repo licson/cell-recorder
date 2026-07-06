@@ -85,14 +85,14 @@ class SessionListViewModel @Inject constructor(
         _selectedIds.value = emptySet()
     }
 
-    fun importFile(content: String, fileName: String) {
+    fun importFile(content: String, fileName: String, markersContent: String? = null) {
         viewModelScope.launch {
             val name = fileName.substringBeforeLast(".").replace("_", " ").take(100)
             val ext = fileName.substringAfterLast(".", "").lowercase()
             val summary = if (ext == "geojson" || ext == "json") {
                 importSessionUseCase.importGeoJson(content, name)
             } else {
-                importSessionUseCase.importCsv(content, name)
+                importSessionUseCase.importCsv(content, name, markersContent)
             }
             _importSummary.value = summary
         }

@@ -4,9 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
+import com.cellrecorder.app.domain.model.MarkerType
 import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -25,7 +29,9 @@ data class SpeedTestMarker(
 class ReplayViewModel @Inject constructor(
     private val getSessionPointsUseCase: GetSessionPointsUseCase,
     private val speedTestRecordRepository: SpeedTestRecordRepository,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val sessionMarkerRepository: SessionMarkerRepository,
+    private val recentMarkerLabelRepository: RecentMarkerLabelRepository
 ) : ViewModel() {
 
     private val _session = MutableStateFlow<SessionEntity?>(null)
@@ -61,6 +67,12 @@ class ReplayViewModel @Inject constructor(
     private val _selectedSpeedTestMarker = MutableStateFlow<SpeedTestRecordEntity?>(null)
     val selectedSpeedTestMarker: StateFlow<SpeedTestRecordEntity?> = _selectedSpeedTestMarker
 
+    private val _markers = MutableStateFlow<List<SessionMarkerEntity>>(emptyList())
+    val markers: StateFlow<List<SessionMarkerEntity>> = _markers
+
+    private val _selectedMarker = MutableStateFlow<SessionMarkerEntity?>(null)
+    val selectedMarker: StateFlow<SessionMarkerEntity?> = _selectedMarker
+
     private var playbackJob: Job? = null
 
     fun loadSession(sessionId: Long) {
@@ -84,7 +96,31 @@ class ReplayViewModel @Inject constructor(
                 recomputeMarkers()
             }
         }
+        viewModelScope.launch {
+            sessionMarkerRepository.getMarkersForSession(sessionId).collect { list ->
+                _markers.value = list
+            }
+        }
     }
+
+    fun selectMarker(marker: SessionMarkerEntity?) {
+        _selectedMarker.value = marker
+    }
+
+    fun editMarker(id: Long, type: MarkerType, label: String?) {
+        viewModelScope.launch {
+            sessionMarkerRepository.updateMarker(id, type, label)
+        }
+    }
+
+    fun deleteMarker(id: Long) {
+        viewModelScope.launch {
+            sessionMarkerRepository.deleteMarker(id)
+        }
+    }
+
+    suspend fun getRecentLabels(type: MarkerType): List<com.cellrecorder.app.data.local.entity.RecentMarkerLabelEntity> =
+        recentMarkerLabelRepository.getByTypeOrdered(type)
 
     private fun recomputeMarkers() {
         val speedRecords = _speedTestRecords.value

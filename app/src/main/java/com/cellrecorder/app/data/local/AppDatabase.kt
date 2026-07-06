@@ -6,12 +6,16 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.cellrecorder.app.data.local.dao.CellRecordDao
 import com.cellrecorder.app.data.local.dao.ConfigDao
+import com.cellrecorder.app.data.local.dao.RecentMarkerLabelDao
 import com.cellrecorder.app.data.local.dao.SessionDao
+import com.cellrecorder.app.data.local.dao.SessionMarkerDao
 import com.cellrecorder.app.data.local.dao.SpeedTestRecordDao
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.RecentMarkerLabelEntity
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 
 @Database(
@@ -20,9 +24,11 @@ import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
         CellRecordEntity::class,
         CellRecordCaBandEntity::class,
         AppConfigEntity::class,
-        SpeedTestRecordEntity::class
+        SpeedTestRecordEntity::class,
+        SessionMarkerEntity::class,
+        RecentMarkerLabelEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -31,6 +37,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cellRecordDao(): CellRecordDao
     abstract fun configDao(): ConfigDao
     abstract fun speedTestRecordDao(): SpeedTestRecordDao
+    abstract fun sessionMarkerDao(): SessionMarkerDao
+    abstract fun recentMarkerLabelDao(): RecentMarkerLabelDao
 
     companion object {
         const val DATABASE_NAME = "cell_recorder.db"
@@ -177,6 +185,27 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_12_13 = Migration(12, 13) { db ->
             db.execSQL("ALTER TABLE cell_record_ca_bands ADD COLUMN bandwidthKhz INTEGER")
+        }
+
+        val MIGRATION_13_14 = Migration(13, 14) { db ->
+            db.execSQL("""CREATE TABLE IF NOT EXISTS `session_markers` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `sessionId` INTEGER NOT NULL,
+                `timestamp` INTEGER NOT NULL,
+                `seq` INTEGER NOT NULL,
+                `type` TEXT NOT NULL,
+                `label` TEXT,
+                FOREIGN KEY (`sessionId`) REFERENCES `sessions`(`id`) ON DELETE CASCADE
+            )""")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_session_markers_sessionId` ON `session_markers` (`sessionId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_session_markers_sessionId_timestamp` ON `session_markers` (`sessionId`, `timestamp`)")
+            db.execSQL("""CREATE TABLE IF NOT EXISTS `recent_marker_labels` (
+                `type` TEXT NOT NULL,
+                `label` TEXT NOT NULL,
+                `useCount` INTEGER NOT NULL,
+                `lastUsed` INTEGER NOT NULL,
+                PRIMARY KEY(`type`, `label`)
+            )""")
         }
 
         val CALLBACK = object : Callback() {

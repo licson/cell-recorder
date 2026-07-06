@@ -59,5 +59,6 @@ data class RecordingState(
     val currentStepCount: Int? = null,
     val estimatedDriftM: Double? = null,
     val timeSinceOriginResetMs: Long? = null,
-    val noStepWarning: Boolean = false
+    val noStepWarning: Boolean = false,
+    val markerCount: Int = 0
 )

@@ -3,8 +3,10 @@ package com.cellrecorder.app.ui.recording
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,12 +30,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.BuildConfig
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
+import com.cellrecorder.app.domain.model.MarkerType
 import com.cellrecorder.app.service.RecordingService
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.SimLiveState
 import com.cellrecorder.app.ui.shared.CellInfoPanel
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.IndoorPathLegend
+import com.cellrecorder.app.ui.shared.MarkerDialog
 import com.cellrecorder.app.ui.shared.PermissionFlowDialogs
 import com.cellrecorder.app.ui.shared.PermissionFlowState
 import com.cellrecorder.app.ui.shared.TrackingConfidenceIndicator
@@ -42,13 +47,14 @@ import java.util.Locale
 import com.cellrecorder.app.ui.shared.PermissionHelper
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import com.cellrecorder.app.ui.shared.rememberPermissionFlowState
+import kotlinx.coroutines.launch
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polyline
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun RecordingScreen(
     sessionId: Long,
@@ -59,10 +65,12 @@ fun RecordingScreen(
     val session by viewModel.session.collectAsStateWithLifecycle()
     val serviceState by viewModel.serviceState.collectAsStateWithLifecycle()
     val liveSimStates by viewModel.liveSimStates.collectAsStateWithLifecycle()
+    val markers by viewModel.markers.collectAsStateWithLifecycle()
     val isRecording = serviceState?.isRecording == true && serviceState?.sessionId == sessionId
     val snackbarHostState = remember { SnackbarHostState() }
     val recordingMode = session?.recordingMode ?: "OUTDOOR"
     val isIndoor = recordingMode == "INDOOR"
+    val isTunnel = recordingMode == "TUNNEL"
 
     LaunchedEffect(sessionId) {
         viewModel.loadSession(sessionId)
@@ -84,6 +92,9 @@ fun RecordingScreen(
     }
 
     var showStopConfirm by remember { mutableStateOf(false) }
+    var markerDialogMarker by remember { mutableStateOf<SessionMarkerEntity?>(null) }
+    var showMarkerDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val activity = LocalActivity.current
     val mainHandler = remember { android.os.Handler(android.os.Looper.getMainLooper()) }
 
@@ -187,56 +198,66 @@ fun RecordingScreen(
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                if (isIndoor) {
-                    IndoorPathCanvas(
-                        pathPoints = serviceState?.recordedPath ?: emptyList(),
-                        currentPosition = if (serviceState?.isRecording == true)
-                            Pair(serviceState?.currentRelativeX ?: 0.0, serviceState?.currentRelativeY ?: 0.0)
-                        else null,
-                        originPosition = Pair(0.0, 0.0),
-                        driftRadiusM = serviceState?.estimatedDriftM ?: 0.0,
-                        discontinuityIndices = serviceState?.recordedDiscontinuities ?: emptySet(),
-                        modifier = Modifier.weight(1f).fillMaxWidth()
-                    )
-                    if (isRecording) {
-                        TrackingConfidenceIndicator(
-                            trackingConfidence = viewModel.trackingConfidenceText(
-                                serviceState?.estimatedDriftM ?: 0.0,
-                                serviceState?.noStepWarning ?: false
-                            ),
-                            timeSinceResetMs = serviceState?.timeSinceOriginResetMs,
-                            stepCount = serviceState?.currentStepCount,
-                            driftM = serviceState?.estimatedDriftM
+                when {
+                    isIndoor -> {
+                        IndoorPathCanvas(
+                            pathPoints = serviceState?.recordedPath ?: emptyList(),
+                            currentPosition = if (serviceState?.isRecording == true)
+                                Pair(serviceState?.currentRelativeX ?: 0.0, serviceState?.currentRelativeY ?: 0.0)
+                            else null,
+                            originPosition = Pair(0.0, 0.0),
+                            driftRadiusM = serviceState?.estimatedDriftM ?: 0.0,
+                            discontinuityIndices = serviceState?.recordedDiscontinuities ?: emptySet(),
+                            modifier = Modifier.weight(1f).fillMaxWidth()
                         )
-                        if (serviceState?.noStepWarning == true) {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .semantics { contentDescription = "No steps" },
-                                shape = RoundedCornerShape(0.dp),
-                                color = Color(0xFFFF9800).copy(alpha = 0.12f)
-                            ) {
-                                Text(
-                                    text = "No steps detected. Try moving the phone to your pocket.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFFFF9800),
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                )
+                        if (isRecording) {
+                            TrackingConfidenceIndicator(
+                                trackingConfidence = viewModel.trackingConfidenceText(
+                                    serviceState?.estimatedDriftM ?: 0.0,
+                                    serviceState?.noStepWarning ?: false
+                                ),
+                                timeSinceResetMs = serviceState?.timeSinceOriginResetMs,
+                                stepCount = serviceState?.currentStepCount,
+                                driftM = serviceState?.estimatedDriftM
+                            )
+                            if (serviceState?.noStepWarning == true) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics { contentDescription = "No steps" },
+                                    shape = RoundedCornerShape(0.dp),
+                                    color = Color(0xFFFF9800).copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = "No steps detected. Try moving the phone to your pocket.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFFF9800),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                }
                             }
                         }
+                        IndoorPathLegend()
                     }
-                    IndoorPathLegend()
-                } else {
-                    OsmMapView(
-                        state = serviceState,
-                        modifier = Modifier.weight(1f).fillMaxWidth()
-                    )
+                    isTunnel -> {
+                        TunnelPlaceholder(
+                            elapsedMs = serviceState?.elapsedMs ?: 0,
+                            markerCount = markers.size,
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                        )
+                    }
+                    else -> {
+                        OsmMapView(
+                            state = serviceState,
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                        )
+                    }
                 }
 
                 LiveStatsBar(
                     simStates = liveSimStates,
                     state = serviceState,
-                    isIndoor = isIndoor
+                    isIndoor = isIndoor || isTunnel
                 )
 
                 Box(
@@ -253,6 +274,20 @@ fun RecordingScreen(
                             ) {
                                 Text("Reset Origin", maxLines = 1)
                             }
+                        }
+                        if (isRecording) {
+                            MarkButton(
+                                onQuickMark = {
+                                    viewModel.quickMark()
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Marked #${markers.size + 1}")
+                                    }
+                                },
+                                onLongPress = {
+                                    markerDialogMarker = null
+                                    showMarkerDialog = true
+                                }
+                            )
                         }
                         Button(
                             onClick = {
@@ -320,6 +355,25 @@ contentDescription = if (isRecording) "Stop" else "Start",
                         Text("Cancel")
                     }
                 }
+            )
+        }
+
+        if (showMarkerDialog) {
+            MarkerDialog(
+                marker = markerDialogMarker,
+                loadRecentLabels = { viewModel.getRecentLabels(it) },
+                onDismiss = { showMarkerDialog = false },
+                onSave = { type, label ->
+                    markerDialogMarker?.let { marker ->
+                        viewModel.editMarker(marker.id, type, label)
+                    } ?: viewModel.createMarker(type, label)
+                },
+                onDelete = markerDialogMarker?.let { marker ->
+                    {
+                        viewModel.deleteMarker(marker.id)
+                        showMarkerDialog = false
+                    }
+                } ?: {}
             )
         }
     }
@@ -530,5 +584,71 @@ private fun formatElapsed(ms: Long): String {
     val min = totalSec / 60
     val sec = totalSec % 60
     return "%02d:%02d".format(min, sec)
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MarkButton(
+    onQuickMark: () -> Unit,
+    onLongPress: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(72.dp)
+            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+            .combinedClickable(
+                onClick = onQuickMark,
+                onLongClick = onLongPress
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Mark",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    }
+}
+
+@Composable
+private fun TunnelPlaceholder(
+    elapsedMs: Long,
+    markerCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(horizontal = 32.dp, vertical = 24.dp)
+            ) {
+                Text(
+                    text = "Tunnel recording in progress",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = formatElapsed(elapsedMs),
+                    style = MaterialTheme.typography.displayMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Markers: $markerCount",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 

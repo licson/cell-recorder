@@ -2,8 +2,8 @@ package com.cellrecorder.app.data.local
 
 import androidx.room.migration.AutoMigrationSpec
 import androidx.room.testing.MigrationTestHelper
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -262,7 +262,58 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateFullChain1To13() {
+    fun migrateFrom13To14() {
+        val db = helper.createDatabase(TEST_DB, 13)
+        db.execSQL(
+            """INSERT INTO sessions (id, name, createdAt, pointCount, recordingMode) VALUES (1, 'test', 1000, 5, 'OUTDOOR')"""
+        )
+        db.execSQL(
+            """INSERT INTO cell_records (id, sessionId, timestamp, latitude, longitude, altitude, accuracy, rat, isLocationEstimated, locationSource)
+               VALUES (1, 1, 100, 1.0, 2.0, 3.0, 5.0, 'LTE', 0, 'GPS')"""
+        )
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 14, true, AppDatabase.MIGRATION_13_14)
+
+        val sessionCursor = migratedDb.query("SELECT name FROM sessions WHERE id = 1")
+        assertTrue("Session row should survive migration", sessionCursor.moveToFirst())
+        assertEquals("test", sessionCursor.getString(0))
+        sessionCursor.close()
+
+        val cellCursor = migratedDb.query("SELECT rat FROM cell_records WHERE id = 1")
+        assertTrue("Cell record should survive migration", cellCursor.moveToFirst())
+        assertEquals("LTE", cellCursor.getString(0))
+        cellCursor.close()
+
+        val markerCursor = migratedDb.query("SELECT count(*) FROM session_markers")
+        assertTrue(markerCursor.moveToFirst())
+        assertEquals(0, markerCursor.getInt(0))
+        markerCursor.close()
+
+        val markerColumns = migratedDb.query("PRAGMA table_info(session_markers)")
+        val markerColumnNames = mutableSetOf<String>()
+        while (markerColumns.moveToNext()) {
+            markerColumnNames.add(markerColumns.getString(1))
+        }
+        markerColumns.close()
+        assertTrue(markerColumnNames.containsAll(setOf("id", "sessionId", "timestamp", "seq", "type", "label")))
+
+        val recentsCursor = migratedDb.query("SELECT count(*) FROM recent_marker_labels")
+        assertTrue(recentsCursor.moveToFirst())
+        assertEquals(0, recentsCursor.getInt(0))
+        recentsCursor.close()
+
+        val recentsColumns = migratedDb.query("PRAGMA table_info(recent_marker_labels)")
+        val recentsColumnNames = mutableSetOf<String>()
+        while (recentsColumns.moveToNext()) {
+            recentsColumnNames.add(recentsColumns.getString(1))
+        }
+        recentsColumns.close()
+        assertTrue(recentsColumnNames.containsAll(setOf("type", "label", "useCount", "lastUsed")))
+    }
+
+    @Test
+    fun migrateFullChain1To14() {
         val db = helper.createDatabase(TEST_DB, 1)
         db.execSQL(
             """INSERT INTO sessions (id, name, createdAt, pointCount) VALUES (1, 'full-chain', 1000, 5)"""
@@ -280,7 +331,7 @@ class MigrationTest {
         db.close()
 
         val migratedDb = helper.runMigrationsAndValidate(
-            TEST_DB, 13, true,
+            TEST_DB, 14, true,
             AppDatabase.MIGRATION_1_2,
             AppDatabase.MIGRATION_2_3,
             AppDatabase.MIGRATION_3_4,
@@ -292,7 +343,8 @@ class MigrationTest {
             AppDatabase.MIGRATION_9_10,
             AppDatabase.MIGRATION_10_11,
             AppDatabase.MIGRATION_11_12,
-            AppDatabase.MIGRATION_12_13
+            AppDatabase.MIGRATION_12_13,
+            AppDatabase.MIGRATION_13_14
         )
 
         val sessionCursor = migratedDb.query("SELECT name, pointCount FROM sessions WHERE id = 1")

@@ -5,11 +5,17 @@ import android.content.Context
 import android.telephony.SubscriptionManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cellrecorder.app.data.local.entity.RecentMarkerLabelEntity
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import com.cellrecorder.app.data.repository.ConfigRepository
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
+import com.cellrecorder.app.domain.model.MarkerType
 import com.cellrecorder.app.service.CellInfoCollector
 import com.cellrecorder.app.service.IndoorPositionCollector
+import com.cellrecorder.app.service.RecordingMutex
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.RecordingStateManager
 import com.cellrecorder.app.service.SimLiveState
@@ -23,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -30,6 +37,9 @@ import javax.inject.Inject
 @HiltViewModel
 class RecordingViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
+    private val sessionMarkerRepository: SessionMarkerRepository,
+    private val recentMarkerLabelRepository: RecentMarkerLabelRepository,
+    private val recordingMutex: RecordingMutex,
     private val cellInfoCollector: CellInfoCollector,
     private val configRepository: ConfigRepository,
     private val stateManager: RecordingStateManager,
@@ -45,7 +55,11 @@ class RecordingViewModel @Inject constructor(
     private val _liveSimStates = MutableStateFlow<List<SimLiveState>>(emptyList())
     val liveSimStates: StateFlow<List<SimLiveState>> = _liveSimStates
 
+    private val _markers = MutableStateFlow<List<SessionMarkerEntity>>(emptyList())
+    val markers: StateFlow<List<SessionMarkerEntity>> = _markers
+
     private var pollingJob: Job? = null
+    private var markerCollectionJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -81,7 +95,42 @@ class RecordingViewModel @Inject constructor(
                 _session.value = entity
             }
         }
+        markerCollectionJob?.cancel()
+        markerCollectionJob = viewModelScope.launch {
+            sessionMarkerRepository.getMarkersForSession(sessionId).collect { list ->
+                _markers.value = list
+            }
+        }
     }
+
+    fun quickMark(): Job = viewModelScope.launch(Dispatchers.IO) {
+        val sessionId = _session.value?.id ?: return@launch
+        recordingMutex.mutex.withLock {
+            sessionMarkerRepository.insertMarkerWithAutoLabel(sessionId, MarkerType.NOTE)
+        }
+    }
+
+    fun createMarker(type: MarkerType, label: String?): Job = viewModelScope.launch(Dispatchers.IO) {
+        val sessionId = _session.value?.id ?: return@launch
+        recordingMutex.mutex.withLock {
+            sessionMarkerRepository.insertMarker(sessionId, type, label)
+        }
+    }
+
+    fun editMarker(id: Long, type: MarkerType, label: String?): Job = viewModelScope.launch(Dispatchers.IO) {
+        recordingMutex.mutex.withLock {
+            sessionMarkerRepository.updateMarker(id, type, label)
+        }
+    }
+
+    fun deleteMarker(id: Long): Job = viewModelScope.launch(Dispatchers.IO) {
+        recordingMutex.mutex.withLock {
+            sessionMarkerRepository.deleteMarker(id)
+        }
+    }
+
+    suspend fun getRecentLabels(type: MarkerType): List<RecentMarkerLabelEntity> =
+        recentMarkerLabelRepository.getByTypeOrdered(type)
 
     fun resetOrigin() {
         indoorPositionCollector.resetOrigin()

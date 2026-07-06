@@ -280,6 +280,26 @@ class PermissionHelperTest {
         }
 
         @Test
+        fun `allGrantedForMode TUNNEL returns true when all foreground and background are granted`() {
+            stubAllGranted()
+            assertTrue(PermissionHelper.allGrantedForMode("TUNNEL", context))
+        }
+
+        @Test
+        fun `allGrantedForMode TUNNEL returns true even if indoor permission is missing`() {
+            stubAllGranted()
+            stubDenied(Manifest.permission.ACTIVITY_RECOGNITION)
+            assertTrue(PermissionHelper.allGrantedForMode("TUNNEL", context))
+        }
+
+        @Test
+        fun `allGrantedForMode TUNNEL returns false when background permission is missing`() {
+            stubAllGranted()
+            stubDenied(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            assertFalse(PermissionHelper.allGrantedForMode("TUNNEL", context))
+        }
+
+        @Test
         fun `allGrantedForMode INDOOR returns false when indoor permission is missing`() {
             stubDenied(Manifest.permission.ACTIVITY_RECOGNITION)
             assertFalse(PermissionHelper.allGrantedForMode("INDOOR", context))
@@ -346,8 +366,17 @@ class PermissionHelperTest {
             stubDenied(Manifest.permission.ACCESS_FINE_LOCATION)
             val missing = PermissionHelper.missingPermissionsForMode("OUTDOOR", context).toSet()
             assertTrue(missing.contains(Manifest.permission.ACCESS_FINE_LOCATION))
-            // Indoor permission may also be in the missing set since it's always included
-            // per source: foreground + indoor lists are concatenated
+            assertFalse(missing.contains(Manifest.permission.ACTIVITY_RECOGNITION),
+                "Indoor permissions excluded from OUTDOOR mode")
+        }
+
+        @Test
+        fun `missingPermissionsForMode returns foreground missing for TUNNEL mode`() {
+            stubDenied(Manifest.permission.ACCESS_FINE_LOCATION)
+            val missing = PermissionHelper.missingPermissionsForMode("TUNNEL", context).toSet()
+            assertTrue(missing.contains(Manifest.permission.ACCESS_FINE_LOCATION))
+            assertFalse(missing.contains(Manifest.permission.ACTIVITY_RECOGNITION),
+                "Indoor permissions excluded from TUNNEL mode")
         }
 
         @Test
@@ -380,10 +409,27 @@ class PermissionHelperTest {
         }
 
         @Test
+        fun `missingAllForMode TUNNEL does not include indoor missing permissions`() {
+            stubDenied(Manifest.permission.ACTIVITY_RECOGNITION)
+            val missing = PermissionHelper.missingAllForMode("TUNNEL", context).toSet()
+            assertFalse(missing.contains(Manifest.permission.ACTIVITY_RECOGNITION),
+                "Indoor permissions excluded from TUNNEL mode")
+        }
+
+        @Test
+        fun `missingAllForMode TUNNEL includes foreground and background missing`() {
+            stubDenied(Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            val missing = PermissionHelper.missingAllForMode("TUNNEL", context).toSet()
+            assertTrue(missing.contains(Manifest.permission.READ_PHONE_STATE))
+            assertTrue(missing.contains(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
+        }
+
+        @Test
         fun `missingAllForMode returns empty array when all permissions granted`() {
             stubAllGranted()
             assertEquals(0, PermissionHelper.missingAllForMode("OUTDOOR", context).size)
             assertEquals(0, PermissionHelper.missingAllForMode("INDOOR", context).size)
+            assertEquals(0, PermissionHelper.missingAllForMode("TUNNEL", context).size)
         }
     }
 }

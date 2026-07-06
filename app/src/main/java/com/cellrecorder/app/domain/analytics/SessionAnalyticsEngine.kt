@@ -21,7 +21,8 @@ class SessionAnalyticsEngine {
         val recordsSorted = records.sortedBy { it.record.timestamp }
         val bySim = entities.groupBy { it.simSlotIndex ?: 0 }.toSortedMap()
         val isIndoor = recordingMode == "INDOOR"
-        val handoffs = if (isIndoor) emptyList() else detectHandoffs(entities, config)
+        val isTunnel = recordingMode == "TUNNEL"
+        val handoffs = if (isIndoor || isTunnel) emptyList() else detectHandoffs(entities, config)
 
         return SessionAnalytics(
             ratCoverage = computeRatCoverage(entities),
@@ -38,7 +39,7 @@ class SessionAnalyticsEngine {
             latencyStats = computeLatencyStats(entities),
             handoffEvents = handoffs,
             anomalyFlags = detectAnomalies(entities, config),
-            mobilitySegments = classifyMobility(entities, config, isIndoor),
+            mobilitySegments = classifyMobility(entities, config, isIndoor, isTunnel),
             coverageGaps = detectCoverageGaps(entities, config),
             timelineSegments = buildTimeline(entities),
             insightCards = generatePciInsights(handoffs)
@@ -512,7 +513,8 @@ class SessionAnalyticsEngine {
     private fun classifyMobility(
         records: List<CellRecordEntity>,
         config: AppConfigEntity,
-        isIndoor: Boolean = false
+        isIndoor: Boolean = false,
+        isTunnel: Boolean = false
     ): List<MobilitySegment> {
         if (records.size < 2) return emptyList()
         if (isIndoor) {
@@ -521,6 +523,9 @@ class SessionAnalyticsEngine {
                 endTime = records.last().timestamp,
                 type = MobilityType.INDOOR
             ))
+        }
+        if (isTunnel) {
+            return emptyList()
         }
 
         val segments = mutableListOf<MobilitySegment>()

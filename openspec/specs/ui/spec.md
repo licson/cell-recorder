@@ -75,8 +75,9 @@ The system SHALL provide a screen for controlling and monitoring an active recor
 - THEN the screen displays a top bar with session name, elapsed timer, and point counter
 - AND if outdoor: an OSM map is shown with GPS status indicator and accuracy
 - AND if indoor: a 2D path canvas is shown with tracking confidence indicator and drift radius
+- AND if tunnel: a tunnel placeholder is shown with no map, no canvas, and no GPS fields
 - AND a Start/Stop button is centered at the bottom
-- AND a live stats panel shows per-SIM cell data and ping latency
+- AND a live stats panel shows per-SIM cell data and, for outdoor/indoor, ping latency
 
 #### Scenario: Map markers and path (outdoor)
 - GIVEN an active outdoor recording
@@ -426,6 +427,74 @@ The system SHALL display correct column headers in the session detail records li
 - WHEN the column header row is rendered
 - THEN the columns are: #, SIM, PLMN, Band, RSRP (dBm), RSRQ (dB), and either relX/relY (indoor) or Ping (ms) (outdoor)
 - AND no duplicate header labels exist
+
+### Requirement: Session Detail Markers Section
+
+The system SHALL display a collapsible markers section on the Session Detail screen.
+
+#### Scenario: Markers section visible
+- GIVEN a session with markers
+- WHEN the user views the Session Detail screen
+- THEN a collapsible "Markers" section is displayed above the records list
+- AND the section shows the count of markers
+- AND each marker displays its sequence number, type, label, and timestamp
+- AND tapping a marker opens the marker dialog for editing
+- AND tapping the delete icon removes the marker
+
+#### Scenario: Empty markers section
+- GIVEN a session without markers
+- WHEN the user views the Session Detail screen
+- THEN no markers section is displayed
+
+### Requirement: Marker Dialog
+
+The system SHALL provide a shared dialog for creating and editing markers.
+
+#### Scenario: Marker dialog fields
+- GIVEN the marker dialog is open
+- THEN it shows a type selector with NOTE, WAYPOINT, SEGMENT_START, SEGMENT_END, and STOP
+- AND it shows a text field for the optional label
+- AND it surfaces recently used labels for the selected type
+
+#### Scenario: Save marker
+- GIVEN the user selects a type and optionally enters a label
+- WHEN the user taps Save
+- THEN the marker is persisted with the selected type and label
+- AND the label is added to the recent labels for that type
+
+#### Scenario: Delete marker
+- GIVEN the user is editing an existing marker
+- WHEN the user taps Delete
+- THEN the marker is removed from the session
+
+### Requirement: Replay Screen Marker Pins
+
+The system SHALL display marker pins on the replay timeline.
+
+#### Scenario: Marker pins on replay timeline
+- GIVEN a session with markers
+- WHEN the user opens the Replay screen
+- THEN marker pins are drawn on the RAT timeline bar at the marker timestamps
+- AND each pin is colored by marker type
+- AND tapping a pin shows a detail card with the marker type, label, and timestamp
+- AND the detail card includes Edit and Delete actions that open the marker dialog
+
+### Requirement: Session List Import Markers
+
+The system SHALL support importing markers from the session list import flow.
+
+#### Scenario: Import CSV with markers
+- GIVEN the user chooses CSV import
+- WHEN the user selects the main cell record CSV
+- THEN a second file picker is shown for the optional markers CSV file
+- AND selecting a markers file imports the markers along with the cell records
+- AND canceling the second picker imports only the cell records
+
+#### Scenario: Import GeoJSON with markers
+- GIVEN the user chooses GeoJSON import
+- WHEN the user selects a GeoJSON file containing marker Features
+- THEN the markers are imported along with the cell records
+- AND no second picker is shown
 
 ### Requirement: Replay Screen — Expandable StatsPanel
 

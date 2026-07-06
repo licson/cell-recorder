@@ -77,8 +77,14 @@ object PermissionHelper {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
 
-    fun missingPermissionsForMode(recordingMode: String, context: Context): Array<String> =
-        (missingForegroundPermissions(context).toList() + missingIndoorPermissions(context).toList()).toTypedArray()
+    fun missingPermissionsForMode(recordingMode: String, context: Context): Array<String> {
+        val result = mutableListOf<String>()
+        result.addAll(missingForegroundPermissions(context).toList())
+        if (recordingMode == "INDOOR") {
+            result.addAll(missingIndoorPermissions(context).toList())
+        }
+        return result.toTypedArray()
+    }
 
     fun missingAllForMode(recordingMode: String, context: Context): Array<String> {
         val result = mutableListOf<String>()

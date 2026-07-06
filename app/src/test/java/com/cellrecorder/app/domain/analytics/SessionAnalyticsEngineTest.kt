@@ -561,6 +561,31 @@ class SessionAnalyticsEngineTest {
     }
 
     @Nested
+    inner class TunnelMode {
+
+        @Test
+        fun `tunnel mode produces no handoff events`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G", enb = 1L, pci = 100)),
+                wrapper(record(ts = 2000, rat = "5G_NSA", enb = 2L, pci = 200))
+            )
+            val result = engine.analyze(records, defaultConfig, recordingMode = "TUNNEL")
+            assertTrue(result.handoffEvents.isEmpty(), "Tunnel mode disables handoff detection")
+        }
+
+        @Test
+        fun `tunnel mode produces no mobility segments`() {
+            val records = listOf(
+                wrapper(record(ts = 1000, rat = "4G", lat = 0.0, lng = 0.0)),
+                wrapper(record(ts = 2000, rat = "4G", lat = 0.0, lng = 0.0)),
+                wrapper(record(ts = 3000, rat = "4G", lat = 0.0, lng = 0.0))
+            )
+            val result = engine.analyze(records, defaultConfig, recordingMode = "TUNNEL")
+            assertTrue(result.mobilitySegments.isEmpty(), "Tunnel mode disables speed-based mobility classification")
+        }
+    }
+
+    @Nested
     inner class MobilityClassification {
 
         @Test

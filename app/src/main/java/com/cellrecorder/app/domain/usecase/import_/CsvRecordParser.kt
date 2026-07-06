@@ -2,6 +2,7 @@ package com.cellrecorder.app.domain.usecase.import_
 
 import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -16,6 +17,7 @@ data class ParseError(val line: Int, val message: String)
 data class ParseResult(
     val records: List<CellRecordEntity>,
     val caBands: List<List<CellRecordCaBandEntity>> = emptyList(),
+    val markers: List<SessionMarkerEntity> = emptyList(),
     val errors: List<ParseError>
 )
 
@@ -102,7 +104,7 @@ class CsvRecordParser @Inject constructor() {
             }
         }
 
-        return ParseResult(records, caBandsList, errors)
+        return ParseResult(records, caBandsList, errors = errors)
     }
 
     private fun parseCsvLine(line: String): List<String> {

@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Refresh
@@ -41,12 +42,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.domain.usecase.ExportData
 import com.cellrecorder.app.ui.detail.analytics.AnalyticsPanel
 import com.cellrecorder.app.ui.map.SessionMapView
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.IndoorPathLegend
+import com.cellrecorder.app.ui.shared.MarkerDialog
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import java.util.Locale
 import org.osmdroid.config.Configuration
@@ -77,14 +80,18 @@ fun SessionDetailScreen(
     val analytics by viewModel.analytics.collectAsStateWithLifecycle()
     val speedTestAnalytics by viewModel.speedTestAnalytics.collectAsStateWithLifecycle()
     val speedTestExportData by viewModel.speedTestExportData.collectAsStateWithLifecycle()
+    val markerExportData by viewModel.markerExportData.collectAsStateWithLifecycle()
     val mapDisplayMode by viewModel.mapDisplayMode.collectAsStateWithLifecycle()
     val showAnalytics by viewModel.showAnalytics.collectAsStateWithLifecycle()
     val selectedSim by viewModel.selectedSim.collectAsStateWithLifecycle()
     val availableSimSlots by viewModel.availableSimSlots.collectAsStateWithLifecycle()
+    val markers by viewModel.markers.collectAsStateWithLifecycle()
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showMapModeMenu by remember { mutableStateOf(false) }
     var showSimMenu by remember { mutableStateOf(false) }
+    var showMarkerDialog by remember { mutableStateOf(false) }
+    var editingMarker by remember { mutableStateOf<SessionMarkerEntity?>(null) }
     val isIndoor = session?.recordingMode == "INDOOR"
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -125,9 +132,31 @@ fun SessionDetailScreen(
         viewModel.clearSpeedTestExportData()
     }
 
+    val markerExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*")
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                context.contentResolver.openOutputStream(it)?.use { stream ->
+                    stream.write((markerExportData?.content ?: "").toByteArray())
+                }
+                Toast.makeText(context, "Markers exported", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Markers export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        viewModel.clearMarkerExportData()
+    }
+
     LaunchedEffect(speedTestExportData) {
         speedTestExportData?.let { data ->
             speedTestExportLauncher.launch(data.suggestedFilename)
+        }
+    }
+
+    LaunchedEffect(markerExportData) {
+        markerExportData?.let { data ->
+            markerExportLauncher.launch(data.suggestedFilename)
         }
     }
 
@@ -276,6 +305,14 @@ fun SessionDetailScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             } else {
+                MarkersSection(
+                    markers = markers,
+                    onEdit = { marker ->
+                        editingMarker = marker
+                        showMarkerDialog = true
+                    },
+                    onDelete = { viewModel.deleteMarker(it.id) }
+                )
                 RecordsList(
                     allGrouped = allGrouped,
                     visibleWindow = visibleWindow,
@@ -323,6 +360,131 @@ fun SessionDetailScreen(
             onDismiss = { viewModel.selectRecord(null) }
         )
     }
+
+    if (showMarkerDialog) {
+        MarkerDialog(
+            marker = editingMarker,
+            loadRecentLabels = { viewModel.getRecentLabels(it) },
+            onDismiss = { showMarkerDialog = false },
+            onSave = { type, label ->
+                editingMarker?.let { marker ->
+                    viewModel.editMarker(marker.id, type, label)
+                }
+            },
+            onDelete = editingMarker?.let { marker ->
+                {
+                    viewModel.deleteMarker(marker.id)
+                    showMarkerDialog = false
+                }
+            } ?: {}
+        )
+    }
+}
+
+@Composable
+private fun MarkersSection(
+    markers: List<SessionMarkerEntity>,
+    onEdit: (SessionMarkerEntity) -> Unit,
+    onDelete: (SessionMarkerEntity) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (markers.isEmpty()) return
+    var expanded by remember { mutableStateOf(false) }
+    val dateFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
+    Surface(
+        tonalElevation = 1.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Markers (${markers.size})",
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ArrowDropDown else Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            if (expanded) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    markers.forEach { marker ->
+                        MarkerRow(
+                            marker = marker,
+                            dateFormat = dateFormat,
+                            onEdit = { onEdit(marker) },
+                            onDelete = { onDelete(marker) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MarkerRow(
+    marker: SessionMarkerEntity,
+    dateFormat: SimpleDateFormat,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val typeColor = markerTypeColor(marker.type)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "#${marker.seq}",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            modifier = Modifier.width(40.dp)
+        )
+        SuggestionChip(
+            onClick = {},
+            label = { Text(marker.type.replace("_", " ")) },
+            colors = SuggestionChipDefaults.suggestionChipColors(
+                containerColor = typeColor.copy(alpha = 0.15f),
+                labelColor = typeColor
+            )
+        )
+        Text(
+            text = marker.label ?: "—",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = dateFormat.format(Date(marker.timestamp)),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Default.Edit, contentDescription = "Edit")
+        }
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+private fun markerTypeColor(type: String): Color = when (type) {
+    "WAYPOINT" -> Color(0xFF2196F3)
+    "SEGMENT_START" -> Color(0xFF4CAF50)
+    "SEGMENT_END" -> Color(0xFFF44336)
+    "STOP" -> Color(0xFFFF9800)
+    "NOTE" -> Color(0xFF9E9E9E)
+    else -> Color(0xFF9E9E9E)
 }
 
 @Composable

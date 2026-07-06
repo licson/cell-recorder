@@ -56,6 +56,45 @@ The system SHALL allow exporting a session's data as a GeoJSON FeatureCollection
 - AND each Feature's properties include all cell, bandwidth, and signal attributes
 - AND for `5G_NSA` records, anchor cell properties are included
 
+### Requirement: Marker CSV Export
+
+The system SHALL allow exporting a session's markers as a separate CSV file.
+
+#### Scenario: Export markers CSV
+- GIVEN a session with one or more markers
+- WHEN the user exports the session
+- THEN a separate `session_name_markers.csv` file is generated alongside the cell record export
+- AND the marker CSV includes columns: `timestamp`, `seq`, `type`, `label`
+- AND each row represents one marker
+- AND labels containing commas or quotes are escaped according to the same CSV rules as the cell record export
+
+#### Scenario: No marker export when empty
+- GIVEN a session without markers
+- WHEN the user exports the session
+- THEN no marker CSV file is generated
+
+### Requirement: Marker GeoJSON Export
+
+The system SHALL include marker features in the GeoJSON export.
+
+#### Scenario: GeoJSON marker features
+- GIVEN a session with markers
+- WHEN the user exports the session as GeoJSON
+- THEN each marker is emitted as a separate `Point` Feature
+- AND each marker Feature's properties include `markerType`, `seq`, `label`, and `timestamp`
+- AND marker Features are distinguishable from cell record Features by the presence of `markerType`
+
+### Requirement: Tunnel GeoJSON Export
+
+The system SHALL export tunnel sessions as GeoJSON with a tunnel mode flag.
+
+#### Scenario: Tunnel session GeoJSON export
+- GIVEN a tunnel session with recorded points
+- WHEN the user selects GeoJSON export
+- THEN the FeatureCollection includes `"tunnelMode": true`
+- AND cell record Features use the sentinel `[0, 0]` coordinates because tunnel mode has no geographic location
+- AND the original `locationSource` property for each record is `"TUNNEL"`
+
 ### Requirement: Indoor CSV Export
 
 The system SHALL include relative coordinate columns in CSV export for indoor sessions.
@@ -138,6 +177,47 @@ The system SHALL allow importing cell records from a CSV file by parsing the fil
 - GIVEN the import dialog is open
 - WHEN the user selects a CSV file that includes `is_location_estimated` and `location_source` columns
 - THEN these fields are parsed and stored on the corresponding records
+
+### Requirement: Marker CSV Import
+
+The system SHALL allow importing markers from a companion CSV file when importing a cell record CSV.
+
+#### Scenario: Import markers CSV
+- GIVEN the user has selected a cell record CSV for import
+- WHEN the user selects a marker CSV file with the same session name
+- THEN the markers are parsed and stored in the `session_markers` table linked to the new session
+- AND the marker CSV includes columns: `timestamp`, `seq`, `type`, `label`
+- AND the session `recordingMode` is set to `"TUNNEL"` when markers are present
+
+#### Scenario: Import markers CSV with escaped labels
+- GIVEN a marker CSV with quoted labels containing commas or quotes
+- WHEN the file is imported
+- THEN the labels are unescaped and stored correctly
+
+### Requirement: Marker GeoJSON Import
+
+The system SHALL import marker features embedded in a GeoJSON FeatureCollection.
+
+#### Scenario: Import GeoJSON markers
+- GIVEN a GeoJSON file containing marker Point Features
+- WHEN the file is imported
+- THEN each marker is parsed and stored in the `session_markers` table linked to the new session
+- AND marker Features are identified by the presence of `markerType` in their properties
+- AND the session `recordingMode` is set to `"TUNNEL"` when the FeatureCollection has `"tunnelMode": true` or contains marker features
+
+### Requirement: Tunnel Import Detection
+
+The system SHALL detect tunnel sessions during import.
+
+#### Scenario: Detect tunnel from CSV location source
+- GIVEN a CSV file where any record has `location_source = "TUNNEL"`
+- WHEN the file is imported
+- THEN the session `recordingMode` is set to `"TUNNEL"`
+
+#### Scenario: Detect tunnel from GeoJSON flag
+- GIVEN a GeoJSON file with `"tunnelMode": true`
+- WHEN the file is imported
+- THEN the session `recordingMode` is set to `"TUNNEL"`
 
 #### Scenario: Primary band number imported correctly
 - GIVEN the import dialog is open

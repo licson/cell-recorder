@@ -1,6 +1,7 @@
 package com.cellrecorder.app.ui.detail.replay
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,6 +25,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -32,11 +34,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.ui.detail.ratColor
 import com.cellrecorder.app.ui.shared.CellInfoPanel
 import com.cellrecorder.app.ui.shared.IndoorPathCanvas
 import com.cellrecorder.app.ui.shared.IndoorPathLegend
+import com.cellrecorder.app.ui.shared.MarkerDialog
 import com.cellrecorder.app.ui.shared.TooltipIconButton
 import com.cellrecorder.app.ui.shared.toCellInfoData
 import java.util.Locale
@@ -65,6 +69,8 @@ fun ReplayScreen(
     val speedTestMarkers by viewModel.speedTestMarkers.collectAsStateWithLifecycle()
     val selectedSpeedTestMarker by viewModel.selectedSpeedTestMarker.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
+    val markers by viewModel.markers.collectAsStateWithLifecycle()
+    val selectedMarker by viewModel.selectedMarker.collectAsStateWithLifecycle()
     val isIndoor = session?.recordingMode == "INDOOR"
 
     LaunchedEffect(sessionId) {
@@ -87,6 +93,16 @@ fun ReplayScreen(
             speedTestMarkers.firstOrNull { it.record == selectedSpeedTestMarker } ?: positionSpeedTestMarker
         } else {
             positionSpeedTestMarker
+        }
+    }
+
+    val markerItems by remember(filteredRecords, markers) {
+        derivedStateOf {
+            markers.map { marker ->
+                val index = filteredRecords.indexOfLast { it.record.timestamp <= marker.timestamp }
+                    .coerceAtLeast(0)
+                MarkerTimelineItem(marker, index)
+            }
         }
     }
 
@@ -142,7 +158,9 @@ fun ReplayScreen(
                         records = entities,
                         currentIndex = currentIndex,
                         speedTestMarkers = speedTestMarkers,
-                        onMarkerClick = { viewModel.selectSpeedTestMarker(it) }
+                        onMarkerClick = { viewModel.selectSpeedTestMarker(it) },
+                        markerItems = markerItems,
+                        onMarkerItemClick = { viewModel.selectMarker(it) }
                     )
 
                     if (speedTestMarkers.isNotEmpty()) {
@@ -315,6 +333,45 @@ fun ReplayScreen(
             }
         }
     }
+
+    var editingMarker by remember { mutableStateOf<SessionMarkerEntity?>(null) }
+    var showMarkerDialog by remember { mutableStateOf(false) }
+
+    val selected = selectedMarker
+    if (selected != null) {
+        MarkerDetailCard(
+            marker = selected,
+            onDismiss = { viewModel.selectMarker(null) },
+            onEdit = {
+                editingMarker = selected
+                showMarkerDialog = true
+                viewModel.selectMarker(null)
+            },
+            onDelete = {
+                viewModel.deleteMarker(selected.id)
+                viewModel.selectMarker(null)
+            }
+        )
+    }
+
+    if (showMarkerDialog) {
+        MarkerDialog(
+            marker = editingMarker,
+            loadRecentLabels = { viewModel.getRecentLabels(it) },
+            onDismiss = { showMarkerDialog = false },
+            onSave = { type, label ->
+                editingMarker?.let { marker ->
+                    viewModel.editMarker(marker.id, type, label)
+                }
+            },
+            onDelete = editingMarker?.let { marker ->
+                {
+                    viewModel.deleteMarker(marker.id)
+                    showMarkerDialog = false
+                }
+            } ?: {}
+        )
+    }
 }
 
 private data class RatSegment(
@@ -334,12 +391,28 @@ private fun ratDisplayLabel(rat: String): String = when (rat) {
     else -> rat
 }
 
+private fun markerTypeColor(type: String): Color = when (type) {
+    "WAYPOINT" -> Color(0xFF2196F3)
+    "SEGMENT_START" -> Color(0xFF4CAF50)
+    "SEGMENT_END" -> Color(0xFFF44336)
+    "STOP" -> Color(0xFFFF9800)
+    "NOTE" -> Color(0xFF9E9E9E)
+    else -> Color(0xFF9E9E9E)
+}
+
+private data class MarkerTimelineItem(
+    val marker: SessionMarkerEntity,
+    val timelineIndex: Int
+)
+
 @Composable
 private fun RatTimelineBar(
     records: List<CellRecordEntity>,
     currentIndex: Int,
     speedTestMarkers: List<SpeedTestMarker> = emptyList(),
-    onMarkerClick: (SpeedTestRecordEntity) -> Unit = {}
+    onMarkerClick: (SpeedTestRecordEntity) -> Unit = {},
+    markerItems: List<MarkerTimelineItem> = emptyList(),
+    onMarkerItemClick: (SessionMarkerEntity) -> Unit = {}
 ) {
     val segments = remember(records) {
         if (records.isEmpty()) return@remember emptyList()
@@ -370,8 +443,28 @@ private fun RatTimelineBar(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(4.dp))
-        Box(modifier = Modifier.fillMaxWidth().height(24.dp)) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(24.dp)) {
+            val width = maxWidth
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(markerItems, speedTestMarkers) {
+                        detectTapGestures { offset ->
+                            val tapIndex = if (total <= 0) 0 else (offset.x / width.value * total).toInt().coerceIn(0, total - 1)
+                            val marker = markerItems.minByOrNull { kotlin.math.abs(it.timelineIndex - tapIndex) }
+                                ?.takeIf { kotlin.math.abs(it.timelineIndex - tapIndex) <= 1 }
+                            if (marker != null) {
+                                onMarkerItemClick(marker.marker)
+                                return@detectTapGestures
+                            }
+                            val speedTest = speedTestMarkers.minByOrNull { kotlin.math.abs(it.timelineIndex - tapIndex) }
+                                ?.takeIf { kotlin.math.abs(it.timelineIndex - tapIndex) <= 1 }
+                            if (speedTest != null) {
+                                onMarkerClick(speedTest.record)
+                            }
+                        }
+                    }
+            ) {
                 if (segments.isEmpty() || total == 0) return@Canvas
                 val barWidth = size.width
                 val stepX = barWidth / total
@@ -401,6 +494,12 @@ private fun RatTimelineBar(
                     }
                     drawCircle(color = color, radius = 6f, center = Offset(x, size.height / 2f))
                     drawCircle(color = Color.White, radius = 3f, center = Offset(x, size.height / 2f))
+                }
+                markerItems.forEach { item ->
+                    val x = stepX * item.timelineIndex.coerceIn(0, (total - 1).coerceAtLeast(0))
+                    val color = markerTypeColor(item.marker.type)
+                    drawLine(color, Offset(x, 0f), Offset(x, size.height), strokeWidth = 4f)
+                    drawCircle(color, radius = 5f, center = Offset(x, 0f))
                 }
             }
         }
@@ -629,6 +728,50 @@ private fun ReplayMapView(
             }
         }
     }
+}
+
+@Composable
+private fun MarkerDetailCard(
+    marker: SessionMarkerEntity,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val timeStr = remember(marker) {
+        java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(marker.timestamp))
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Marker #${marker.seq}") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Type: ${marker.type}", style = MaterialTheme.typography.bodyMedium)
+                Text("Label: ${marker.label ?: "—"}", style = MaterialTheme.typography.bodyMedium)
+                Text("Time: $timeStr", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onEdit) {
+                Text("Edit")
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+            }
+        }
+    )
 }
 
 @Composable

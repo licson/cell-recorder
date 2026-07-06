@@ -2,6 +2,7 @@ package com.cellrecorder.app.domain.usecase.import_
 
 import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -36,6 +37,7 @@ class GeoJsonRecordParser @Inject constructor() {
 
         val records = mutableListOf<CellRecordEntity>()
         val caBandsList = mutableListOf<List<CellRecordCaBandEntity>>()
+        val markers = mutableListOf<SessionMarkerEntity>()
         val errors = mutableListOf<ParseError>()
 
         for ((i, featureEl) in features.withIndex()) {
@@ -57,6 +59,12 @@ class GeoJsonRecordParser @Inject constructor() {
                 val coords = geom["coordinates"]?.jsonArray
                 if (coords == null) {
                     errors.add(ParseError(featureNum, "Feature $featureNum has no coordinates"))
+                    continue
+                }
+
+                if (props?.containsKey("markerType") == true) {
+                    val marker = parseMarkerFeature(coords, props, featureNum, errors)
+                    if (marker != null) markers.add(marker.copy(sessionId = sessionId))
                     continue
                 }
 
@@ -134,7 +142,32 @@ class GeoJsonRecordParser @Inject constructor() {
             }
         }
 
-        return ParseResult(records, caBandsList, errors)
+        return ParseResult(records, caBandsList, markers, errors)
+    }
+
+    private fun parseMarkerFeature(
+        coords: JsonArray,
+        props: JsonObject,
+        featureNum: Int,
+        errors: MutableList<ParseError>
+    ): SessionMarkerEntity? {
+        val ts = props["timestamp"]?.jsonPrimitive?.longOrNull
+        if (ts == null) {
+            errors.add(ParseError(featureNum, "Marker feature $featureNum missing timestamp"))
+            return null
+        }
+        val type = props["markerType"]?.jsonPrimitive?.content?.trim()
+        if (type.isNullOrBlank()) {
+            errors.add(ParseError(featureNum, "Marker feature $featureNum missing markerType"))
+            return null
+        }
+        return SessionMarkerEntity(
+            sessionId = 0,
+            timestamp = ts,
+            seq = props["seq"]?.jsonPrimitive?.intOrNull ?: 0,
+            type = type,
+            label = props["label"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+        )
     }
 
     private fun parseCaBands(arr: JsonArray?): List<CellRecordCaBandEntity> {

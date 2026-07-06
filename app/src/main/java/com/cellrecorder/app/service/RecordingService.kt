@@ -12,14 +12,18 @@ import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.ConfigRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
+import com.cellrecorder.app.domain.model.MarkerType
 import com.cellrecorder.app.domain.model.PingResult
 import com.cellrecorder.app.domain.ping.PingEngine
 import com.cellrecorder.app.domain.ping.PingSlidingWindow
 import com.cellrecorder.app.domain.speedtest.SpeedTestEngine
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.first
@@ -32,12 +36,14 @@ class RecordingService : Service() {
     @Inject lateinit var sessionRepository: SessionRepository
     @Inject lateinit var cellRecordRepository: CellRecordRepository
     @Inject lateinit var configRepository: ConfigRepository
+    @Inject lateinit var sessionMarkerRepository: SessionMarkerRepository
     @Inject lateinit var locationCollector: LocationCollector
     @Inject lateinit var indoorPositionCollector: IndoorPositionCollector
     @Inject lateinit var cellInfoCollector: CellInfoCollector
     @Inject lateinit var pingEngine: PingEngine
     @Inject lateinit var sensorFusion: SensorFusionCollector
     @Inject lateinit var stateManager: RecordingStateManager
+    @Inject lateinit var recordingMutex: RecordingMutex
     @Inject lateinit var notificationHelper: RecordingNotificationHelper
     @Inject lateinit var pointRecorder: PointRecorder
     @Inject lateinit var speedTestEngine: SpeedTestEngine
@@ -45,10 +51,11 @@ class RecordingService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val shutdownScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val recordingMutex = Mutex()
+    private val markerCount = MutableStateFlow(0)
     private var recordingJob: Job? = null
     private var pingJob: Job? = null
     private var speedTestJob: Job? = null
+    private var markerCountJob: Job? = null
     private val pingWindow = PingSlidingWindow()
     private val gpsState = GpsStateMachine()
 
@@ -80,6 +87,9 @@ class RecordingService : Service() {
             ACTION_STOP -> {
                 stopRecording()
             }
+            ACTION_MARK_NOTE -> {
+                markNote()
+            }
         }
         return START_STICKY
     }
@@ -109,6 +119,8 @@ class RecordingService : Service() {
         speedTestJob = null
         stateUpdateJob?.cancel()
         stateUpdateJob = null
+        markerCountJob?.cancel()
+        markerCountJob = null
 
         startTime = System.currentTimeMillis()
         pointRecorder.reset()
@@ -127,35 +139,26 @@ class RecordingService : Service() {
         pointRecorder.updateState(sessionId, isRecording = true, recordingMode = recordingMode)
 
         try {
-            if (recordingMode == "INDOOR") {
-                val notif = notificationHelper.buildIndoorNotification(
+            val notif = when (recordingMode) {
+                "INDOOR" -> notificationHelper.buildIndoorNotification(
                     this, sessionId,
                     elapsedMs = 0, pointCount = 0,
                     trackingConfidence = "Confident"
                 )
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    startForeground(NOTIFICATION_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-                } else {
-                    startForeground(NOTIFICATION_ID, notif)
-                }
+                "TUNNEL" -> notificationHelper.buildTunnelNotification(
+                    this, sessionId,
+                    elapsedMs = 0, pointCount = 0, markerCount = 0
+                )
+                else -> notificationHelper.buildNotification(
+                    this, sessionId,
+                    elapsedMs = 0, pointCount = 0,
+                    isExtrapolating = false, hasGpsFix = false
+                )
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
             } else {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    startForeground(
-                        NOTIFICATION_ID,
-                        notificationHelper.buildNotification(
-                            this, sessionId,
-                            elapsedMs = 0, pointCount = 0,
-                            isExtrapolating = false, hasGpsFix = false
-                        ),
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
-                    )
-                } else {
-                    startForeground(NOTIFICATION_ID, notificationHelper.buildNotification(
-                        this, sessionId,
-                        elapsedMs = 0, pointCount = 0,
-                        isExtrapolating = false, hasGpsFix = false
-                    ))
-                }
+                startForeground(NOTIFICATION_ID, notif)
             }
         } catch (e: Exception) {
             pointRecorder.updateState(sessionId, isRecording = false, error = "Foreground service failed: ${e.message}")
@@ -175,86 +178,104 @@ class RecordingService : Service() {
 
 recordingJob = launch {
                 try {
-                    if (recordingMode == "INDOOR") {
-                        indoorPositionCollector.start(stepLength = config.indoorStepLengthM)
-                        if (!indoorPositionCollector.isAnyStepDetectionActive()) {
-                            pointRecorder.updateState(sessionId, isRecording = false, error = "No step detection sensor available")
-                            stopForeground(STOP_FOREGROUND_REMOVE)
-                            stopSelf()
-                            return@launch
-                        }
-                        indoorPositionCollector.positionUpdate.collect { position ->
-                            recordingMutex.withLock {
-                                val now = System.currentTimeMillis()
-                                val elapsedSinceLast = now - pointRecorder.lastRecordedTime
-                                if (elapsedSinceLast < config.indoorRecordingIntervalMs) return@withLock
-                                pointRecorder.recordIndoorPoint(
-                                    position, sessionId, config, activeSubs, pingWindow,
-                                    originResetCount = indoorPositionCollector.originResetCount
-                                )
+                    when (recordingMode) {
+                        "INDOOR" -> {
+                            indoorPositionCollector.start(stepLength = config.indoorStepLengthM)
+                            if (!indoorPositionCollector.isAnyStepDetectionActive()) {
+                                pointRecorder.updateState(sessionId, isRecording = false, error = "No step detection sensor available")
+                                stopForeground(STOP_FOREGROUND_REMOVE)
+                                stopSelf()
+                                return@launch
                             }
-                            val elapsed = System.currentTimeMillis() - startTime
-                            if (elapsed >= config.maxRecordingDurationMin * 60_000L) {
-                                stopRecording()
+                            indoorPositionCollector.positionUpdate.collect { position ->
+                                recordingMutex.mutex.withLock {
+                                    val now = System.currentTimeMillis()
+                                    val elapsedSinceLast = now - pointRecorder.lastRecordedTime
+                                    if (elapsedSinceLast < config.indoorRecordingIntervalMs) return@withLock
+                                    pointRecorder.recordIndoorPoint(
+                                        position, sessionId, config, activeSubs, pingWindow,
+                                        originResetCount = indoorPositionCollector.originResetCount
+                                    )
+                                }
+                                val elapsed = System.currentTimeMillis() - startTime
+                                if (elapsed >= config.maxRecordingDurationMin * 60_000L) {
+                                    stopRecording()
+                                }
                             }
                         }
-                    } else {
-                        locationCollector.locationFlow().collect { location ->
-                            recordingMutex.withLock {
-                                gpsState.updateMotion(location.speed, location.bearing)
-                                lastLocation = location
+                        "TUNNEL" -> {
+                            while (isActive) {
+                                recordingMutex.mutex.withLock {
+                                    pointRecorder.recordTunnelPoint(
+                                        sessionId, config, activeSubs, pingWindow
+                                    )
+                                }
+                                val elapsed = System.currentTimeMillis() - startTime
+                                if (elapsed >= config.maxRecordingDurationMin * 60_000L) {
+                                    stopRecording()
+                                    return@launch
+                                }
+                                delay(config.recordingIntervalMs)
+                            }
+                        }
+                        else -> {
+                            locationCollector.locationFlow().collect { location ->
+                                recordingMutex.mutex.withLock {
+                                    gpsState.updateMotion(location.speed, location.bearing)
+                                    lastLocation = location
 
-                                if (gpsState.isExtrapolating) {
-                                    if (location.accuracy > config.gpsAccuracyThresholdM) {
-                                        return@withLock
+                                    if (gpsState.isExtrapolating) {
+                                        if (location.accuracy > config.gpsAccuracyThresholdM) {
+                                            return@withLock
+                                        }
+
+                                        val distanceFromLast = pointRecorder.lastRecordedLocation?.let {
+                                            calculateDistance(it.latitude, it.longitude, location.latitude, location.longitude)
+                                        } ?: Float.MAX_VALUE
+
+                                        val extrapolationAgeMs = System.currentTimeMillis() - gpsState.gpsLostAtMs
+                                        if (extrapolationAgeMs > 5_000 && distanceFromLast < config.locationChangeThresholdM) {
+                                            return@withLock
+                                        }
+
+                                        gpsState.stopExtrapolating()
+                                        sensorFusion.stop()
+                                        val now = System.currentTimeMillis()
+                                        gpsState.recordAccurateFix(location, now)
+                                        gpsState.setSettlingUntil(now + GPS_SETTLING_DELAY_MS)
+                                        lastLocation = location
+                                        pointRecorder.recordPoint(
+                                            location, isEstimated = false, source = "GPS",
+                                            sessionId, config, activeSubs, pingWindow
+                                        )
+                                        return@collect
                                     }
 
-                                    val distanceFromLast = pointRecorder.lastRecordedLocation?.let {
-                                        calculateDistance(it.latitude, it.longitude, location.latitude, location.longitude)
+                                    if (location.accuracy > config.gpsAccuracyThresholdM) return@withLock
+
+                                    gpsState.recordAccurateFix(location, System.currentTimeMillis())
+                                    lastLocation = location
+
+                                    val elapsedSinceLast = System.currentTimeMillis() - pointRecorder.lastRecordedTime
+                                    val distance = pointRecorder.lastRecordedLocation?.let { last ->
+                                        calculateDistance(last.latitude, last.longitude, location.latitude, location.longitude)
                                     } ?: Float.MAX_VALUE
 
-                                    val extrapolationAgeMs = System.currentTimeMillis() - gpsState.gpsLostAtMs
-                                    if (extrapolationAgeMs > 5_000 && distanceFromLast < config.locationChangeThresholdM) {
-                                        return@withLock
+                                    val shouldRecord = distance >= config.locationChangeThresholdM ||
+                                            elapsedSinceLast >= config.recordingIntervalMs
+
+                                    if (shouldRecord) {
+                                        pointRecorder.recordPoint(
+                                            location, isEstimated = false, source = "GPS",
+                                            sessionId, config, activeSubs, pingWindow
+                                        )
                                     }
-
-                                    gpsState.stopExtrapolating()
-                                    sensorFusion.stop()
-                                    val now = System.currentTimeMillis()
-                                    gpsState.recordAccurateFix(location, now)
-                                    gpsState.setSettlingUntil(now + GPS_SETTLING_DELAY_MS)
-                                    lastLocation = location
-                                    pointRecorder.recordPoint(
-                                        location, isEstimated = false, source = "GPS",
-                                        sessionId, config, activeSubs, pingWindow
-                                    )
-                                    return@collect
                                 }
 
-                                if (location.accuracy > config.gpsAccuracyThresholdM) return@withLock
-
-                                gpsState.recordAccurateFix(location, System.currentTimeMillis())
-                                lastLocation = location
-
-                                val elapsedSinceLast = System.currentTimeMillis() - pointRecorder.lastRecordedTime
-                                val distance = pointRecorder.lastRecordedLocation?.let { last ->
-                                    calculateDistance(last.latitude, last.longitude, location.latitude, location.longitude)
-                                } ?: Float.MAX_VALUE
-
-                                val shouldRecord = distance >= config.locationChangeThresholdM ||
-                                        elapsedSinceLast >= config.recordingIntervalMs
-
-                                if (shouldRecord) {
-                                    pointRecorder.recordPoint(
-                                        location, isEstimated = false, source = "GPS",
-                                        sessionId, config, activeSubs, pingWindow
-                                    )
+                                val elapsed = System.currentTimeMillis() - startTime
+                                if (elapsed >= config.maxRecordingDurationMin * 60_000L) {
+                                    stopRecording()
                                 }
-                            }
-
-                            val elapsed = System.currentTimeMillis() - startTime
-                            if (elapsed >= config.maxRecordingDurationMin * 60_000L) {
-                                stopRecording()
                             }
                         }
                     }
@@ -275,7 +296,7 @@ recordingJob = launch {
                         delay(1000L)
                         val now = System.currentTimeMillis()
 
-                        recordingMutex.withLock {
+                        recordingMutex.mutex.withLock {
                             if (gpsState.isFixLost(now, 3_000L)) {
                                 gpsState.startExtrapolating(now)
                                 if (sensorFusion.isAvailable) sensorFusion.start(
@@ -341,6 +362,12 @@ recordingJob = launch {
                 ).collect { result ->
                     pingWindow.add(result)
                 }
+            }
+
+            markerCountJob = launch {
+                sessionMarkerRepository.getMarkersForSession(sessionId)
+                    .map { it.size }
+                    .collect { markerCount.value = it }
             }
 
             if (config.speedTestEnabled) {
@@ -421,63 +448,89 @@ recordingJob = launch {
                     val elapsed = System.currentTimeMillis() - startTime
                     val indoorPos = indoorPositionCollector.positionUpdate.value
                     val gpsSnap = gpsState.snapshot()
+                    val count = markerCount.value
 
-                    if (recordingMode == "INDOOR") {
-                        val timeSinceStep = indoorPositionCollector.secondsSinceLastStep()
-                        val noStepWarn = timeSinceStep >= 10
+                    when (recordingMode) {
+                        "INDOOR" -> {
+                            val timeSinceStep = indoorPositionCollector.secondsSinceLastStep()
+                            val noStepWarn = timeSinceStep >= 10
 
-                        val drift = indoorPos.estimatedDriftM
-                        val trackingConfidence = when {
-                            noStepWarn -> "No steps"
-                            drift < 3.0 -> "Confident"
-                            drift < 10.0 -> "Degrading"
-                            else -> "High drift"
+                            val drift = indoorPos.estimatedDriftM
+                            val trackingConfidence = when {
+                                noStepWarn -> "No steps"
+                                drift < 3.0 -> "Confident"
+                                drift < 10.0 -> "Degrading"
+                                else -> "High drift"
+                            }
+                            val timeSinceOriginReset = System.currentTimeMillis() - indoorPositionCollector.originResetTimestampMs
+                            stateManager.update { it?.copy(
+                                elapsedMs = elapsed,
+                                pointCount = pointRecorder.totalPointCount,
+                                markerCount = count,
+                                recordedPath = pointRecorder.recordedPathSnapshot,
+                                recordedDiscontinuities = pointRecorder.recordedDiscontinuitiesSnapshot,
+                                recordingMode = recordingMode,
+                                currentRelativeX = indoorPos.relativeX,
+                                currentRelativeY = indoorPos.relativeY,
+                                currentHeading = indoorPos.headingRad,
+                                currentStepCount = indoorPos.stepCount,
+                                estimatedDriftM = indoorPos.estimatedDriftM,
+                                timeSinceOriginResetMs = timeSinceOriginReset,
+                                noStepWarning = noStepWarn
+                            ) }
+                            notificationHelper.notify(this@RecordingService, notificationHelper.buildIndoorNotification(
+                                this@RecordingService, sessionId,
+                                elapsedMs = elapsed,
+                                pointCount = pointRecorder.totalPointCount,
+                                trackingConfidence = trackingConfidence
+                            ))
                         }
-                        val timeSinceOriginReset = System.currentTimeMillis() - indoorPositionCollector.originResetTimestampMs
-                        stateManager.update { it?.copy(
-                            elapsedMs = elapsed,
-                            pointCount = pointRecorder.totalPointCount,
-                            recordedPath = pointRecorder.recordedPathSnapshot,
-                            recordedDiscontinuities = pointRecorder.recordedDiscontinuitiesSnapshot,
-                            recordingMode = recordingMode,
-                            currentRelativeX = indoorPos.relativeX,
-                            currentRelativeY = indoorPos.relativeY,
-                            currentHeading = indoorPos.headingRad,
-                            currentStepCount = indoorPos.stepCount,
-                            estimatedDriftM = indoorPos.estimatedDriftM,
-                            timeSinceOriginResetMs = timeSinceOriginReset,
-                            noStepWarning = noStepWarn
-                        ) }
-                        notificationHelper.notify(this@RecordingService, notificationHelper.buildIndoorNotification(
-                            this@RecordingService, sessionId,
-                            elapsedMs = elapsed,
-                            pointCount = pointRecorder.totalPointCount,
-                            trackingConfidence = trackingConfidence
-                        ))
-                    } else {
-                        val loc = pointRecorder.lastRecordedLocation ?: lastLocation
-                        val currentStatus = when {
-                            gpsSnap.isExtrapolating -> "EXTRAPOLATING"
-                            gpsSnap.hasGpsFix -> "OK"
-                            else -> "Searching..."
+                        "TUNNEL" -> {
+                            stateManager.update { it?.copy(
+                                elapsedMs = elapsed,
+                                pointCount = pointRecorder.totalPointCount,
+                                markerCount = count,
+                                recordingMode = recordingMode,
+                                currentRelativeX = null,
+                                currentRelativeY = null,
+                                currentHeading = null,
+                                currentStepCount = null,
+                                estimatedDriftM = null,
+                                noStepWarning = false
+                            ) }
+                            notificationHelper.notify(this@RecordingService, notificationHelper.buildTunnelNotification(
+                                this@RecordingService, sessionId,
+                                elapsedMs = elapsed,
+                                pointCount = pointRecorder.totalPointCount,
+                                markerCount = count
+                            ))
                         }
-                        stateManager.update { it?.copy(
-                            elapsedMs = elapsed,
-                            pointCount = pointRecorder.totalPointCount,
-                            gpsStatus = currentStatus,
-                            isExtrapolatingGps = gpsSnap.isExtrapolating,
-                            recordedPath = pointRecorder.recordedPathSnapshot,
-                            currentLatitude = loc?.latitude ?: 0.0,
-                            currentLongitude = loc?.longitude ?: 0.0,
-                            currentAltitude = loc?.altitude ?: 0.0
-                        ) }
-                        notificationHelper.notify(this@RecordingService, notificationHelper.buildNotification(
-                            this@RecordingService, sessionId,
-                            elapsedMs = elapsed,
-                            pointCount = pointRecorder.totalPointCount,
-                            isExtrapolating = gpsSnap.isExtrapolating,
-                            hasGpsFix = gpsSnap.hasGpsFix
-                        ))
+                        else -> {
+                            val loc = pointRecorder.lastRecordedLocation ?: lastLocation
+                            val currentStatus = when {
+                                gpsSnap.isExtrapolating -> "EXTRAPOLATING"
+                                gpsSnap.hasGpsFix -> "OK"
+                                else -> "Searching..."
+                            }
+                            stateManager.update { it?.copy(
+                                elapsedMs = elapsed,
+                                pointCount = pointRecorder.totalPointCount,
+                                markerCount = count,
+                                gpsStatus = currentStatus,
+                                isExtrapolatingGps = gpsSnap.isExtrapolating,
+                                recordedPath = pointRecorder.recordedPathSnapshot,
+                                currentLatitude = loc?.latitude ?: 0.0,
+                                currentLongitude = loc?.longitude ?: 0.0,
+                                currentAltitude = loc?.altitude ?: 0.0
+                            ) }
+                            notificationHelper.notify(this@RecordingService, notificationHelper.buildNotification(
+                                this@RecordingService, sessionId,
+                                elapsedMs = elapsed,
+                                pointCount = pointRecorder.totalPointCount,
+                                isExtrapolating = gpsSnap.isExtrapolating,
+                                hasGpsFix = gpsSnap.hasGpsFix
+                            ))
+                        }
                     }
                 }
             }
@@ -497,6 +550,8 @@ recordingJob = launch {
         speedTestJob = null
         stateUpdateJob?.cancel()
         stateUpdateJob = null
+        markerCountJob?.cancel()
+        markerCountJob = null
         sensorFusion.stop()
         indoorPositionCollector.stop()
         gpsState.stopExtrapolating()
@@ -526,6 +581,20 @@ recordingJob = launch {
         stopSelf()
     }
 
+    private fun markNote() {
+        val currentSessionId = sessionId
+        if (currentSessionId <= 0) return
+        serviceScope.launch {
+            try {
+                recordingMutex.mutex.withLock {
+                    sessionMarkerRepository.insertMarkerWithAutoLabel(currentSessionId, MarkerType.NOTE)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("RecordingService", "Mark Note failed", e)
+            }
+        }
+    }
+
     private fun movePoint(
         lat: Double, lon: Double,
         bearingDeg: Float, distanceM: Float
@@ -546,6 +615,7 @@ recordingJob = launch {
         const val NOTIFICATION_ID = 1001
         const val ACTION_START = "com.cellrecorder.app.START_RECORDING"
         const val ACTION_STOP = "com.cellrecorder.app.STOP_RECORDING"
+        const val ACTION_MARK_NOTE = "com.cellrecorder.app.MARK_NOTE"
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_RECORDING_MODE = "recording_mode"
 

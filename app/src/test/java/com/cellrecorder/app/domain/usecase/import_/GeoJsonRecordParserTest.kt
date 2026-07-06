@@ -407,6 +407,55 @@ class GeoJsonRecordParserTest {
     }
 
     @Nested
+    inner class MarkerParsing {
+
+        @Test
+        fun `marker feature is parsed into markers list`() {
+            val markerProps = props("timestamp" to 2000L, "markerType" to "NOTE", "seq" to 1, "label" to "drop")
+            val fc = featureCollection(feature(properties = markerProps))
+            val result = parser.parse(fc, sessionId = 1L)
+            assertEquals(0, result.records.size)
+            assertEquals(1, result.markers.size)
+            val m = result.markers[0]
+            assertEquals(1L, m.sessionId)
+            assertEquals(2000L, m.timestamp)
+            assertEquals("NOTE", m.type)
+            assertEquals(1, m.seq)
+            assertEquals("drop", m.label)
+        }
+
+        @Test
+        fun `marker feature without label has null label`() {
+            val markerProps = props("timestamp" to 2000L, "markerType" to "WAYPOINT", "seq" to 2)
+            val fc = featureCollection(feature(properties = markerProps))
+            val result = parser.parse(fc, sessionId = 1L)
+            assertEquals(1, result.markers.size)
+            assertNull(result.markers[0].label)
+        }
+
+        @Test
+        fun `marker feature missing timestamp is skipped`() {
+            val markerProps = props("markerType" to "NOTE", "seq" to 1)
+            val fc = featureCollection(feature(properties = markerProps))
+            val result = parser.parse(fc, sessionId = 1L)
+            assertEquals(0, result.markers.size)
+            assertEquals(1, result.errors.size)
+        }
+
+        @Test
+        fun `mixed record and marker features both parse`() {
+            val recordFeature = feature(properties = props("timestamp" to 1000L, "rat" to "4G"))
+            val markerProps = props("timestamp" to 2000L, "markerType" to "STOP", "seq" to 1)
+            val markerFeature = feature(properties = markerProps)
+            val fc = featureCollection("$recordFeature, $markerFeature")
+            val result = parser.parse(fc, sessionId = 1L)
+            assertEquals(1, result.records.size)
+            assertEquals(1, result.markers.size)
+            assertEquals(0, result.errors.size)
+        }
+    }
+
+    @Nested
     inner class MixedValidInvalidFeatures {
 
         @Test

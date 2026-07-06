@@ -55,9 +55,27 @@ fun SessionListScreen(
     var assignSimTarget by remember { mutableStateOf<SessionSummary?>(null) }
     var deleteTarget by remember { mutableStateOf<SessionSummary?>(null) }
     var showImportFormatDialog by remember { mutableStateOf(false) }
+    var pendingImport by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var pendingImportType by remember { mutableStateOf<String?>(null) }
     val importSummary by viewModel.importSummary.collectAsStateWithLifecycle()
     val createdSessionId by viewModel.createdSessionId.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    val importMarkersPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        val (content, fileName) = pendingImport ?: return@rememberLauncherForActivityResult
+        val markersContent = uri?.let {
+            try {
+                context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> reader.readText() }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to read markers file: ${e.message}", Toast.LENGTH_SHORT).show()
+                null
+            }
+        }
+        viewModel.importFile(content, fileName, markersContent)
+        pendingImport = null
+    }
 
     val importFilePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -68,11 +86,17 @@ fun SessionListScreen(
                 val content = inputStream?.bufferedReader()?.readText() ?: return@let
                 inputStream.close()
                 val fileName = it.lastPathSegment?.substringAfterLast("/") ?: "import"
-                viewModel.importFile(content, fileName)
+                if (pendingImportType == "CSV") {
+                    pendingImport = content to fileName
+                    importMarkersPicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/csv", "*/*"))
+                } else {
+                    viewModel.importFile(content, fileName)
+                }
             } catch (e: Exception) {
                 Toast.makeText(context, "Failed to read file: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
+        pendingImportType = null
     }
 
     val dirPickerLauncher = rememberLauncherForActivityResult(
@@ -353,6 +377,7 @@ fun SessionListScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showImportFormatDialog = false
+                    pendingImportType = "CSV"
                     importFilePicker.launch(arrayOf("text/csv", "text/comma-separated-values", "text/plain", "application/csv", "*/*"))
                 }) {
                     Text("CSV")
@@ -361,6 +386,7 @@ fun SessionListScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showImportFormatDialog = false
+                    pendingImportType = "GeoJSON"
                     importFilePicker.launch(arrayOf("application/geo+json", "application/json", "text/plain", "*/*"))
                 }) {
                     Text("GeoJSON")

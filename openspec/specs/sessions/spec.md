@@ -39,7 +39,7 @@ The system SHALL display past sessions sorted by creation date descending.
 
 ### Requirement: Session Creation
 
-The system SHALL allow the user to create a new session from the session list. The session SHALL include a recording mode (Outdoor or Indoor, default Outdoor).
+The system SHALL allow the user to create a new session from the session list. The session SHALL include a recording mode (Outdoor, Indoor, or Tunnel, default Outdoor).
 
 #### Scenario: Create new session
 - GIVEN the Session List screen
@@ -49,12 +49,12 @@ The system SHALL allow the user to create a new session from the session list. T
 
 ### Requirement: Recording Mode Selection
 
-The system SHALL allow the user to select a recording mode (Outdoor or Indoor) when creating a new session.
+The system SHALL allow the user to select a recording mode (Outdoor, Indoor, or Tunnel) when creating a new session.
 
 #### Scenario: Recording mode selector in session creation
 - GIVEN the user taps the FAB to create a new session
 - WHEN the session creation dialog is shown
-- THEN a recording mode selector is displayed with "Outdoor" and "Indoor" options
+- THEN a recording mode selector is displayed with "Outdoor", "Indoor", and "Tunnel" options
 - AND "Outdoor" is the default selection
 
 #### Scenario: Indoor mode guidance note
@@ -62,15 +62,15 @@ The system SHALL allow the user to select a recording mode (Outdoor or Indoor) w
 - WHEN the user selects "Indoor" mode
 - THEN a guidance note is displayed: "Indoor mode uses step detection instead of GPS. Best for sessions under 5 minutes."
 
-#### Scenario: Indoor session created
+#### Scenario: Tunnel mode guidance note
 - GIVEN the session creation dialog
-- WHEN the user selects "Indoor" mode and enters a session name
-- THEN a new session is created with `recordingMode = "INDOOR"`
+- WHEN the user selects "Tunnel" mode
+- THEN a guidance note is displayed: "Tunnel mode samples on a fixed time cadence and uses manual markers for landmarks. Best for mapping coverage inside metro tunnels."
 
-#### Scenario: Outdoor session created
+#### Scenario: Tunnel session created
 - GIVEN the session creation dialog
-- WHEN the user selects "Outdoor" mode and enters a session name
-- THEN a new session is created with `recordingMode = "OUTDOOR"`
+- WHEN the user selects "Tunnel" mode and enters a session name
+- THEN a new session is created with `recordingMode = "TUNNEL"`
 
 ### Requirement: Session Context Menu
 
@@ -233,3 +233,30 @@ The system SHALL replay an indoor session's recorded path with animated playback
 - GIVEN the device is in landscape orientation during indoor replay
 - THEN the left half displays the indoor path canvas
 - AND the right half displays the scrollable column of stats panel, timeline, charts, controls
+
+### Requirement: Session Markers
+
+The system SHALL store markers as first-class entities linked to a session.
+
+#### Scenario: Markers linked to session
+- GIVEN a session with markers
+- THEN the markers are retrieved via `sessionMarkerRepository.getMarkersForSession(sessionId)`
+- AND each marker contains a `sessionId`, `timestamp`, `seq`, `type`, and optional `label`
+
+#### Scenario: Marker CRUD
+- GIVEN a session with markers
+- WHEN the user creates, edits, or deletes a marker
+- THEN the change is persisted to the `session_markers` table
+- AND the markers are immediately reflected in the Session Detail and Replay screens
+
+#### Scenario: Marker export
+- GIVEN a session with markers
+- WHEN the user exports the session
+- THEN markers are exported as a separate CSV and embedded in GeoJSON
+- AND the marker export is only generated when at least one marker exists
+
+#### Scenario: Marker import
+- GIVEN a CSV or GeoJSON file containing markers
+- WHEN the user imports the file
+- THEN the markers are linked to the newly created session
+- AND the session recording mode is set to "TUNNEL" when markers are present or tunnel metadata is set

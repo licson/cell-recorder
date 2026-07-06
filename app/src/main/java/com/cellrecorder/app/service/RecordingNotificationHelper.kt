@@ -50,6 +50,13 @@ class RecordingNotificationHelper @Inject constructor() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val markNoteIntent = PendingIntent.getForegroundService(
+            context, 1, Intent(context, RecordingService::class.java).apply {
+                action = RecordingService.ACTION_MARK_NOTE
+                putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val totalSec = elapsedMs / 1000
         val elapsed = String.format(Locale.US, "%02d:%02d", totalSec / 60, totalSec % 60)
         val gps = when {
@@ -62,6 +69,7 @@ class RecordingNotificationHelper @Inject constructor() {
             .setContentText("$elapsed — $pointCount pts — $gps")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(openIntent)
+            .addAction(android.R.drawable.ic_menu_edit, "Mark Note", markNoteIntent)
             .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
             .setOngoing(true)
             .build()
@@ -88,6 +96,13 @@ class RecordingNotificationHelper @Inject constructor() {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val markNoteIntent = PendingIntent.getForegroundService(
+            context, 1, Intent(context, RecordingService::class.java).apply {
+                action = RecordingService.ACTION_MARK_NOTE
+                putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val totalSec = elapsedMs / 1000
         val elapsed = String.format(Locale.US, "%02d:%02d", totalSec / 60, totalSec % 60)
         return NotificationCompat.Builder(context, CHANNEL_ID)
@@ -95,6 +110,48 @@ class RecordingNotificationHelper @Inject constructor() {
             .setContentText("$elapsed — $pointCount pts — $trackingConfidence")
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(openIntent)
+            .addAction(android.R.drawable.ic_menu_edit, "Mark Note", markNoteIntent)
+            .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
+            .setOngoing(true)
+            .build()
+    }
+
+    fun buildTunnelNotification(
+        context: Context,
+        sessionId: Long,
+        elapsedMs: Long,
+        pointCount: Int,
+        markerCount: Int
+    ): Notification {
+        val stopIntent = PendingIntent.getForegroundService(
+            context, 0, Intent(context, RecordingService::class.java).apply {
+                action = RecordingService.ACTION_STOP
+                putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val openIntent = PendingIntent.getActivity(
+            context, 0, Intent(context, MainActivity::class.java).apply {
+                putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)
+                addFlags(FLAG_ACTIVITY_CLEAR_TOP or FLAG_ACTIVITY_SINGLE_TOP)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val markNoteIntent = PendingIntent.getForegroundService(
+            context, 1, Intent(context, RecordingService::class.java).apply {
+                action = RecordingService.ACTION_MARK_NOTE
+                putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val totalSec = elapsedMs / 1000
+        val elapsed = String.format(Locale.US, "%02d:%02d", totalSec / 60, totalSec % 60)
+        return NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle("Cell Recorder (Tunnel)")
+            .setContentText("$elapsed — $pointCount pts — $markerCount markers")
+            .setSmallIcon(android.R.drawable.ic_menu_compass)
+            .setContentIntent(openIntent)
+            .addAction(android.R.drawable.ic_menu_edit, "Mark Note", markNoteIntent)
             .addAction(android.R.drawable.ic_media_pause, "Stop", stopIntent)
             .setOngoing(true)
             .build()

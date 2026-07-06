@@ -7,6 +7,7 @@ import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.SessionRepository
+import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.domain.ping.PingSlidingWindow
 import java.util.Locale
 import javax.inject.Inject
@@ -56,6 +57,100 @@ class PointRecorder @Inject constructor(
         lastOriginResetCount = 0
     }
 
+    private fun createCaBands(snapshot: CellRecordSnapshot): List<CellRecordCaBandEntity> {
+        return if (snapshot.caBands.isNotEmpty()) {
+            snapshot.caBands.map { ca ->
+                CellRecordCaBandEntity(
+                    cellRecordId = 0,
+                    bandNumber = ca.bandNumber,
+                    earfcn = ca.earfcn,
+                    pci = ca.pci,
+                    rsrp = ca.rsrp,
+                    rsrq = ca.rsrq,
+                    sinr = ca.sinr,
+                    rssi = ca.rssi,
+                    cqi = ca.cqi,
+                    timingAdvance = ca.timingAdvance
+                )
+            }
+        } else emptyList()
+    }
+
+    private fun buildRecordEntity(
+        snapshot: CellRecordSnapshot,
+        sessionId: Long,
+        latitude: Double,
+        longitude: Double,
+        altitude: Double,
+        accuracy: Float,
+        relativeX: Double?,
+        relativeY: Double?,
+        isLocationEstimated: Boolean,
+        locationSource: String,
+        activeSubs: Map<Int, SubscriptionInfo>,
+        pingAvg: Double?,
+        pingLoss: Double?
+    ): CellRecordEntity = CellRecordEntity(
+        sessionId = sessionId,
+        timestamp = System.currentTimeMillis(),
+        latitude = latitude,
+        longitude = longitude,
+        altitude = altitude,
+        accuracy = accuracy,
+        relativeX = relativeX,
+        relativeY = relativeY,
+        rat = snapshot.rat,
+        networkTypeCode = snapshot.networkTypeCode,
+        fullCellIdentity = snapshot.fullCellIdentity,
+        enbOrGnbId = snapshot.enbOrGnbId,
+        lcid = snapshot.lcid,
+        cellIdBitLength = snapshot.cellIdBitLength,
+        pci = snapshot.pci,
+        tac = snapshot.tac,
+        bandNumber = snapshot.bandNumber,
+        earfcn = snapshot.earfcn,
+        bandwidthKhz = snapshot.bandwidthKhz,
+        rsrp = snapshot.rsrp,
+        rsrq = snapshot.rsrq,
+        sinr = snapshot.sinr,
+        rssi = snapshot.rssi,
+        cqi = snapshot.cqi,
+        timingAdvance = snapshot.timingAdvance,
+        mcc = snapshot.mcc,
+        mnc = snapshot.mnc,
+        subscriptionId = snapshot.subscriptionId,
+        simSlotIndex = activeSubs[snapshot.subscriptionId]?.simSlotIndex,
+        avgLatencyMs = pingAvg,
+        packetLossPct = pingLoss,
+        isLocationEstimated = isLocationEstimated,
+        locationSource = locationSource,
+        anchorEnbOrGnbId = snapshot.anchorEnbOrGnbId,
+        anchorLcid = snapshot.anchorLcid,
+        anchorPci = snapshot.anchorPci,
+        anchorTac = snapshot.anchorTac,
+        anchorBandNumber = snapshot.anchorBandNumber,
+        anchorEarfcn = snapshot.anchorEarfcn,
+        anchorBandwidthKhz = snapshot.anchorBandwidthKhz,
+        anchorRsrp = snapshot.anchorRsrp,
+        anchorRsrq = snapshot.anchorRsrq,
+        anchorSinr = snapshot.anchorSinr,
+        anchorRssi = snapshot.anchorRssi,
+        anchorCqi = snapshot.anchorCqi,
+        anchorTimingAdvance = snapshot.anchorTimingAdvance
+    )
+
+    private suspend fun insertBatch(
+        records: List<CellRecordEntity>,
+        caBandsByRecord: List<List<CellRecordCaBandEntity>>,
+        sessionId: Long
+    ) {
+        if (records.isNotEmpty()) {
+            cellRecordRepository.insertRecordBatch(records, caBandsByRecord)
+        }
+        sessionRepository.incrementPointCount(sessionId)
+        totalPointCount++
+    }
+
     suspend fun recordPoint(
         location: LocationUpdate,
         isEstimated: Boolean,
@@ -74,68 +169,21 @@ class PointRecorder @Inject constructor(
 
         for (snapshot in snapshots) {
             try {
-                val caEntities = if (snapshot.caBands.isNotEmpty()) {
-                    snapshot.caBands.map { ca ->
-                        CellRecordCaBandEntity(
-                            cellRecordId = 0,
-                            bandNumber = ca.bandNumber,
-                            earfcn = ca.earfcn,
-                            pci = ca.pci,
-                            rsrp = ca.rsrp,
-                            rsrq = ca.rsrq,
-                            sinr = ca.sinr,
-                            rssi = ca.rssi,
-                            cqi = ca.cqi,
-                            timingAdvance = ca.timingAdvance
-                        )
-                    }
-                } else emptyList()
-
-                records.add(CellRecordEntity(
+                val caEntities = createCaBands(snapshot)
+                records.add(buildRecordEntity(
+                    snapshot = snapshot,
                     sessionId = sessionId,
-                    timestamp = System.currentTimeMillis(),
                     latitude = location.latitude,
                     longitude = location.longitude,
                     altitude = location.altitude,
                     accuracy = location.accuracy,
-                    rat = snapshot.rat,
-                    networkTypeCode = snapshot.networkTypeCode,
-                    fullCellIdentity = snapshot.fullCellIdentity,
-                    enbOrGnbId = snapshot.enbOrGnbId,
-                    lcid = snapshot.lcid,
-                    cellIdBitLength = snapshot.cellIdBitLength,
-                    pci = snapshot.pci,
-                    tac = snapshot.tac,
-                    bandNumber = snapshot.bandNumber,
-                    earfcn = snapshot.earfcn,
-                    bandwidthKhz = snapshot.bandwidthKhz,
-                    rsrp = snapshot.rsrp,
-                    rsrq = snapshot.rsrq,
-                    sinr = snapshot.sinr,
-                    rssi = snapshot.rssi,
-                    cqi = snapshot.cqi,
-                    timingAdvance = snapshot.timingAdvance,
-                    mcc = snapshot.mcc,
-                    mnc = snapshot.mnc,
-                    subscriptionId = snapshot.subscriptionId,
-                    simSlotIndex = activeSubs[snapshot.subscriptionId]?.simSlotIndex,
-                    avgLatencyMs = pingAvg,
-                    packetLossPct = pingLoss,
+                    relativeX = null,
+                    relativeY = null,
                     isLocationEstimated = isEstimated,
                     locationSource = source,
-                    anchorEnbOrGnbId = snapshot.anchorEnbOrGnbId,
-                    anchorLcid = snapshot.anchorLcid,
-                    anchorPci = snapshot.anchorPci,
-                    anchorTac = snapshot.anchorTac,
-                    anchorBandNumber = snapshot.anchorBandNumber,
-                    anchorEarfcn = snapshot.anchorEarfcn,
-                    anchorBandwidthKhz = snapshot.anchorBandwidthKhz,
-                    anchorRsrp = snapshot.anchorRsrp,
-                    anchorRsrq = snapshot.anchorRsrq,
-                    anchorSinr = snapshot.anchorSinr,
-                    anchorRssi = snapshot.anchorRssi,
-                    anchorCqi = snapshot.anchorCqi,
-                    anchorTimingAdvance = snapshot.anchorTimingAdvance
+                    activeSubs = activeSubs,
+                    pingAvg = pingAvg,
+                    pingLoss = pingLoss
                 ))
                 caBandsByRecord.add(caEntities)
             } catch (e: Exception) {
@@ -143,12 +191,7 @@ class PointRecorder @Inject constructor(
             }
         }
 
-        if (records.isNotEmpty()) {
-            cellRecordRepository.insertRecordBatch(records, caBandsByRecord)
-        }
-
-        sessionRepository.incrementPointCount(sessionId)
-        totalPointCount++
+        insertBatch(records, caBandsByRecord, sessionId)
 
         synchronized(this) {
             _recordedPath.addLast(location.latitude to location.longitude)
@@ -196,70 +239,21 @@ class PointRecorder @Inject constructor(
 
         for (snapshot in snapshots) {
             try {
-                val caEntities = if (snapshot.caBands.isNotEmpty()) {
-                    snapshot.caBands.map { ca ->
-                        CellRecordCaBandEntity(
-                            cellRecordId = 0,
-                            bandNumber = ca.bandNumber,
-                            earfcn = ca.earfcn,
-                            pci = ca.pci,
-                            rsrp = ca.rsrp,
-                            rsrq = ca.rsrq,
-                            sinr = ca.sinr,
-                            rssi = ca.rssi,
-                            cqi = ca.cqi,
-                            timingAdvance = ca.timingAdvance
-                        )
-                    }
-                } else emptyList()
-
-                records.add(CellRecordEntity(
+                val caEntities = createCaBands(snapshot)
+                records.add(buildRecordEntity(
+                    snapshot = snapshot,
                     sessionId = sessionId,
-                    timestamp = System.currentTimeMillis(),
                     latitude = 0.0,
                     longitude = 0.0,
                     altitude = 0.0,
                     accuracy = 0f,
                     relativeX = indoorUpdate.relativeX,
                     relativeY = indoorUpdate.relativeY,
-                    rat = snapshot.rat,
-                    networkTypeCode = snapshot.networkTypeCode,
-                    fullCellIdentity = snapshot.fullCellIdentity,
-                    enbOrGnbId = snapshot.enbOrGnbId,
-                    lcid = snapshot.lcid,
-                    cellIdBitLength = snapshot.cellIdBitLength,
-                    pci = snapshot.pci,
-                    tac = snapshot.tac,
-                    bandNumber = snapshot.bandNumber,
-                    earfcn = snapshot.earfcn,
-                    bandwidthKhz = snapshot.bandwidthKhz,
-                    rsrp = snapshot.rsrp,
-                    rsrq = snapshot.rsrq,
-                    sinr = snapshot.sinr,
-                    rssi = snapshot.rssi,
-                    cqi = snapshot.cqi,
-                    timingAdvance = snapshot.timingAdvance,
-                    mcc = snapshot.mcc,
-                    mnc = snapshot.mnc,
-                    subscriptionId = snapshot.subscriptionId,
-                    simSlotIndex = activeSubs[snapshot.subscriptionId]?.simSlotIndex,
-                    avgLatencyMs = pingAvg,
-                    packetLossPct = pingLoss,
                     isLocationEstimated = false,
                     locationSource = "INDOOR_IMU",
-                    anchorEnbOrGnbId = snapshot.anchorEnbOrGnbId,
-                    anchorLcid = snapshot.anchorLcid,
-                    anchorPci = snapshot.anchorPci,
-                    anchorTac = snapshot.anchorTac,
-                    anchorBandNumber = snapshot.anchorBandNumber,
-                    anchorEarfcn = snapshot.anchorEarfcn,
-                    anchorBandwidthKhz = snapshot.anchorBandwidthKhz,
-                    anchorRsrp = snapshot.anchorRsrp,
-                    anchorRsrq = snapshot.anchorRsrq,
-                    anchorSinr = snapshot.anchorSinr,
-                    anchorRssi = snapshot.anchorRssi,
-                    anchorCqi = snapshot.anchorCqi,
-                    anchorTimingAdvance = snapshot.anchorTimingAdvance
+                    activeSubs = activeSubs,
+                    pingAvg = pingAvg,
+                    pingLoss = pingLoss
                 ))
                 caBandsByRecord.add(caEntities)
             } catch (e: Exception) {
@@ -267,12 +261,7 @@ class PointRecorder @Inject constructor(
             }
         }
 
-        if (records.isNotEmpty()) {
-            cellRecordRepository.insertRecordBatch(records, caBandsByRecord)
-        }
-
-        sessionRepository.incrementPointCount(sessionId)
-        totalPointCount++
+        insertBatch(records, caBandsByRecord, sessionId)
 
         synchronized(this) {
             val pathIndex = _recordedPath.size
@@ -300,6 +289,57 @@ class PointRecorder @Inject constructor(
             currentHeading = indoorUpdate.headingRad,
             currentStepCount = indoorUpdate.stepCount,
             estimatedDriftM = indoorUpdate.estimatedDriftM
+        ) }
+    }
+
+    suspend fun recordTunnelPoint(
+        sessionId: Long,
+        config: AppConfigEntity,
+        activeSubs: Map<Int, SubscriptionInfo>,
+        pingWindow: PingSlidingWindow
+    ) {
+        val snapshots = cellInfoCollector.snapshots(config)
+        val pingAvg = pingWindow.avgLatencyMs()
+        val pingLoss = pingWindow.packetLossPct()
+
+        val records = mutableListOf<CellRecordEntity>()
+        val caBandsByRecord = mutableListOf<List<CellRecordCaBandEntity>>()
+
+        for (snapshot in snapshots) {
+            try {
+                val caEntities = createCaBands(snapshot)
+                records.add(buildRecordEntity(
+                    snapshot = snapshot,
+                    sessionId = sessionId,
+                    latitude = 0.0,
+                    longitude = 0.0,
+                    altitude = 0.0,
+                    accuracy = 0f,
+                    relativeX = null,
+                    relativeY = null,
+                    isLocationEstimated = false,
+                    locationSource = "TUNNEL",
+                    activeSubs = activeSubs,
+                    pingAvg = pingAvg,
+                    pingLoss = pingLoss
+                ))
+                caBandsByRecord.add(caEntities)
+            } catch (e: Exception) {
+                continue
+            }
+        }
+
+        insertBatch(records, caBandsByRecord, sessionId)
+
+        lastRecordedTime = System.currentTimeMillis()
+
+        stateManager.update { it?.copy(
+            pointCount = totalPointCount,
+            currentLatency = pingAvg?.let { String.format(Locale.US, "%.1f", it) } ?: "---",
+            recordedPath = recordedPathSnapshot,
+            currentLatitude = 0.0,
+            currentLongitude = 0.0,
+            currentAltitude = 0.0
         ) }
     }
 

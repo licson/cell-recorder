@@ -5,7 +5,9 @@ import androidx.room.Room
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.local.dao.CellRecordDao
 import com.cellrecorder.app.data.local.dao.ConfigDao
+import com.cellrecorder.app.data.local.dao.RecentMarkerLabelDao
 import com.cellrecorder.app.data.local.dao.SessionDao
+import com.cellrecorder.app.data.local.dao.SessionMarkerDao
 import com.cellrecorder.app.data.local.dao.SpeedTestRecordDao
 import dagger.Module
 import dagger.Provides
@@ -43,4 +45,10 @@ object TestDatabaseModule {
 
     @Provides
     fun provideSpeedTestRecordDao(db: AppDatabase): SpeedTestRecordDao = db.speedTestRecordDao()
+
+    @Provides
+    fun provideSessionMarkerDao(db: AppDatabase): SessionMarkerDao = db.sessionMarkerDao()
+
+    @Provides
+    fun provideRecentMarkerLabelDao(db: AppDatabase): RecentMarkerLabelDao = db.recentMarkerLabelDao()
 }

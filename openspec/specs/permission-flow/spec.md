@@ -105,7 +105,7 @@ The system SHALL provide a single, shared Compose state holder that encapsulates
 #### Scenario: RecordingScreen uses the shared state holder
 - GIVEN the `RecordingScreen` Start-button permission checkpoint
 - THEN the checkpoint uses the shared state holder with `autoRequestOnLaunch = false`
-- AND the permissions set includes foreground permissions, the indoor `ACTIVITY_RECOGNITION` permission (for indoor mode), and background location
+- AND the permissions set includes foreground permissions, the indoor `ACTIVITY_RECOGNITION` permission (for indoor mode), background location, and no indoor permission for tunnel mode
 
 #### Scenario: Both checkpoints use the same decision logic
 - GIVEN any runtime permission checkpoint in the app

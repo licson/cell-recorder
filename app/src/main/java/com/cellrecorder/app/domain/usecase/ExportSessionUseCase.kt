@@ -3,6 +3,7 @@ package com.cellrecorder.app.domain.usecase
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -105,13 +106,38 @@ class ExportSessionUseCase @Inject constructor() {
         )
     }
 
-    fun exportGeoJson(session: SessionEntity, records: List<CellRecordWithCaBands>): ExportData {
+    fun exportMarkersCsv(session: SessionEntity, markers: List<SessionMarkerEntity>): ExportData? {
+        if (markers.isEmpty()) return null
+        val sb = StringBuilder()
+        sb.appendLine("timestamp,seq,type,label")
+        markers.sortedBy { it.seq }.forEach { marker ->
+            sb.appendLine(
+                buildString {
+                    append(marker.timestamp); append(',')
+                    append(marker.seq); append(',')
+                    append(csvField(marker.type)); append(',')
+                    append(csvField(marker.label))
+                }
+            )
+        }
+        return ExportData(
+            content = sb.toString(),
+            mimeType = "text/csv",
+            suggestedFilename = "${session.name.replace(" ", "_")}_markers.csv"
+        )
+    }
+
+    fun exportGeoJson(session: SessionEntity, records: List<CellRecordWithCaBands>, markers: List<SessionMarkerEntity> = emptyList()): ExportData {
         val isIndoor = session.recordingMode == "INDOOR"
+        val isTunnel = session.recordingMode == "TUNNEL"
         val featureCollection = buildJsonObject {
             put("type", "FeatureCollection")
             if (isIndoor) {
                 put("indoorMode", true)
                 put("coordinateReference", "relative")
+            }
+            if (isTunnel) {
+                put("tunnelMode", true)
             }
             put("features", buildJsonArray {
                 for (wrapper in records) {
@@ -191,6 +217,24 @@ class ExportSessionUseCase @Inject constructor() {
                             r.anchorRssi?.let { put("anchorRssi", it) }
                             r.anchorCqi?.let { put("anchorCqi", it) }
                             r.anchorTimingAdvance?.let { put("anchorTimingAdvance", it) }
+                        })
+                    })
+                }
+                for (marker in markers) {
+                    add(buildJsonObject {
+                        put("type", "Feature")
+                        put("geometry", buildJsonObject {
+                            put("type", "Point")
+                            put("coordinates", buildJsonArray {
+                                add(JsonPrimitive(0.0))
+                                add(JsonPrimitive(0.0))
+                            })
+                        })
+                        put("properties", buildJsonObject {
+                            put("markerType", marker.type)
+                            put("label", marker.label)
+                            put("seq", marker.seq)
+                            put("timestamp", marker.timestamp)
                         })
                     })
                 }

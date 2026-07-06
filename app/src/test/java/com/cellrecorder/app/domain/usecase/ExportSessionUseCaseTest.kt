@@ -4,6 +4,7 @@ import com.cellrecorder.app.data.local.entity.CellRecordCaBandEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
@@ -218,6 +219,90 @@ class ExportSessionUseCaseTest {
 
         private fun trimDouble(s: String): String {
             return if (s.contains(".")) s.trimEnd('0').trimEnd('.') else s
+        }
+    }
+
+    @Nested
+    inner class MarkerExport {
+
+        private val marker = SessionMarkerEntity(
+            id = 1,
+            sessionId = 1,
+            timestamp = 1600L,
+            seq = 1,
+            type = "NOTE",
+            label = "poor signal"
+        )
+
+        @Test
+        fun `exportMarkersCsv produces header and row`() {
+            val data = useCase.exportMarkersCsv(session, listOf(marker)) ?: fail("expected data")
+            assertTrue(data.content.startsWith("timestamp,seq,type,label"))
+            assertTrue(data.content.contains("1600,1,NOTE,poor signal"))
+            assertTrue(data.suggestedFilename.endsWith("_markers.csv"))
+        }
+
+        @Test
+        fun `exportMarkersCsv escapes embedded commas in label`() {
+            val m = marker.copy(label = "bad, area")
+            val data = useCase.exportMarkersCsv(session, listOf(m)) ?: fail("expected data")
+            assertTrue(data.content.contains("\"bad, area\""))
+        }
+
+        @Test
+        fun `exportMarkersCsv returns null for empty markers`() {
+            assertNull(useCase.exportMarkersCsv(session, emptyList()))
+        }
+
+        @Test
+        fun `exportGeoJson includes marker Point feature`() {
+            val data = useCase.exportGeoJson(session, records, listOf(marker))
+            assertTrue(data.content.contains("\"markerType\":\"NOTE\""))
+            assertTrue(data.content.contains("\"label\":\"poor signal\""))
+            assertTrue(data.content.contains("\"seq\":1"))
+        }
+    }
+
+    @Nested
+    inner class TunnelMode {
+
+        private val tunnelSession = SessionEntity(
+            id = 3,
+            name = "Tunnel",
+            createdAt = 1000L,
+            endedAt = 2000L,
+            pointCount = 1,
+            recordingMode = "TUNNEL"
+        )
+
+        private val tunnelRecord = CellRecordEntity(
+            id = 20,
+            sessionId = 3,
+            timestamp = 1500L,
+            latitude = 40.0,
+            longitude = -74.0,
+            altitude = 0.0,
+            accuracy = 0f,
+            rat = "UNKNOWN",
+            locationSource = "TUNNEL",
+            pci = 1,
+            rsrp = -90,
+            rsrq = -10,
+            sinr = 5
+        )
+
+        private val tunnelRecords = listOf(CellRecordWithCaBands(record = tunnelRecord, caBands = emptyList()))
+
+        @Test
+        fun `tunnel GeoJSON sets tunnelMode flag`() {
+            val data = useCase.exportGeoJson(tunnelSession, tunnelRecords)
+            assertTrue(data.content.contains("\"tunnelMode\":true"))
+        }
+
+        @Test
+        fun `tunnel GeoJSON does not set indoorMode flag`() {
+            val data = useCase.exportGeoJson(tunnelSession, tunnelRecords)
+            assertFalse(data.content.contains("\"indoorMode\""), "Tunnel session should not set indoorMode")
         }
     }
 

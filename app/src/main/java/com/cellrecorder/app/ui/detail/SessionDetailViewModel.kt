@@ -5,13 +5,17 @@ import androidx.lifecycle.viewModelScope
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.local.entity.CellRecordWithCaBands
 import com.cellrecorder.app.data.local.entity.SessionEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.analytics.SessionAnalyticsEngine
 import com.cellrecorder.app.domain.analytics.SpeedTestAnalyticsEngine
 import com.cellrecorder.app.domain.analytics.model.SessionAnalytics
 import com.cellrecorder.app.domain.analytics.model.SpeedTestSessionAnalytics
+import com.cellrecorder.app.domain.model.MarkerType
 import com.cellrecorder.app.domain.usecase.BatchResplitUseCase
 import com.cellrecorder.app.domain.usecase.ExportData
 import com.cellrecorder.app.domain.usecase.ExportSessionUseCase
@@ -40,7 +44,9 @@ class SessionDetailViewModel @Inject constructor(
     private val batchResplitUseCase: BatchResplitUseCase,
     private val getConfigUseCase: GetConfigUseCase,
     private val speedTestRecordRepository: SpeedTestRecordRepository,
-    private val exportSpeedTestUseCase: ExportSpeedTestUseCase
+    private val exportSpeedTestUseCase: ExportSpeedTestUseCase,
+    private val sessionMarkerRepository: SessionMarkerRepository,
+    private val recentMarkerLabelRepository: RecentMarkerLabelRepository
 ) : ViewModel() {
 
     private val _session = MutableStateFlow<SessionEntity?>(null)
@@ -87,6 +93,12 @@ class SessionDetailViewModel @Inject constructor(
 
     private val _speedTestExportData = MutableStateFlow<ExportData?>(null)
     val speedTestExportData: StateFlow<ExportData?> = _speedTestExportData
+
+    private val _markerExportData = MutableStateFlow<ExportData?>(null)
+    val markerExportData: StateFlow<ExportData?> = _markerExportData
+
+    private val _markers = MutableStateFlow<List<SessionMarkerEntity>>(emptyList())
+    val markers: StateFlow<List<SessionMarkerEntity>> = _markers
 
     private val engine = SessionAnalyticsEngine()
     private var config: AppConfigEntity = AppConfigEntity()
@@ -138,7 +150,27 @@ class SessionDetailViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            sessionMarkerRepository.getMarkersForSession(sessionId).collect { list ->
+                _markers.value = list
+            }
+        }
     }
+
+    fun editMarker(id: Long, type: MarkerType, label: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sessionMarkerRepository.updateMarker(id, type, label)
+        }
+    }
+
+    fun deleteMarker(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            sessionMarkerRepository.deleteMarker(id)
+        }
+    }
+
+    suspend fun getRecentLabels(type: MarkerType): List<com.cellrecorder.app.data.local.entity.RecentMarkerLabelEntity> =
+        recentMarkerLabelRepository.getByTypeOrdered(type)
 
     fun selectRecord(record: CellRecordWithCaBands?) {
         _selectedRecord.value = record
@@ -161,7 +193,7 @@ class SessionDetailViewModel @Inject constructor(
         if (records.isEmpty()) return
         viewModelScope.launch {
             _exportData.value = withContext(Dispatchers.IO) {
-                exportSessionUseCase.exportGeoJson(session, records)
+                exportSessionUseCase.exportGeoJson(session, records, _markers.value)
             }
         }
     }
@@ -176,11 +208,29 @@ class SessionDetailViewModel @Inject constructor(
                     exportSpeedTestUseCase.exportCsv(sessionName, stRecords)
                 }
             }
+        } else {
+            triggerMarkerExport()
         }
     }
 
     fun clearSpeedTestExportData() {
         _speedTestExportData.value = null
+        triggerMarkerExport()
+    }
+
+    private fun triggerMarkerExport() {
+        val session = _session.value ?: return
+        val markers = _markers.value
+        if (markers.isEmpty()) return
+        viewModelScope.launch {
+            _markerExportData.value = withContext(Dispatchers.IO) {
+                exportSessionUseCase.exportMarkersCsv(session, markers)
+            }
+        }
+    }
+
+    fun clearMarkerExportData() {
+        _markerExportData.value = null
     }
 
     fun batchResplit(sessionId: Long) {

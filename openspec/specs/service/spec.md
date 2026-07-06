@@ -173,6 +173,30 @@ The system SHALL adapt the foreground service behavior for indoor recording mode
 - AND no distance-based trigger is used
 - (Indoor interval config: `indoor/spec.md`)
 
+### Requirement: Tunnel Mode Service Behavior
+
+The system SHALL adapt the foreground service behavior for tunnel recording mode. Tunnel recording details are defined in `recording/spec.md`.
+
+#### Scenario: Tunnel recording starts without GPS
+- GIVEN a session with `recordingMode = "TUNNEL"`
+- WHEN the recording service starts
+- THEN the service uses `FOREGROUND_SERVICE_TYPE_LOCATION` (required for cell info access on Android 11+)
+- AND no GPS location requests are made
+- AND points are recorded on a fixed time cadence using `tunnelRecordingIntervalMs`
+- AND each record is tagged with `locationSource = "TUNNEL"`
+
+#### Scenario: Tunnel notification content
+- GIVEN an active tunnel recording
+- THEN the notification displays elapsed time, point count, and current ping latency
+- AND the notification does NOT display GPS status or accuracy
+
+#### Scenario: Tunnel notification mark action
+- GIVEN an active tunnel recording
+- THEN the notification includes a "Mark Note" action
+- AND tapping the action drops a `NOTE` marker with an auto-generated label
+- AND the marker is persisted without opening the app UI
+- AND the action uses `PendingIntent.getForegroundService()`
+
 ### Requirement: Sensor Registration Verification
 
 The system SHALL verify that sensor registration succeeds before continuing with indoor recording. See `indoor/spec.md` for step-detector and accelerometer fallback registration rules.

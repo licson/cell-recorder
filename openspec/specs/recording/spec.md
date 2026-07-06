@@ -251,6 +251,72 @@ The system SHALL support an indoor recording mode that uses IMU-based pedestrian
 - THEN GPS-based distance triggers (`locationChangeThresholdM`) SHALL NOT be used
 - AND only the time-based trigger (`indoorRecordingIntervalMs`) applies
 
+### Requirement: Tunnel Recording Mode
+
+The system SHALL support a tunnel recording mode for environments where GPS is unavailable (e.g., underground rail tunnels). In tunnel mode, location is not collected; instead, points are recorded on a fixed time cadence, and the user can drop manual markers to annotate landmarks or coverage events.
+
+#### Scenario: Tunnel session creation
+- GIVEN the user is creating a new session
+- WHEN the user selects "Tunnel" mode
+- THEN the session is created with `recordingMode = "TUNNEL"`
+- AND the recording screen adapts to tunnel mode (no map, no GPS fields)
+
+#### Scenario: Tunnel recording lifecycle
+- GIVEN a session with `recordingMode = "TUNNEL"`
+- WHEN the user starts recording
+- THEN the foreground service is started
+- AND cell data is sampled on a fixed time cadence using `tunnelRecordingIntervalMs`
+- AND no GPS location requests are made
+- AND `latitude`, `longitude`, `altitude`, and `accuracy` are set to sentinel `0.0`/`0f` values
+- AND each record is tagged with `locationSource = "TUNNEL"`
+- AND `isLocationEstimated = false`
+
+#### Scenario: Tunnel live stats
+- GIVEN an active tunnel recording
+- THEN the live stats bar shows current ping latency
+- AND the GPS status, latitude, longitude, and altitude fields are NOT displayed
+- AND a marker counter shows the number of markers dropped in this session
+
+#### Scenario: Mark button in tunnel recording
+- GIVEN an active tunnel recording
+- THEN a "Mark" button is displayed on the recording screen
+- AND a quick tap drops a marker with the default type (`NOTE`) and an auto-generated sequence label
+- AND a long press opens the marker dialog so the user can choose a type and add a custom label
+- AND markers are persisted atomically with the current recording tick via a shared `RecordingMutex`
+
+#### Scenario: Marker notification action
+- GIVEN an active tunnel recording
+- WHEN the recording notification is visible
+- THEN the notification includes a "Mark Note" action
+- AND tapping the action drops a `NOTE` marker with an auto-generated label
+- AND the marker is persisted without opening the recording screen
+
+### Requirement: Marker Data Model
+
+The system SHALL store recording markers as first-class entities linked to a session. Each marker has a type, sequence number, timestamp, and optional label.
+
+#### Scenario: Marker types
+- GIVEN a marker is being created
+- THEN the user can select one of the following types: `NOTE`, `WAYPOINT`, `SEGMENT_START`, `SEGMENT_END`, `STOP`
+- AND each type has a distinct color used in replay and detail views
+
+#### Scenario: Recent marker labels
+- GIVEN the user enters a custom marker label
+- THEN the label is saved to a recent-labels list keyed by marker type
+- AND recently used labels are surfaced in the marker dialog for quick reuse
+- AND the recent-labels list is limited to the most recently used labels per type
+
+### Requirement: Tunnel Recording Resilience
+
+The system SHALL continue tunnel recording even when the device loses all data connectivity, because GPS is not used and location is not required.
+
+#### Scenario: No connectivity in tunnel
+- GIVEN an active tunnel recording
+- WHEN the device has no data connectivity
+- THEN recording continues on the configured time cadence
+- AND ping latency is unavailable and displayed as "---"
+- AND markers can still be dropped
+
 ### Requirement: Indoor Path Storage
 
 The system SHALL store the indoor movement path using the same efficient data structure as outdoor mode.
