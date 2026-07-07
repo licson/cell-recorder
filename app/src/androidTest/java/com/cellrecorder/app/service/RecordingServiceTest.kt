@@ -1,10 +1,12 @@
 package com.cellrecorder.app.service
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
+import androidx.test.rule.GrantPermissionRule
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.local.entity.SessionEntity
 import com.cellrecorder.app.data.repository.SessionMarkerRepository
@@ -27,7 +29,17 @@ import javax.inject.Inject
 @MediumTest
 class RecordingServiceTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
+    val permissionRule = GrantPermissionRule.grant(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+        Manifest.permission.FOREGROUND_SERVICE_LOCATION,
+        Manifest.permission.POST_NOTIFICATIONS,
+        Manifest.permission.READ_PHONE_STATE
+    )
+
+    @get:Rule(order = 1)
     val hiltRule = HiltAndroidRule(this)
 
     @Inject
@@ -119,7 +131,7 @@ class RecordingServiceTest {
     }
 
     private fun sendMarkNote(context: Context, sessionId: Long) {
-        context.startService(Intent(context, RecordingService::class.java).apply {
+        context.startForegroundService(Intent(context, RecordingService::class.java).apply {
             action = RecordingService.ACTION_MARK_NOTE
             putExtra(RecordingService.EXTRA_SESSION_ID, sessionId)
         })

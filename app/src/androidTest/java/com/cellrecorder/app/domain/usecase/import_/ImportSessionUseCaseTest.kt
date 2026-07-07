@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.repository.CellRecordRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -37,6 +38,9 @@ class ImportSessionUseCaseTest {
     @Inject
     lateinit var db: AppDatabase
 
+    @Inject
+    lateinit var sessionMarkerRepository: SessionMarkerRepository
+
     private lateinit var useCase: ImportSessionUseCase
 
     @Before
@@ -45,6 +49,7 @@ class ImportSessionUseCaseTest {
         useCase = ImportSessionUseCase(
             sessionRepository,
             cellRecordRepository,
+            sessionMarkerRepository,
             CsvRecordParser(),
             GeoJsonRecordParser()
         )

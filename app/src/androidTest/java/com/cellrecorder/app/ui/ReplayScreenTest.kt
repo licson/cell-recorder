@@ -14,6 +14,8 @@ import com.cellrecorder.app.HiltTestActivity
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
@@ -95,10 +97,18 @@ class ReplayScreenTest {
         }
 
         val getSessionPointsUseCase = GetSessionPointsUseCase(cellRecordRepository)
+        val sessionMarkerRepository = SessionMarkerRepository(
+            db.sessionMarkerDao(),
+            db.recentMarkerLabelDao(),
+            db
+        )
+        val recentMarkerLabelRepository = RecentMarkerLabelRepository(db.recentMarkerLabelDao())
         viewModel = ReplayViewModel(
             getSessionPointsUseCase,
             speedTestRecordRepository,
-            sessionRepository
+            sessionRepository,
+            sessionMarkerRepository,
+            recentMarkerLabelRepository
         )
     }
 

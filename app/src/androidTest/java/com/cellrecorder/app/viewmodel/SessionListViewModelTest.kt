@@ -6,6 +6,8 @@ import androidx.test.filters.MediumTest
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.local.entity.SessionEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.usecase.CreateSessionUseCase
 import com.cellrecorder.app.domain.usecase.ExportSessionUseCase
@@ -55,6 +57,12 @@ class SessionListViewModelTest {
     lateinit var geoJsonRecordParser: GeoJsonRecordParser
 
     @Inject
+    lateinit var sessionMarkerRepository: SessionMarkerRepository
+
+    @Inject
+    lateinit var recentMarkerLabelRepository: RecentMarkerLabelRepository
+
+    @Inject
     @ApplicationContext
     lateinit var context: Context
 
@@ -68,7 +76,7 @@ class SessionListViewModelTest {
         val exportSessionUseCase = ExportSessionUseCase()
         val getSessionPointsUseCase = GetSessionPointsUseCase(cellRecordRepository)
         val importSessionUseCase = ImportSessionUseCase(
-            sessionRepository, cellRecordRepository, csvRecordParser, geoJsonRecordParser
+            sessionRepository, cellRecordRepository, sessionMarkerRepository, csvRecordParser, geoJsonRecordParser
         )
         viewModel = SessionListViewModel(
             getSessionsUseCase,

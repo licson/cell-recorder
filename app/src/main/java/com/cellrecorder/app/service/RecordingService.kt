@@ -569,7 +569,6 @@ recordingJob = launch {
                     sessionRepository.updateEndedAt(endedSessionId, System.currentTimeMillis())
                     sessionRepository.updatePrimarySimSlot(endedSessionId, primarySlot)
                 } catch (e: Exception) {
-                    android.util.Log.e("RecordingService", "DB write failed during stop", e)
                 }
             }
         }
@@ -590,7 +589,6 @@ recordingJob = launch {
                     sessionMarkerRepository.insertMarkerWithAutoLabel(currentSessionId, MarkerType.NOTE)
                 }
             } catch (e: Exception) {
-                android.util.Log.e("RecordingService", "Mark Note failed", e)
             }
         }
     }

@@ -17,6 +17,8 @@ import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.ConfigRepository
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.usecase.BatchResplitUseCase
@@ -108,6 +110,12 @@ class SessionDetailScreenTest {
         val batchResplitUseCase = BatchResplitUseCase(cellRecordRepository)
         val getConfigUseCase = GetConfigUseCase(configRepository)
         val exportSpeedTestUseCase = ExportSpeedTestUseCase()
+        val sessionMarkerRepository = SessionMarkerRepository(
+            db.sessionMarkerDao(),
+            db.recentMarkerLabelDao(),
+            db
+        )
+        val recentMarkerLabelRepository = RecentMarkerLabelRepository(db.recentMarkerLabelDao())
 
         viewModel = SessionDetailViewModel(
             sessionRepository,
@@ -116,7 +124,9 @@ class SessionDetailScreenTest {
             batchResplitUseCase,
             getConfigUseCase,
             speedTestRecordRepository,
-            exportSpeedTestUseCase
+            exportSpeedTestUseCase,
+            sessionMarkerRepository,
+            recentMarkerLabelRepository
         )
     }
 

@@ -14,10 +14,13 @@ import com.cellrecorder.app.HiltTestActivity
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.repository.ConfigRepository
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.service.CellInfoCollector
 import com.cellrecorder.app.service.IndoorPositionCollector
+import com.cellrecorder.app.service.RecordingMutex
 import com.cellrecorder.app.service.RecordingState
 import com.cellrecorder.app.service.RecordingStateManager
 import com.cellrecorder.app.ui.recording.RecordingScreen
@@ -84,9 +87,19 @@ class RecordingScreenTest {
         val indoorPositionCollector = mockk<IndoorPositionCollector>(relaxed = true)
         val appContext = mockk<Context>(relaxed = true)
         stateManager = RecordingStateManager()
+        val sessionMarkerRepository = SessionMarkerRepository(
+            db.sessionMarkerDao(),
+            db.recentMarkerLabelDao(),
+            db
+        )
+        val recentMarkerLabelRepository = RecentMarkerLabelRepository(db.recentMarkerLabelDao())
+        val recordingMutex = RecordingMutex()
 
         viewModel = RecordingViewModel(
             sessionRepository,
+            sessionMarkerRepository,
+            recentMarkerLabelRepository,
+            recordingMutex,
             cellInfoCollector,
             configRepository,
             stateManager,

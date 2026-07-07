@@ -5,6 +5,8 @@ import androidx.test.filters.MediumTest
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.ConfigRepository
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.analytics.model.SessionAnalytics
@@ -54,6 +56,12 @@ class SessionDetailViewModelTest {
     @Inject
     lateinit var configRepository: ConfigRepository
 
+    @Inject
+    lateinit var sessionMarkerRepository: SessionMarkerRepository
+
+    @Inject
+    lateinit var recentMarkerLabelRepository: RecentMarkerLabelRepository
+
     private lateinit var viewModel: SessionDetailViewModel
 
     @Before
@@ -71,7 +79,9 @@ class SessionDetailViewModelTest {
             batchResplitUseCase,
             getConfigUseCase,
             speedTestRecordRepository,
-            exportSpeedTestUseCase
+            exportSpeedTestUseCase,
+            sessionMarkerRepository,
+            recentMarkerLabelRepository
         )
     }
 

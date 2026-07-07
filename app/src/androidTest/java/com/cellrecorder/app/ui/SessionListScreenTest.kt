@@ -12,6 +12,8 @@ import androidx.test.filters.MediumTest
 import com.cellrecorder.app.HiltTestActivity
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.repository.CellRecordRepository
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.usecase.CreateSessionUseCase
 import com.cellrecorder.app.domain.usecase.ExportSessionUseCase
@@ -56,10 +58,16 @@ class SessionListScreenTest {
         val createSessionUseCase = CreateSessionUseCase(sessionRepository)
         val exportSessionUseCase = ExportSessionUseCase()
         val getSessionPointsUseCase = GetSessionPointsUseCase(cellRecordRepository)
+        val sessionMarkerRepository = SessionMarkerRepository(
+            db.sessionMarkerDao(),
+            db.recentMarkerLabelDao(),
+            db
+        )
+        val recentMarkerLabelRepository = RecentMarkerLabelRepository(db.recentMarkerLabelDao())
         val csvRecordParser = CsvRecordParser()
         val geoJsonRecordParser = GeoJsonRecordParser()
         val importSessionUseCase = ImportSessionUseCase(
-            sessionRepository, cellRecordRepository, csvRecordParser, geoJsonRecordParser
+            sessionRepository, cellRecordRepository, sessionMarkerRepository, csvRecordParser, geoJsonRecordParser
         )
         viewModel = SessionListViewModel(
             getSessionsUseCase,

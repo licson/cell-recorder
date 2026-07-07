@@ -3,6 +3,8 @@ package com.cellrecorder.app.viewmodel
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.MediumTest
 import com.cellrecorder.app.data.repository.CellRecordRepository
+import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.data.repository.SpeedTestRecordRepository
 import com.cellrecorder.app.domain.usecase.GetSessionPointsUseCase
@@ -45,6 +47,12 @@ class ReplayViewModelTest {
     @Inject
     lateinit var speedTestRecordRepository: SpeedTestRecordRepository
 
+    @Inject
+    lateinit var sessionMarkerRepository: SessionMarkerRepository
+
+    @Inject
+    lateinit var recentMarkerLabelRepository: RecentMarkerLabelRepository
+
     private lateinit var viewModel: ReplayViewModel
 
     @Before
@@ -54,7 +62,9 @@ class ReplayViewModelTest {
         viewModel = ReplayViewModel(
             getSessionPointsUseCase,
             speedTestRecordRepository,
-            sessionRepository
+            sessionRepository,
+            sessionMarkerRepository,
+            recentMarkerLabelRepository
         )
     }
 
