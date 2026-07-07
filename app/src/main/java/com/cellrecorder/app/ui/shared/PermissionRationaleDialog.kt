@@ -19,21 +19,24 @@ fun PermissionRationaleDialog(
     recordingMode: String = "OUTDOOR"
 ) {
     val isIndoor = recordingMode == "INDOOR"
+    val isTunnel = recordingMode == "TUNNEL"
     AlertDialog(
         onDismissRequest = {},
         title = { Text("Permissions Required") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                PermissionItem(
-                    icon = Icons.Default.LocationOn,
-                    title = "Fine Location",
-                    description = "Required to record GPS coordinates alongside cell tower data during recording."
-                )
-                PermissionItem(
-                    icon = Icons.Default.LocationOn,
-                    title = "Background Location",
-                    description = "Required to continue recording when the app is not in the foreground, such as when your phone is in your pocket."
-                )
+                if (!isTunnel) {
+                    PermissionItem(
+                        icon = Icons.Default.LocationOn,
+                        title = "Fine Location",
+                        description = "Required to record GPS coordinates alongside cell tower data during recording."
+                    )
+                    PermissionItem(
+                        icon = Icons.Default.LocationOn,
+                        title = "Background Location",
+                        description = "Required to continue recording when the app is not in the foreground, such as when your phone is in your pocket."
+                    )
+                }
                 PermissionItem(
                     icon = Icons.Default.Phone,
                     title = "Phone State",

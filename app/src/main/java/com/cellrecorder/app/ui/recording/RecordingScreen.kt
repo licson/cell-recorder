@@ -242,6 +242,7 @@ fun RecordingScreen(
                     isTunnel -> {
                         TunnelPlaceholder(
                             elapsedMs = serviceState?.elapsedMs ?: 0,
+                            pointCount = serviceState?.pointCount ?: 0,
                             markerCount = markers.size,
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         )
@@ -366,12 +367,23 @@ contentDescription = if (isRecording) "Stop" else "Start",
                 onSave = { type, label ->
                     markerDialogMarker?.let { marker ->
                         viewModel.editMarker(marker.id, type, label)
-                    } ?: viewModel.createMarker(type, label)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Edited #${marker.seq}")
+                        }
+                    } ?: run {
+                        viewModel.createMarker(type, label)
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Marked #${markers.size + 1}")
+                        }
+                    }
                 },
                 onDelete = markerDialogMarker?.let { marker ->
                     {
                         viewModel.deleteMarker(marker.id)
                         showMarkerDialog = false
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Deleted #${marker.seq}")
+                        }
                     }
                 } ?: {}
             )
@@ -614,6 +626,7 @@ private fun MarkButton(
 @Composable
 private fun TunnelPlaceholder(
     elapsedMs: Long,
+    pointCount: Int,
     markerCount: Int,
     modifier: Modifier = Modifier
 ) {
@@ -642,6 +655,11 @@ private fun TunnelPlaceholder(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Points: $pointCount",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Text(
                     text = "Markers: $markerCount",
                     style = MaterialTheme.typography.bodyLarge,

@@ -31,6 +31,13 @@ object PermissionHelper {
         }
     }.toTypedArray()
 
+    fun tunnelForegroundPermissions(): Array<String> = buildList {
+        add(Manifest.permission.READ_PHONE_STATE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }.toTypedArray()
+
     fun backgroundPermissions(): Array<String> = buildList {
         add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
     }.toTypedArray()
@@ -47,6 +54,11 @@ object PermissionHelper {
         }
 
     fun allGrantedForMode(recordingMode: String, context: Context): Boolean {
+        if (recordingMode == "TUNNEL") {
+            return tunnelForegroundPermissions().all {
+                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+            }
+        }
         if (!allGranted(context)) return false
         if (recordingMode == "INDOOR") return allIndoorGranted(context)
         return true
@@ -72,12 +84,20 @@ object PermissionHelper {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
 
+    fun missingTunnelForegroundPermissions(context: Context): Array<String> =
+        tunnelForegroundPermissions().filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }.toTypedArray()
+
     fun missingIndoorPermissions(context: Context): Array<String> =
         indoorPermissions().filter {
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }.toTypedArray()
 
     fun missingPermissionsForMode(recordingMode: String, context: Context): Array<String> {
+        if (recordingMode == "TUNNEL") {
+            return missingTunnelForegroundPermissions(context)
+        }
         val result = mutableListOf<String>()
         result.addAll(missingForegroundPermissions(context).toList())
         if (recordingMode == "INDOOR") {
@@ -87,6 +107,9 @@ object PermissionHelper {
     }
 
     fun missingAllForMode(recordingMode: String, context: Context): Array<String> {
+        if (recordingMode == "TUNNEL") {
+            return missingTunnelForegroundPermissions(context)
+        }
         val result = mutableListOf<String>()
         result.addAll(missingForegroundPermissions(context).toList())
         if (recordingMode == "INDOOR") {

@@ -125,7 +125,8 @@ class ImportSessionUseCase @Inject constructor(
     ): ImportSummary {
         val geoResult = geoJsonRecordParser.parse(content, 0)
         val isIndoor = content.contains("\"indoorMode\"")
-        val isTunnel = content.contains("\"tunnelMode\"")
+        val tunnelModeMatch = Regex("\"tunnelMode\"\\s*:\\s*true").find(content)
+        val isTunnel = tunnelModeMatch != null
         val recordingMode = when {
             isTunnel -> "TUNNEL"
             isIndoor -> "INDOOR"

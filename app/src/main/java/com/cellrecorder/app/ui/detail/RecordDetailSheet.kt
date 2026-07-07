@@ -106,7 +106,10 @@ fun RecordDetailSheet(
             // Location
             Spacer(Modifier.height(16.dp))
             SectionTitle("Location")
-            if (record.relativeX != null && record.relativeY != null) {
+            if (record.locationSource == "TUNNEL") {
+                DetailRow("Source", record.locationSource)
+                DetailRow("Coordinates", "Tunnel record (no GPS coordinates)")
+            } else if (record.relativeX != null && record.relativeY != null) {
                 DetailRow("relX", String.format(Locale.US, "%.2f m", record.relativeX))
                 DetailRow("relY", String.format(Locale.US, "%.2f m", record.relativeY))
             } else {

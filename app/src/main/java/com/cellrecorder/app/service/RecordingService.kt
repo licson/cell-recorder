@@ -290,7 +290,7 @@ recordingJob = launch {
                 }
             }
 
-            if (recordingMode != "INDOOR") {
+            if (recordingMode != "INDOOR" && recordingMode != "TUNNEL") {
                 fallbackRecordingJob = launch {
                     while (isActive) {
                         delay(1000L)

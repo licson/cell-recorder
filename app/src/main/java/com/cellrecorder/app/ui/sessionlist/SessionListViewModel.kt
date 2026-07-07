@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cellrecorder.app.data.repository.SessionMarkerRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.model.SessionSummary
 import com.cellrecorder.app.domain.usecase.CreateSessionUseCase
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,6 +35,7 @@ class SessionListViewModel @Inject constructor(
     private val exportSessionUseCase: ExportSessionUseCase,
     private val getSessionPointsUseCase: GetSessionPointsUseCase,
     private val importSessionUseCase: ImportSessionUseCase,
+    private val sessionMarkerRepository: SessionMarkerRepository,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -128,10 +131,13 @@ class SessionListViewModel @Inject constructor(
                     val records = getSessionPointsUseCase.getOnce(session.id)
                     if (records.isEmpty()) continue
 
+                    val sessionEntity = session.toEntity()
+                    val markers = sessionMarkerRepository.getMarkersForSession(session.id).first()
+
                     val export = if (format == "GeoJSON") {
-                        exportSessionUseCase.exportGeoJson(session.toEntity(), records)
+                        exportSessionUseCase.exportGeoJson(sessionEntity, records, markers)
                     } else {
-                        exportSessionUseCase.exportCsv(session.toEntity(), records)
+                        exportSessionUseCase.exportCsv(sessionEntity, records)
                     }
 
                     val mime = if (format == "GeoJSON") "application/geo+json" else "text/csv"
@@ -144,6 +150,20 @@ class SessionListViewModel @Inject constructor(
                             stream.write(export.content.toByteArray())
                         }
                     } catch (_: Exception) { }
+
+                    if (format == "CSV" && markers.isNotEmpty()) {
+                        val markersExport = exportSessionUseCase.exportMarkersCsv(sessionEntity, markers)
+                        if (markersExport != null) {
+                            try {
+                                val markersDocUri = DocumentsContract.createDocument(
+                                    context.contentResolver, treeUri, "text/csv", markersExport.suggestedFilename
+                                ) ?: continue
+                                context.contentResolver.openOutputStream(markersDocUri)?.use { stream ->
+                                    stream.write(markersExport.content.toByteArray())
+                                }
+                            } catch (_: Exception) { }
+                        }
+                    }
                 }
             }
             _selectedIds.value = emptySet()

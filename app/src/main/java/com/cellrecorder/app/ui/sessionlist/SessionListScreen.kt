@@ -585,11 +585,24 @@ private fun CreateSessionDialog(
                         onClick = { recordingMode = "INDOOR" },
                         label = { Text("Indoor") }
                     )
+                    FilterChip(
+                        selected = recordingMode == "TUNNEL",
+                        onClick = { recordingMode = "TUNNEL" },
+                        label = { Text("Tunnel") }
+                    )
                 }
                 if (recordingMode == "INDOOR") {
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "Indoor mode uses step detection instead of GPS. Best for sessions under 5 minutes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (recordingMode == "TUNNEL") {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Tunnel mode samples on a fixed time cadence and uses manual markers for landmarks. Best for mapping coverage inside metro tunnels.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

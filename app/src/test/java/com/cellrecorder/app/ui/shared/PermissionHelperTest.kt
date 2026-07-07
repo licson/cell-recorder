@@ -293,10 +293,11 @@ class PermissionHelperTest {
         }
 
         @Test
-        fun `allGrantedForMode TUNNEL returns false when background permission is missing`() {
+        fun `allGrantedForMode TUNNEL returns true when background permission is missing (tunnel excludes background)`() {
             stubAllGranted()
             stubDenied(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            assertFalse(PermissionHelper.allGrantedForMode("TUNNEL", context))
+            assertTrue(PermissionHelper.allGrantedForMode("TUNNEL", context),
+                "Tunnel mode excludes ACCESS_BACKGROUND_LOCATION per tunnel/spec.md")
         }
 
         @Test
@@ -371,10 +372,13 @@ class PermissionHelperTest {
         }
 
         @Test
-        fun `missingPermissionsForMode returns foreground missing for TUNNEL mode`() {
-            stubDenied(Manifest.permission.ACCESS_FINE_LOCATION)
+        fun `missingPermissionsForMode returns foreground missing for TUNNEL mode (excludes FINE_LOCATION and ACTIVITY_RECOGNITION)`() {
+            stubDenied(Manifest.permission.READ_PHONE_STATE)
             val missing = PermissionHelper.missingPermissionsForMode("TUNNEL", context).toSet()
-            assertTrue(missing.contains(Manifest.permission.ACCESS_FINE_LOCATION))
+            assertTrue(missing.contains(Manifest.permission.READ_PHONE_STATE),
+                "Tunnel mode requires READ_PHONE_STATE")
+            assertFalse(missing.contains(Manifest.permission.ACCESS_FINE_LOCATION),
+                "Tunnel mode excludes ACCESS_FINE_LOCATION per tunnel/spec.md")
             assertFalse(missing.contains(Manifest.permission.ACTIVITY_RECOGNITION),
                 "Indoor permissions excluded from TUNNEL mode")
         }
@@ -417,11 +421,15 @@ class PermissionHelperTest {
         }
 
         @Test
-        fun `missingAllForMode TUNNEL includes foreground and background missing`() {
+        fun `missingAllForMode TUNNEL includes foreground missing but excludes background and location (tunnel spec)`() {
             stubDenied(Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
             val missing = PermissionHelper.missingAllForMode("TUNNEL", context).toSet()
-            assertTrue(missing.contains(Manifest.permission.READ_PHONE_STATE))
-            assertTrue(missing.contains(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
+            assertTrue(missing.contains(Manifest.permission.READ_PHONE_STATE),
+                "Tunnel mode requires READ_PHONE_STATE")
+            assertFalse(missing.contains(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                "Tunnel mode excludes ACCESS_BACKGROUND_LOCATION per tunnel/spec.md")
+            assertFalse(missing.contains(Manifest.permission.ACCESS_FINE_LOCATION),
+                "Tunnel mode excludes ACCESS_FINE_LOCATION per tunnel/spec.md")
         }
 
         @Test

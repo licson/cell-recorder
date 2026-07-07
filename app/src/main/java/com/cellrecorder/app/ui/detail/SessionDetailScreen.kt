@@ -93,6 +93,7 @@ fun SessionDetailScreen(
     var showMarkerDialog by remember { mutableStateOf(false) }
     var editingMarker by remember { mutableStateOf<SessionMarkerEntity?>(null) }
     val isIndoor = session?.recordingMode == "INDOOR"
+    val isTunnel = session?.recordingMode == "TUNNEL"
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("*/*")
@@ -196,7 +197,14 @@ fun SessionDetailScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())
         ) {
-            if (isIndoor) {
+            if (isTunnel) {
+                TunnelPlaceholderPanel(
+                    session = session,
+                    records = records,
+                    markers = markers,
+                    modifier = Modifier.fillMaxWidth().height(if (showAnalytics) 400.dp else 200.dp)
+                )
+            } else if (isIndoor) {
                 IndoorPathCanvas(
                     pathPoints = records.map { it.record.relativeX to it.record.relativeY }.filter { it.first != null }
                         .map { it.first!! to it.second!! },
@@ -321,6 +329,7 @@ fun SessionDetailScreen(
                         viewModel.updateVisibleWindow(first, last)
                     },
                     isIndoor = isIndoor,
+                    isTunnel = isTunnel,
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
@@ -488,9 +497,63 @@ private fun markerTypeColor(type: String): Color = when (type) {
 }
 
 @Composable
+private fun TunnelPlaceholderPanel(
+    session: com.cellrecorder.app.data.local.entity.SessionEntity?,
+    records: List<CellRecordWithCaBands>,
+    markers: List<SessionMarkerEntity>,
+    modifier: Modifier = Modifier
+) {
+    val totalDurationSec = if (records.size >= 2) {
+        val tsMin = records.minOf { it.record.timestamp }
+        val tsMax = records.maxOf { it.record.timestamp }
+        ((tsMax - tsMin) / 1000.0).coerceAtLeast(0.0)
+    } else 0.0
+    Surface(
+        tonalElevation = 1.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Tunnel recording in progress",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            session?.name?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                text = "Points: ${records.size}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "Duration: ${String.format(Locale.US, "%.0f", totalDurationSec)} s",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "Markers: ${markers.size}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "No GPS coordinates in tunnel mode. Use the Mark button to stamp landmarks.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun ColumnHeadersRow(
     modifier: Modifier = Modifier,
-    isIndoor: Boolean = false
+    isIndoor: Boolean = false,
+    isTunnel: Boolean = false
 ) {
     Surface(
         modifier = modifier,
@@ -552,6 +615,13 @@ private fun ColumnHeadersRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
+            } else if (isTunnel) {
+                Text(
+                    text = "src",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
             } else {
                 Text(
                     text = "Ping (ms)",
@@ -569,7 +639,8 @@ private fun TimestampGroupRow(
     group: TimestampGroup,
     onRecordClick: (CellRecordWithCaBands) -> Unit,
     modifier: Modifier = Modifier,
-    isIndoor: Boolean = false
+    isIndoor: Boolean = false,
+    isTunnel: Boolean = false
 ) {
     Column(modifier = modifier.padding(vertical = 4.dp)) {
         group.records.forEachIndexed { index, wrapper ->
@@ -593,7 +664,7 @@ private fun TimestampGroupRow(
                 } else {
                     Spacer(Modifier.width(48.dp))
                 }
-                SimRecordRow(wrapper = wrapper, modifier = Modifier.weight(1f), isIndoor = isIndoor)
+                SimRecordRow(wrapper = wrapper, modifier = Modifier.weight(1f), isIndoor = isIndoor, isTunnel = isTunnel)
             }
         }
     }
@@ -603,7 +674,8 @@ private fun TimestampGroupRow(
 private fun SimRecordRow(
     wrapper: CellRecordWithCaBands,
     modifier: Modifier = Modifier,
-    isIndoor: Boolean = false
+    isIndoor: Boolean = false,
+    isTunnel: Boolean = false
 ) {
     val record = wrapper.record
     Row(
@@ -649,6 +721,12 @@ private fun SimRecordRow(
             Text(
                 text = record.relativeY?.let { String.format(Locale.US, "%.1f", it) } ?: "---",
                 style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                modifier = Modifier.weight(1f)
+            )
+        } else if (isTunnel) {
+            Text(
+                text = record.locationSource,
+                style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.weight(1f)
             )
         } else {
@@ -770,7 +848,8 @@ private fun RecordsList(
     onRecordClick: (CellRecordWithCaBands) -> Unit,
     onUpdateVisibleWindow: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
-    isIndoor: Boolean = false
+    isIndoor: Boolean = false,
+    isTunnel: Boolean = false
 ) {
     val listState = rememberLazyListState()
     val measuredHeights = remember { mutableStateMapOf<Int, Int>() }
@@ -802,7 +881,7 @@ private fun RecordsList(
         state = listState
     ) {
         stickyHeader(key = "headers") {
-            ColumnHeadersRow(modifier = Modifier.fillParentMaxWidth(), isIndoor = isIndoor)
+            ColumnHeadersRow(modifier = Modifier.fillParentMaxWidth(), isIndoor = isIndoor, isTunnel = isTunnel)
         }
 
         items(
@@ -815,6 +894,7 @@ private fun RecordsList(
                     group = group,
                     onRecordClick = onRecordClick,
                     isIndoor = isIndoor,
+                    isTunnel = isTunnel,
                     modifier = Modifier.onGloballyPositioned { coordinates ->
                         measuredHeights[index] = coordinates.size.height
                     }

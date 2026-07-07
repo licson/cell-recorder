@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Tunnel recording mode** — a third recording mode purpose-built for mapping cellular coverage inside metro tunnels. Samples cell info and ping measurements on a fixed time cadence with no GPS or step/rotation sensors, and uses manual markers for landmarks. Tunnel mode requires only foreground service and phone-state permissions (no GPS, no activity recognition).
+- **Universal session markers** — a "Mark" button on the recording screen (and a "Mark Note" notification action) lets you stamp a moment on the timeline on any recording mode (outdoor, indoor, or tunnel). A quick tap drops a `NOTE` marker with an auto-generated type-prefixed label (e.g., `NOTE #5 14:32:05`); a long-press opens a dialog with five marker types (Waypoint, Segment Start, Segment End, Stop, Note) and an optional label.
+- **Recent-label suggestions** — the marker dialog surfaces your most-recently-used labels as one-tap chips, so repeat riders on the same line get one-tap station names. The recents table is global across sessions and is never exported with session data.
+- **Marker editing** — markers can be edited after recording via the replay timeline pin detail card or the session detail "Markers (N)" collapsible section. Type and label are editable in place; sequence and timestamp are immutable so timeline ordering never changes.
+- **Type-aware marker dialog** — the label field is hidden for Segment Start / Segment End (the type is the entire semantic content) and shown for Waypoint, Stop, and Note to reduce decision fatigue on a moving train.
+- **Tunnel session detail** — tunnel sessions show a placeholder panel instead of a map, a `src` column showing `TUNNEL` in the records table, and a "Tunnel record (no GPS coordinates)" message in the record detail sheet, so sentinel coordinates are never confused for real GPS fixes.
+- **Markers in export/import** — markers are emitted as a companion `markers_<session>.csv` file and as `Point` features in GeoJSON exports for any session with markers. Tunnel sessions add a `tunnelMode: true` flag. Import restores markers with original sequence numbers and does not touch the recents table.
+
+### Fixed
+- **Tunnel mode no longer launches the GPS-loss fallback recording job** — the fallback job that extrapolates GPS position after a fix loss is no longer started for tunnel sessions, preventing spurious `SENSOR_FUSION` records from being written when no GPS was expected in the first place.
+- **Tunnel mode permission flow no longer requires GPS or background location** — the permission helper now excludes `ACCESS_FINE_LOCATION` and `ACCESS_BACKGROUND_LOCATION` from the tunnel permission set, and the rationale dialog no longer mentions location for tunnel sessions, matching the tunnel spec.
+
 ## [1.2.1] - 2026-06-30
 
 ### Added
