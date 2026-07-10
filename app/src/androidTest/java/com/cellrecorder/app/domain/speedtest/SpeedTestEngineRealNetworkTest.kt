@@ -185,6 +185,13 @@ class SpeedTestEngineRealNetworkTest {
         assertNotNull("serverName", result.serverName)
         assertNotNull("serverHost", result.serverHost)
         assertNotNull("serverLocation", result.serverLocation)
+        // Successful test: timing fields set, finishedAt > startedAt
+        assertTrue("startedAt should be set on success", result.startedAt > 0L)
+        assertTrue("finishedAt should be set on success", result.finishedAt > 0L)
+        assertTrue(
+            "finishedAt ($result.finishedAt) should be > startedAt ($result.startedAt) on success",
+            result.finishedAt > result.startedAt
+        )
     }
 
     @Test
@@ -258,6 +265,13 @@ class SpeedTestEngineRealNetworkTest {
             "uploadBps should be null on WiFi skip",
             null,
             result.uploadBps
+        )
+        // Instant bail-out: finishedAt = startedAt (duration zero)
+        assertTrue("startedAt should be set on WiFi skip", result.startedAt > 0L)
+        assertEquals(
+            "finishedAt should equal startedAt for instant bail-out (SKIPPED_WIFI)",
+            result.startedAt,
+            result.finishedAt
         )
     }
 

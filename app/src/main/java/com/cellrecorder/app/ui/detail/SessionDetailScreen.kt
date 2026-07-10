@@ -79,6 +79,7 @@ fun SessionDetailScreen(
     val exportData by viewModel.exportData.collectAsStateWithLifecycle()
     val analytics by viewModel.analytics.collectAsStateWithLifecycle()
     val speedTestAnalytics by viewModel.speedTestAnalytics.collectAsStateWithLifecycle()
+    val speedTestRecords by viewModel.speedTestRecords.collectAsStateWithLifecycle()
     val speedTestExportData by viewModel.speedTestExportData.collectAsStateWithLifecycle()
     val markerExportData by viewModel.markerExportData.collectAsStateWithLifecycle()
     val mapDisplayMode by viewModel.mapDisplayMode.collectAsStateWithLifecycle()
@@ -310,6 +311,7 @@ fun SessionDetailScreen(
                 AnalyticsPanel(
                     analytics = analytics,
                     speedTestAnalytics = speedTestAnalytics,
+                    speedTestRecords = speedTestRecords,
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             } else {

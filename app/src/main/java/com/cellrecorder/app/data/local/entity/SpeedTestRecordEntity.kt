@@ -24,7 +24,20 @@ data class SpeedTestRecordEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val sessionId: Long,
+    /**
+     * Wall-clock millisecond timestamp captured at the start of the speedtest
+     * (engine entry). For instant bail-outs this is also the effective finish
+     * time (see [finishedAt]).
+     */
     val timestamp: Long,
+    /**
+     * Wall-clock millisecond timestamp captured when the speedtest finished.
+     * Always non-null. For instant bail-outs (SKIPPED_WIFI, config/selection
+     * failure, exception) this equals [timestamp]. For rows inserted before
+     * the `finishedAt` column existed (legacy rows), this is `0` and consumers
+     * treat `0` as "unknown finish time" — do not compute a duration.
+     */
+    val finishedAt: Long = 0L,
     val downloadBps: Long?,
     val uploadBps: Long?,
     val serverName: String?,

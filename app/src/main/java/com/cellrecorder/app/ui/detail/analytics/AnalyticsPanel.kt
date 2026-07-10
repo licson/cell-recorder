@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.cellrecorder.app.domain.analytics.model.CorrelationBin
 import com.cellrecorder.app.domain.analytics.model.SessionAnalytics
 import com.cellrecorder.app.domain.analytics.model.SpeedTestSessionAnalytics
+import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
 import com.cellrecorder.app.domain.model.BandResolver
 import com.cellrecorder.app.ui.analytics.components.AnomalyInspectorSheet
 import com.cellrecorder.app.ui.analytics.components.AnomalyList
@@ -35,7 +37,8 @@ import com.cellrecorder.app.ui.detail.ratColor
 fun AnalyticsPanel(
     analytics: SessionAnalytics,
     modifier: Modifier = Modifier,
-    speedTestAnalytics: SpeedTestSessionAnalytics? = null
+    speedTestAnalytics: SpeedTestSessionAnalytics? = null,
+    speedTestRecords: List<SpeedTestRecordEntity> = emptyList()
 ) {
     val totalRecords = analytics.timelineSegments.sumOf { it.recordCount }
     val hasAnyData = analytics.ratCoverage.isNotEmpty() ||
@@ -196,6 +199,14 @@ fun AnalyticsPanel(
             item(key = "st_summary") {
                 SpeedTestSummary(analytics = st)
             }
+            if (speedTestRecords.isNotEmpty()) {
+                item(key = "st_entries_header") {
+                    SectionHeader("Speed Test Entries")
+                }
+                items(speedTestRecords.take(50)) { record ->
+                    SpeedTestEntryRow(record)
+                }
+            }
             if (st.downloadHistogram.isNotEmpty()) {
                 item(key = "st_histo") {
                     SignalHistogram(
@@ -299,6 +310,12 @@ private fun SpeedTestSummary(analytics: SpeedTestSessionAnalytics) {
                 MetricItem("Avg UL", analytics.avgUploadBps?.let { formatBps(it) } ?: "---")
                 MetricItem("P95 UL", analytics.p95UploadBps?.let { formatBps(it) } ?: "---")
             }
+            if (analytics.avgDurationMs != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    MetricItem("Avg Duration", formatDurationBadge(analytics.avgDurationMs!!))
+                }
+            }
             if (analytics.serverName != null) {
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -328,11 +345,69 @@ private fun MetricItem(label: String, value: String) {
     }
 }
 
+@Composable
+private fun SpeedTestEntryRow(record: SpeedTestRecordEntity) {
+    val hasDuration = record.finishedAt > 0 && record.finishedAt > record.timestamp
+    val durationMs = if (hasDuration) record.finishedAt - record.timestamp else null
+    val timeStr = remember(record.timestamp) {
+        java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+            .format(java.util.Date(record.timestamp))
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = timeStr,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            modifier = Modifier.weight(0.3f)
+        )
+        Text(
+            text = if (record.succeeded) "↓${record.downloadBps?.let { formatBps(it) } ?: "?"}" else "Failed",
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            color = if (record.succeeded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(0.4f)
+        )
+        if (hasDuration && durationMs != null) {
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.weight(0.3f)
+            ) {
+                Text(
+                    text = formatDurationBadge(durationMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+            }
+        } else {
+            Spacer(Modifier.weight(0.3f))
+        }
+    }
+}
+
 private fun formatBps(bps: Long): String = when {
     bps >= 1_000_000_000 -> "${"%.1f".format(bps / 1_000_000_000.0)}G"
     bps >= 1_000_000 -> "${"%.1f".format(bps / 1_000_000.0)}M"
     bps >= 1_000 -> "${bps / 1_000}k"
     else -> "${bps}b"
+}
+
+private fun formatDurationBadge(ms: Long): String {
+    if (ms <= 0) return "0s"
+    val seconds = ms / 1000.0
+    return when {
+        seconds < 10 -> String.format(java.util.Locale.US, "%.1fs", seconds)
+        seconds < 60 -> String.format(java.util.Locale.US, "%.0fs", seconds)
+        else -> {
+            val m = (seconds / 60).toInt()
+            val s = (seconds % 60).toInt()
+            "${m}m ${s}s"
+        }
+    }
 }
 
 @Composable

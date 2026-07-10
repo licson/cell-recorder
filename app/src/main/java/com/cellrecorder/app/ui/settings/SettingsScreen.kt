@@ -3,9 +3,17 @@ package com.cellrecorder.app.ui.settings
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -15,6 +23,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Report
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,14 +31,19 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.cellrecorder.app.domain.speedtest.SpeedTestDebugEvent
+import com.cellrecorder.app.ui.settings.ManualLaunchUiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,7 +52,10 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val config by viewModel.config.collectAsStateWithLifecycle()
+    val debugEvents by viewModel.debugEvents.collectAsStateWithLifecycle()
+    val manualLaunchState by viewModel.manualLaunchState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showSpeedTestEula by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -131,6 +148,46 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { viewModel.launchTest() },
+                            enabled = manualLaunchState !is ManualLaunchUiState.Running
+                        ) {
+                            Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Launch Test")
+                        }
+                        if (manualLaunchState is ManualLaunchUiState.Running) {
+                            Spacer(Modifier.width(12.dp))
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Running…", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+
+                    val isRunning = manualLaunchState is ManualLaunchUiState.Running
+                    val isFinished = manualLaunchState is ManualLaunchUiState.Finished
+                    AnimatedVisibility(
+                        visible = isRunning || isFinished,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        SpeedTestDebugCard(
+                            events = debugEvents,
+                            manualLaunchState = manualLaunchState,
+                            onShareLog = {
+                                if (debugEvents.isEmpty()) {
+                                    Toast.makeText(context, "No debug events", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    viewModel.shareDebugLog()
+                                }
+                            }
+                        )
+                    }
                 }
             }
 
@@ -186,7 +243,6 @@ fun SettingsScreen(
                     }
                 )
                 HorizontalDivider()
-                val scope = rememberCoroutineScope()
                 ClickableAboutRow(
                     icon = Icons.Default.BugReport,
                     label = "Share Crash Log",
@@ -314,4 +370,192 @@ private fun ClickableAboutRow(icon: ImageVector, label: String, onClick: () -> U
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+@Composable
+private fun SpeedTestDebugCard(
+    events: List<SpeedTestDebugEvent>,
+    manualLaunchState: ManualLaunchUiState,
+    onShareLog: () -> Unit
+) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(events.size) {
+        if (events.isNotEmpty()) {
+            listState.animateScrollToItem(events.lastIndex)
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Debug Log",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onShareLog) {
+                    Icon(Icons.Default.Share, contentDescription = "Share Debug Log")
+                }
+            }
+            HorizontalDivider()
+            Spacer(Modifier.height(4.dp))
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)
+            ) {
+                items(events) { event ->
+                    SpeedTestDebugEventRow(event)
+                }
+                if (events.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Waiting for events…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                }
+            }
+            val finished = manualLaunchState as? ManualLaunchUiState.Finished
+            if (finished != null) {
+                HorizontalDivider()
+                Spacer(Modifier.height(8.dp))
+                SpeedTestResultSummary(finished)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpeedTestDebugEventRow(event: SpeedTestDebugEvent) {
+    val timeStr = remember(event.timestampMs) {
+        val sdf = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+        sdf.format(java.util.Date(event.timestampMs))
+    }
+    val color = when (event.status) {
+        SpeedTestDebugEvent.Status.OK -> Color(0xFF4CAF50)
+        SpeedTestDebugEvent.Status.INFO -> Color(0xFF2196F3)
+        SpeedTestDebugEvent.Status.WARN -> Color(0xFFFF9800)
+        SpeedTestDebugEvent.Status.FAIL -> Color(0xFFF44336)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = timeStr,
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(0.4f)
+        )
+        Text(
+            text = "[${event.phase}]",
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = color,
+            modifier = Modifier.weight(0.3f)
+        )
+        Text(
+            text = event.message,
+            style = MaterialTheme.typography.labelSmall,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun SpeedTestResultSummary(finished: ManualLaunchUiState.Finished) {
+    val durationStr = formatDuration(finished.durationMs)
+    val startTimeStr = remember(finished.startedAt) {
+        val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+        sdf.format(java.util.Date(finished.startedAt))
+    }
+    val finishTimeStr = remember(finished.finishedAt) {
+        val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+        sdf.format(java.util.Date(finished.finishedAt))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = "Result: ${if (finished.succeeded) "Success" else "Failed"}",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = if (finished.succeeded) Color(0xFF4CAF50) else Color(0xFFF44336)
+        )
+        Text(
+            text = "Start: $startTimeStr  Finish: $finishTimeStr",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "Duration: $durationStr",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (finished.downloadBps != null) {
+            Text(
+                text = "Download: ${formatBpsManual(finished.downloadBps)}",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+        if (finished.uploadBps != null) {
+            Text(
+                text = "Upload: ${formatBpsManual(finished.uploadBps)}",
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+        if (finished.serverName != null || finished.serverHost != null) {
+            Text(
+                text = "Server: ${finished.serverName ?: "?"} (${finished.serverHost ?: "?"})",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (finished.errorMessage != null) {
+            Text(
+                text = "Error: ${finished.errorMessage}",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFF44336)
+            )
+        }
+    }
+}
+
+private fun formatDuration(ms: Long): String {
+    if (ms <= 0) return "0s"
+    val seconds = ms / 1000.0
+    return when {
+        seconds < 10 -> String.format(java.util.Locale.US, "%.1fs", seconds)
+        seconds < 60 -> String.format(java.util.Locale.US, "%.0fs", seconds)
+        else -> {
+            val m = (seconds / 60).toInt()
+            val s = (seconds % 60).toInt()
+            "${m}m ${s}s"
+        }
+    }
+}
+
+private fun formatBpsManual(bps: Long): String = when {
+    bps >= 1_000_000_000 -> String.format(java.util.Locale.US, "%.1fGbps", bps / 1_000_000_000.0)
+    bps >= 1_000_000 -> String.format(java.util.Locale.US, "%.1fMbps", bps / 1_000_000.0)
+    bps >= 1_000 -> String.format(java.util.Locale.US, "%.0fkbps", bps / 1_000.0)
+    else -> "${bps}bps"
 }

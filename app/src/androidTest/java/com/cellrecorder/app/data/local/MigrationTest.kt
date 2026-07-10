@@ -313,7 +313,64 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateFullChain1To14() {
+    fun migrateFrom14To15() {
+        val db = helper.createDatabase(TEST_DB, 14)
+        db.execSQL(
+            """INSERT INTO sessions (id, name, createdAt, pointCount, recordingMode) VALUES (1, 'test', 1000, 5, 'OUTDOOR')"""
+        )
+        db.execSQL(
+            """INSERT INTO cell_records (id, sessionId, timestamp, latitude, longitude, altitude, accuracy, rat, isLocationEstimated, locationSource)
+               VALUES (1, 1, 100, 1.0, 2.0, 3.0, 5.0, 'LTE', 0, 'GPS')"""
+        )
+        db.execSQL(
+            """INSERT INTO session_markers (id, sessionId, timestamp, seq, type, label)
+               VALUES (1, 1, 200, 1, 'NOTE', 'note1')"""
+        )
+        db.execSQL(
+            """INSERT INTO speed_test_records (id, sessionId, timestamp, downloadBps, uploadBps, serverName, serverHost, serverLocation, serverId, dataSimSlotIndex, ratAtTest, rsrpAtTest, bandAtTest, succeeded, errorMessage, networkType)
+               VALUES (1, 1, 500, 100000000, 20000000, 'srv', 'host', 'loc', 42, 0, '4G', -90, 3, 1, NULL, 'CELLULAR')"""
+        )
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 15, true, AppDatabase.MIGRATION_14_15)
+
+        // Column exists with NOT NULL DEFAULT 0
+        val columnsCursor = migratedDb.query("PRAGMA table_info(speed_test_records)")
+        val columnSpecs = mutableMapOf<String, Pair<Int, String?>>()
+        while (columnsCursor.moveToNext()) {
+            val name = columnsCursor.getString(1)
+            val notNull = columnsCursor.getInt(3)
+            val dflt = if (columnsCursor.isNull(4)) null else columnsCursor.getString(4)
+            columnSpecs[name] = notNull to dflt
+        }
+        columnsCursor.close()
+        assertTrue("finishedAt column should exist", columnSpecs.containsKey("finishedAt"))
+        val (notNull, dflt) = columnSpecs["finishedAt"]!!
+        assertEquals("finishedAt should be NOT NULL", 1, notNull)
+        assertEquals("finishedAt default should be 0", "0", dflt)
+
+        // Legacy row backfilled to 0
+        val speedCursor = migratedDb.query("SELECT timestamp, finishedAt FROM speed_test_records WHERE id = 1")
+        assertTrue("Speedtest row should survive migration", speedCursor.moveToFirst())
+        assertEquals(500L, speedCursor.getLong(0))
+        assertEquals(0L, speedCursor.getLong(1))
+        speedCursor.close()
+
+        // Existing cell_records / session_markers round-trip unchanged
+        val cellCursor = migratedDb.query("SELECT rat FROM cell_records WHERE id = 1")
+        assertTrue("Cell record should survive migration", cellCursor.moveToFirst())
+        assertEquals("LTE", cellCursor.getString(0))
+        cellCursor.close()
+
+        val markerCursor = migratedDb.query("SELECT type, label FROM session_markers WHERE id = 1")
+        assertTrue("Session marker should survive migration", markerCursor.moveToFirst())
+        assertEquals("NOTE", markerCursor.getString(0))
+        assertEquals("note1", markerCursor.getString(1))
+        markerCursor.close()
+    }
+
+    @Test
+    fun migrateFullChain1To15() {
         val db = helper.createDatabase(TEST_DB, 1)
         db.execSQL(
             """INSERT INTO sessions (id, name, createdAt, pointCount) VALUES (1, 'full-chain', 1000, 5)"""
@@ -331,7 +388,7 @@ class MigrationTest {
         db.close()
 
         val migratedDb = helper.runMigrationsAndValidate(
-            TEST_DB, 14, true,
+            TEST_DB, 15, true,
             AppDatabase.MIGRATION_1_2,
             AppDatabase.MIGRATION_2_3,
             AppDatabase.MIGRATION_3_4,
@@ -344,7 +401,8 @@ class MigrationTest {
             AppDatabase.MIGRATION_10_11,
             AppDatabase.MIGRATION_11_12,
             AppDatabase.MIGRATION_12_13,
-            AppDatabase.MIGRATION_13_14
+            AppDatabase.MIGRATION_13_14,
+            AppDatabase.MIGRATION_14_15
         )
 
         val sessionCursor = migratedDb.query("SELECT name, pointCount FROM sessions WHERE id = 1")

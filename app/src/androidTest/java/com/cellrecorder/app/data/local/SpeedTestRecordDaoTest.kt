@@ -221,4 +221,45 @@ class SpeedTestRecordDaoTest {
         assertEquals(1, filtered.size)
         assertEquals(2000L, filtered[0].timestamp)
     }
+
+    @Test
+    fun insertWithExplicitFinishedAt_roundTrips() = runBlocking {
+        dao.insert(TestDataFactory.speedTestRecord(
+            sessionId = sessionId,
+            timestamp = 1000L,
+            finishedAt = 4500L,
+            succeeded = true
+        ))
+
+        val loaded = dao.getBySessionIdOnce(sessionId)
+        assertEquals(1, loaded.size)
+        assertEquals(1000L, loaded[0].timestamp)
+        assertEquals(4500L, loaded[0].finishedAt)
+    }
+
+    @Test
+    fun legacyRowWithDefaultFinishedAtZero_roundTrips() = runBlocking {
+        // finishedAt defaults to 0 in TestDataFactory when not specified (legacy shape)
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, timestamp = 1000L))
+
+        val loaded = dao.getBySessionIdOnce(sessionId)
+        assertEquals(1, loaded.size)
+        assertEquals(0L, loaded[0].finishedAt)
+    }
+
+    @Test
+    fun instantBailOutFinishedAtEqualsTimestamp_persists() = runBlocking {
+        dao.insert(TestDataFactory.speedTestRecord(
+            sessionId = sessionId,
+            timestamp = 7000L,
+            finishedAt = 7000L, // instant bail-out: finishedAt = timestamp
+            succeeded = false
+        ))
+
+        val loaded = dao.getBySessionIdOnce(sessionId)
+        assertEquals(1, loaded.size)
+        assertEquals(7000L, loaded[0].timestamp)
+        assertEquals(7000L, loaded[0].finishedAt)
+        assertEquals(false, loaded[0].succeeded)
+    }
 }

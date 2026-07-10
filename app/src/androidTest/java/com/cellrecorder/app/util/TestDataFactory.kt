@@ -100,6 +100,7 @@ object TestDataFactory {
         id: Long = 0,
         sessionId: Long = 1,
         timestamp: Long = 3000L,
+        finishedAt: Long = 0L,
         downloadBps: Long? = 100_000_000L,
         uploadBps: Long? = 20_000_000L,
         succeeded: Boolean = true
@@ -107,6 +108,7 @@ object TestDataFactory {
         id = id,
         sessionId = sessionId,
         timestamp = timestamp,
+        finishedAt = finishedAt,
         downloadBps = downloadBps,
         uploadBps = uploadBps,
         serverName = null,

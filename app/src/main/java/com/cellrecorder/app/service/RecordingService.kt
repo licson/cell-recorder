@@ -372,7 +372,7 @@ recordingJob = launch {
 
             if (config.speedTestEnabled) {
                 speedTestJob = launch {
-                    speedTestEngine.invalidateCache()
+                    if (!speedTestEngine.consumePrimeFlag()) speedTestEngine.invalidateCache()
                     while (isActive) {
                         val testStart = System.currentTimeMillis()
                         stateManager.update { it?.copy(speedTestStatus = "Discovering") }
@@ -419,6 +419,7 @@ recordingJob = launch {
                             speedTestRecordRepository.insert(SpeedTestRecordEntity(
                                 sessionId = sessionId,
                                 timestamp = testStart,
+                                finishedAt = result.finishedAt,
                                 downloadBps = result.downloadBps,
                                 uploadBps = result.uploadBps,
                                 serverName = result.serverName,

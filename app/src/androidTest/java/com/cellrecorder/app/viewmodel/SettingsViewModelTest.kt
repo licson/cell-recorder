@@ -6,6 +6,9 @@ import androidx.test.filters.MediumTest
 import com.cellrecorder.app.BuildConfig
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.repository.ConfigRepository
+import com.cellrecorder.app.domain.speedtest.SpeedTestDebugRingBuffer
+import com.cellrecorder.app.domain.speedtest.SpeedTestEngine
+import com.cellrecorder.app.domain.speedtest.SpeedTestHttpClient
 import com.cellrecorder.app.domain.usecase.GetConfigUseCase
 import com.cellrecorder.app.domain.usecase.UpdateConfigUseCase
 import com.cellrecorder.app.ui.settings.SettingsViewModel
@@ -41,6 +44,12 @@ class SettingsViewModelTest {
     @Inject
     lateinit var app: Application
 
+    @Inject
+    lateinit var speedTestEngine: SpeedTestEngine
+
+    @Inject
+    lateinit var debugRingBuffer: SpeedTestDebugRingBuffer
+
     private lateinit var viewModel: SettingsViewModel
 
     @Before
@@ -53,7 +62,7 @@ class SettingsViewModelTest {
         if (crashDir.exists()) crashDir.listFiles()?.forEach { it.delete() }
         val getConfigUseCase = GetConfigUseCase(configRepository)
         val updateConfigUseCase = UpdateConfigUseCase(configRepository)
-        viewModel = SettingsViewModel(getConfigUseCase, updateConfigUseCase, app)
+        viewModel = SettingsViewModel(getConfigUseCase, updateConfigUseCase, speedTestEngine, debugRingBuffer, app)
     }
 
     @Test

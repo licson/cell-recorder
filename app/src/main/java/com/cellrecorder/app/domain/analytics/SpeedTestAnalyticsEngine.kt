@@ -39,13 +39,17 @@ object SpeedTestAnalyticsEngine {
                 downloadByRat = emptyList(),
                 downloadBySim = emptyList(),
                 uploadByRsrp = null,
-                downloadHistogram = emptyList()
+                downloadHistogram = emptyList(),
+                avgDurationMs = null
             )
         }
 
         val succeeded = measuredRecords.filter { it.succeeded }
         val downloadValues = succeeded.mapNotNull { it.downloadBps }
         val uploadValues = succeeded.mapNotNull { it.uploadBps }
+        val durations = measuredRecords
+            .filter { it.finishedAt > 0 && it.finishedAt > it.timestamp }
+            .map { it.finishedAt - it.timestamp }
 
         return SpeedTestSessionAnalytics(
             sampleCount = measuredRecords.size,
@@ -60,7 +64,8 @@ object SpeedTestAnalyticsEngine {
             downloadByRat = computeRatCorrelation(succeeded),
             downloadBySim = computeSimCorrelation(succeeded),
             uploadByRsrp = computeRsrpCorrelation(uploadRecords(succeeded)) { it.uploadBps }.takeIf { it.isNotEmpty() },
-            downloadHistogram = computeDownloadHistogram(downloadValues)
+            downloadHistogram = computeDownloadHistogram(downloadValues),
+            avgDurationMs = durations.average().toLong().takeIf { durations.isNotEmpty() }
         )
     }
 

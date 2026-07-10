@@ -13,5 +13,11 @@ data class SpeedTestSessionAnalytics(
     val downloadByRat: List<CorrelationBin>,
     val downloadBySim: List<CorrelationBin>,
     val uploadByRsrp: List<CorrelationBin>?,
-    val downloadHistogram: List<HistogramBin>
+    val downloadHistogram: List<HistogramBin>,
+    /**
+     * Average test duration in milliseconds across records with a known positive
+     * duration (`finishedAt > timestamp > 0`). `null` when no records have a
+     * known duration (all legacy or instant bail-out).
+     */
+    val avgDurationMs: Long? = null
 )

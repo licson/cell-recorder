@@ -28,7 +28,7 @@ import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
         SessionMarkerEntity::class,
         RecentMarkerLabelEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -206,6 +206,10 @@ abstract class AppDatabase : RoomDatabase() {
                 `lastUsed` INTEGER NOT NULL,
                 PRIMARY KEY(`type`, `label`)
             )""")
+        }
+
+        val MIGRATION_14_15 = Migration(14, 15) { db ->
+            db.execSQL("ALTER TABLE speed_test_records ADD COLUMN finishedAt INTEGER NOT NULL DEFAULT 0")
         }
 
         val CALLBACK = object : Callback() {

@@ -482,8 +482,9 @@ private fun RatTimelineBar(
                     drawLine(Color.White, Offset(cx, 0f), Offset(cx, size.height), strokeWidth = 2f)
                 }
                 speedTestMarkers.forEach { marker ->
-                    val x = stepX * marker.timelineIndex.coerceIn(0, (total - 1).coerceAtLeast(0))
-                    val speed = marker.record.downloadBps
+                    val rec = marker.record
+                    val startX = stepX * marker.timelineIndex.coerceIn(0, (total - 1).coerceAtLeast(0))
+                    val speed = rec.downloadBps
                     val color = when {
                         speed == null -> Color(0xFF9E9E9E)
                         speed > 200_000_000 -> Color(0xFF4CAF50)
@@ -492,8 +493,25 @@ private fun RatTimelineBar(
                         speed > 10_000_000 -> Color(0xFFFF9800)
                         else -> Color(0xFFF44336)
                     }
-                    drawCircle(color = color, radius = 6f, center = Offset(x, size.height / 2f))
-                    drawCircle(color = Color.White, radius = 3f, center = Offset(x, size.height / 2f))
+                    val hasRange = rec.finishedAt > 0 && rec.finishedAt > rec.timestamp
+                    if (hasRange) {
+                        // Map finishedAt to a timeline index (nearest cell record at or before finishedAt)
+                        val finishIdx = records.indexOfLast { it.timestamp <= rec.finishedAt }
+                            .coerceIn(0, (total - 1).coerceAtLeast(0))
+                        val endX = stepX * finishIdx
+                        val left = minOf(startX, endX)
+                        val width = (endX - startX).coerceAtLeast(stepX * 0.5f)
+                        drawRect(
+                            color = color.copy(alpha = 0.5f),
+                            topLeft = Offset(left, size.height * 0.2f),
+                            size = Size(width, size.height * 0.6f)
+                        )
+                        drawCircle(color = color, radius = 5f, center = Offset(startX, size.height / 2f))
+                        drawCircle(color = color, radius = 5f, center = Offset(endX, size.height / 2f))
+                    } else {
+                        drawCircle(color = color, radius = 6f, center = Offset(startX, size.height / 2f))
+                        drawCircle(color = Color.White, radius = 3f, center = Offset(startX, size.height / 2f))
+                    }
                 }
                 markerItems.forEach { item ->
                     val x = stepX * item.timelineIndex.coerceIn(0, (total - 1).coerceAtLeast(0))
@@ -548,12 +566,30 @@ private fun SpeedTestSummaryCard(
                 )
                 if (highlightedMarker != null) {
                     val label = if (isSelected) "Selected" else "Position"
-                    Text(
-                        text = "$label: ↓${formatBps(highlightedMarker.record.downloadBps)} ↑${formatBps(highlightedMarker.record.uploadBps)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = FontFamily.Monospace,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    val rec = highlightedMarker.record
+                    val durationMs = if (rec.finishedAt > 0 && rec.finishedAt > rec.timestamp) {
+                        rec.finishedAt - rec.timestamp
+                    } else null
+                    Column {
+                        Text(
+                            text = "$label: ↓${formatBps(rec.downloadBps)} ↑${formatBps(rec.uploadBps)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (durationMs != null) {
+                            val finishTimeStr = remember(rec.finishedAt) {
+                                java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+                                    .format(java.util.Date(rec.finishedAt))
+                            }
+                            Text(
+                                text = "Duration: ${formatDurationReplay(durationMs)} (finished $finishTimeStr)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 } else {
                     Text(
                         text = "No test at this position",
@@ -573,6 +609,20 @@ private fun formatBps(bps: Long?): String {
         bps >= 1_000_000 -> String.format(Locale.US, "%.0fM", bps / 1_000_000.0)
         bps >= 1_000 -> String.format(Locale.US, "%.0fk", bps / 1_000.0)
         else -> "${bps}b"
+    }
+}
+
+private fun formatDurationReplay(ms: Long): String {
+    if (ms <= 0) return "0s"
+    val seconds = ms / 1000.0
+    return when {
+        seconds < 10 -> String.format(Locale.US, "%.1fs", seconds)
+        seconds < 60 -> String.format(Locale.US, "%.0fs", seconds)
+        else -> {
+            val m = (seconds / 60).toInt()
+            val s = (seconds % 60).toInt()
+            "${m}m ${s}s"
+        }
     }
 }
 

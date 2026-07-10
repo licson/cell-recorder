@@ -19,12 +19,14 @@ class SpeedTestAnalyticsEngineTest {
         dataSimSlotIndex: Int? = null,
         serverName: String? = "Server",
         timestamp: Long = 0,
+        finishedAt: Long = 0L,
         errorMessage: String? = null,
         networkType: String? = null
     ): SpeedTestRecordEntity = SpeedTestRecordEntity(
         id = 0,
         sessionId = 1L,
         timestamp = timestamp,
+        finishedAt = finishedAt,
         downloadBps = downloadBps,
         uploadBps = uploadBps,
         serverName = serverName,
@@ -456,6 +458,57 @@ class SpeedTestAnalyticsEngineTest {
             )
             val bins = result?.downloadHistogram ?: emptyList()
             assertEquals(true, bins.size >= 2)
+        }
+    }
+
+    @Nested
+    inner class AnalyzeDuration {
+
+        @Test
+        fun `avgDurationMs is null when all records are legacy (finishedAt = 0)`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(downloadBps = 10_000_000L, timestamp = 1000L, finishedAt = 0L),
+                    record(downloadBps = 20_000_000L, timestamp = 2000L, finishedAt = 0L)
+                )
+            )
+            assertNull(result?.avgDurationMs)
+        }
+
+        @Test
+        fun `avgDurationMs is null when all records are instant bail-outs (finishedAt = timestamp)`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(downloadBps = null, succeeded = false, timestamp = 5000L, finishedAt = 5000L, errorMessage = "SKIPPED_WIFI"),
+                    record(downloadBps = null, succeeded = false, timestamp = 6000L, finishedAt = 6000L, errorMessage = "Server selection failed")
+                )
+            )
+            assertNull(result?.avgDurationMs)
+        }
+
+        @Test
+        fun `avgDurationMs computed from records with positive duration`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(downloadBps = 10_000_000L, timestamp = 1000L, finishedAt = 4000L), // 3s
+                    record(downloadBps = 20_000_000L, timestamp = 5000L, finishedAt = 12000L)  // 7s
+                )
+            )
+            assertNotNull(result?.avgDurationMs)
+            assertEquals(5000L, result?.avgDurationMs) // avg(3000, 7000) = 5000
+        }
+
+        @Test
+        fun `avgDurationMs ignores legacy and instant rows in mixed set`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(downloadBps = 10_000_000L, timestamp = 1000L, finishedAt = 4000L),   // 3s, counted
+                    record(downloadBps = 20_000_000L, timestamp = 5000L, finishedAt = 0L),      // legacy, ignored
+                    record(downloadBps = null, succeeded = false, timestamp = 6000L, finishedAt = 6000L, errorMessage = "SKIPPED_WIFI") // instant, ignored
+                )
+            )
+            assertNotNull(result?.avgDurationMs)
+            assertEquals(3000L, result?.avgDurationMs) // only the 3s record counts
         }
     }
 }

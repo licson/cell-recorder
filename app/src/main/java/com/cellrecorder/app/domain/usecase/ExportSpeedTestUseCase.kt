@@ -11,12 +11,13 @@ class ExportSpeedTestUseCase @Inject constructor() {
         if (records.isEmpty()) return null
 
         val sb = StringBuilder()
-        sb.appendLine("timestamp,download_bps,upload_bps,server_name,server_host,server_location,succeeded,error_message,data_sim_slot,rat_at_test,rsrp_at_test,band_at_test,network_type")
+        sb.appendLine("timestamp,finished_at,download_bps,upload_bps,server_name,server_host,server_location,succeeded,error_message,data_sim_slot,rat_at_test,rsrp_at_test,band_at_test,network_type")
 
         for (r in records) {
             sb.appendLine(
                 buildString {
                     append(r.timestamp); append(',')
+                    append(r.finishedAt); append(',')
                     append(r.downloadBps ?: ""); append(',')
                     append(r.uploadBps ?: ""); append(',')
                     append(csvField(r.serverName)); append(',')
