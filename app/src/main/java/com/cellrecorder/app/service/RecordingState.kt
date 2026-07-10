@@ -24,6 +24,7 @@ data class SimLiveState(
     val sinr: String = "---",
     val caBands: List<String> = emptyList(),
     val anchorInfo: String = "",
+    val anchorCellId: String = "---",
     val anchorBand: String = "",
     val anchorPci: String = "",
     val anchorArfcn: String = "",

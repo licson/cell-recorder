@@ -37,6 +37,9 @@ object SimLiveStateMapper {
             anchorInfo = if (snapshot.rat.startsWith("5G_NSA") && snapshot.anchorPci != null) {
                 "B${snapshot.anchorBandNumber ?: "?"} PCI ${snapshot.anchorPci} RSRP ${snapshot.anchorRsrp ?: "---"}"
             } else "",
+            anchorCellId = if (snapshot.anchorEnbOrGnbId != null && snapshot.anchorLcid != null) {
+                "${snapshot.anchorEnbOrGnbId}:${snapshot.anchorLcid}"
+            } else "---",
             anchorBand = snapshot.anchorBandNumber?.toString() ?: "",
             anchorPci = snapshot.anchorPci?.toString() ?: "",
             anchorArfcn = snapshot.anchorEarfcn?.toString() ?: "",

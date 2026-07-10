@@ -28,7 +28,9 @@ class SimLiveStateMapperTest {
         caBands: List<CaBandSnapshot> = emptyList(),
         anchorPci: Int? = null,
         anchorBandNumber: Int? = null,
-        anchorRsrp: Int? = null
+        anchorRsrp: Int? = null,
+        anchorEnbOrGnbId: Long? = null,
+        anchorLcid: Int? = null
     ): CellRecordSnapshot = CellRecordSnapshot(
         subscriptionId = subscriptionId,
         rat = rat,
@@ -47,7 +49,9 @@ class SimLiveStateMapperTest {
         caBands = caBands,
         anchorPci = anchorPci,
         anchorBandNumber = anchorBandNumber,
-        anchorRsrp = anchorRsrp
+        anchorRsrp = anchorRsrp,
+        anchorEnbOrGnbId = anchorEnbOrGnbId,
+        anchorLcid = anchorLcid
     )
 
     @Nested
@@ -260,6 +264,38 @@ class SimLiveStateMapperTest {
             val s = snapshot(bandNumber = null, earfcn = null)
             val state = SimLiveStateMapper.map(s, simSlotIndex = 0)
             assertEquals("---", state.bandNumber)
+        }
+    }
+
+    @Nested
+    inner class AnchorCellIdFormatting {
+
+        @Test
+        fun `anchorEnbOrGnbId and anchorLcid both present produce enb_lcid format`() {
+            val s = snapshot(rat = "5G_NSA", anchorEnbOrGnbId = 200L, anchorLcid = 5)
+            val state = SimLiveStateMapper.map(s, simSlotIndex = 0)
+            assertEquals("200:5", state.anchorCellId)
+        }
+
+        @Test
+        fun `null anchorEnbOrGnbId renders dashes`() {
+            val s = snapshot(rat = "5G_NSA", anchorEnbOrGnbId = null, anchorLcid = 5)
+            val state = SimLiveStateMapper.map(s, simSlotIndex = 0)
+            assertEquals("---", state.anchorCellId)
+        }
+
+        @Test
+        fun `null anchorLcid renders dashes`() {
+            val s = snapshot(rat = "5G_NSA", anchorEnbOrGnbId = 200L, anchorLcid = null)
+            val state = SimLiveStateMapper.map(s, simSlotIndex = 0)
+            assertEquals("---", state.anchorCellId)
+        }
+
+        @Test
+        fun `both anchor identity components null render dashes`() {
+            val s = snapshot(rat = "5G_NSA", anchorEnbOrGnbId = null, anchorLcid = null)
+            val state = SimLiveStateMapper.map(s, simSlotIndex = 0)
+            assertEquals("---", state.anchorCellId)
         }
     }
 }

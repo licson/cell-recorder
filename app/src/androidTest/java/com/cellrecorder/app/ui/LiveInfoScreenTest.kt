@@ -44,6 +44,7 @@ class LiveInfoScreenTest {
 
     private lateinit var viewModel: LiveInfoViewModel
     private lateinit var emptyViewModel: LiveInfoViewModel
+    private lateinit var nsaViewModel: LiveInfoViewModel
 
     @Before
     fun setUp() {
@@ -80,6 +81,28 @@ class LiveInfoScreenTest {
         val emptyCollector = mockk<CellInfoCollector>(relaxed = true)
         every { emptyCollector.snapshots(any()) } returns emptyList()
         emptyViewModel = LiveInfoViewModel(emptyCollector, configRepository, pingEngine, appContext)
+
+        val nsaSnapshot = CellRecordSnapshot(
+            subscriptionId = 1,
+            rat = "5G_NSA",
+            mcc = "310",
+            mnc = "260",
+            bandNumber = 78,
+            earfcn = 620_000,
+            pci = 200,
+            rsrp = -85,
+            rsrq = -9,
+            sinr = 10,
+            anchorPci = 100,
+            anchorEnbOrGnbId = 200L,
+            anchorLcid = 5,
+            anchorBandNumber = 3,
+            anchorEarfcn = 1650,
+            anchorRsrp = -85
+        )
+        val nsaCollector = mockk<CellInfoCollector>(relaxed = true)
+        every { nsaCollector.snapshots(any()) } returns listOf(nsaSnapshot)
+        nsaViewModel = LiveInfoViewModel(nsaCollector, configRepository, pingEngine, appContext)
     }
 
     @Test
@@ -166,5 +189,16 @@ class LiveInfoScreenTest {
         }
         composeTestRule.waitUntil(2000) { viewModel.liveSimStates.value.isNotEmpty() }
         composeTestRule.onNodeWithText("Latency").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun nsaSim_anchorCellId_isDisplayed() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                LiveInfoScreen(viewModel = nsaViewModel)
+            }
+        }
+        composeTestRule.waitUntil(2000) { nsaViewModel.liveSimStates.value.isNotEmpty() }
+        composeTestRule.onNodeWithText("200:5").performScrollTo().assertIsDisplayed()
     }
 }

@@ -91,6 +91,10 @@ fun RecordDetailSheet(
             if (record.rat.startsWith("5G_NSA") && record.anchorPci != null) {
                 Spacer(Modifier.height(16.dp))
                 SectionTitle("Anchor Cell")
+                val anchorCellId = if (record.anchorEnbOrGnbId != null && record.anchorLcid != null) {
+                    "${record.anchorEnbOrGnbId}:${record.anchorLcid}"
+                } else "---"
+                DetailRow("Cell ID", anchorCellId)
                 DetailRow("Band", BandResolver.formatBand(record.anchorBandNumber, record.anchorEarfcn, "4G"))
                 DetailRow("EARFCN", record.anchorEarfcn?.toString() ?: "---")
                 DetailRow("PCI", record.anchorPci?.toString() ?: "---")

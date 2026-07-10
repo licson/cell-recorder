@@ -34,6 +34,7 @@ data class CaBandInfo(
  * Structured data for a 5G NSA anchor cell, used by [CellInfoPanel].
  */
 data class AnchorCellInfo(
+    val cellId: String,
     val bandNumber: String,
     val earfcn: String,
     val pci: String,
@@ -97,6 +98,7 @@ fun SimLiveState.toCellInfoData(): CellInfoData {
         },
         anchorCell = if (rat.startsWith("5G_NSA") && anchorInfo.isNotEmpty()) {
             AnchorCellInfo(
+                cellId = anchorCellId,
                 bandNumber = BandResolver.formatBand(anchorBand.toIntOrNull(), anchorArfcn.toIntOrNull(), "4G"),
                 earfcn = anchorArfcn,
                 pci = anchorPci,
@@ -145,6 +147,9 @@ fun CellRecordWithCaBands.toCellInfoData(): CellInfoData {
         },
         anchorCell = if (record.rat.startsWith("5G_NSA") && record.anchorPci != null) {
             AnchorCellInfo(
+                cellId = if (record.anchorEnbOrGnbId != null && record.anchorLcid != null) {
+                    "${record.anchorEnbOrGnbId}:${record.anchorLcid}"
+                } else "---",
                 bandNumber = BandResolver.formatBand(record.anchorBandNumber, record.anchorEarfcn, "4G"),
                 earfcn = record.anchorEarfcn?.toString() ?: "---",
                 pci = record.anchorPci?.toString() ?: "---",
@@ -245,6 +250,11 @@ fun CellInfoPanel(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
+                Spacer(Modifier.height(2.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                    if (isExpandable) Box(Modifier.weight(0.5f)) { }
+                    StatItem("Cell ID", anchor.cellId, weight = 1.2f, valueFontFamily = FontFamily.Monospace)
+                }
                 Spacer(Modifier.height(2.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                     if (isExpandable) Box(Modifier.weight(0.5f)) { }

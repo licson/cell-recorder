@@ -101,7 +101,37 @@ class SessionDetailScreenTest {
                     lcid = 3,
                     avgLatencyMs = 20.0
                 )
-            }
+            } + CellRecordEntity(
+                sessionId = populatedSessionId,
+                timestamp = 1_700_000_003_000L,
+                latitude = 37.0,
+                longitude = -122.0,
+                altitude = 0.0,
+                accuracy = 5f,
+                relativeX = 3.0,
+                relativeY = 6.0,
+                rat = "5G_NSA",
+                simSlotIndex = 0,
+                mcc = "310",
+                mnc = "260",
+                bandNumber = 78,
+                earfcn = 620_000,
+                pci = 200,
+                rsrp = -85,
+                rsrq = -9,
+                sinr = 10,
+                fullCellIdentity = 99999L,
+                enbOrGnbId = 48L,
+                lcid = 3,
+                anchorPci = 100,
+                anchorEnbOrGnbId = 200L,
+                anchorLcid = 5,
+                anchorBandNumber = 3,
+                anchorEarfcn = 1650,
+                anchorTac = 1,
+                anchorRsrp = -85,
+                avgLatencyMs = 20.0
+            )
             db.cellRecordDao().insertAll(records)
         }
 
@@ -275,5 +305,24 @@ class SessionDetailScreenTest {
         composeTestRule.onNodeWithContentDescription("Analytics").performClick()
         composeTestRule.waitUntil(2000) { viewModel.showAnalytics.value }
         composeTestRule.onNodeWithText("Coverage by RAT").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun nsaRecord_anchorCellId_isDisplayedInDetailSheet() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                SessionDetailScreen(
+                    sessionId = populatedSessionId,
+                    onNavigateBack = {},
+                    onOpenReplay = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.records.value.isNotEmpty() }
+        composeTestRule.onNodeWithText("Anchor: B3 PCI 100 RSRP -85", substring = true).performScrollTo().performClick()
+        composeTestRule.waitUntil(2000) { viewModel.selectedRecord.value != null }
+        composeTestRule.onNodeWithText("Anchor Cell").assertExists()
+        composeTestRule.onNodeWithText("200:5").assertExists()
     }
 }
