@@ -76,6 +76,7 @@ class SessionListScreenTest {
             exportSessionUseCase,
             getSessionPointsUseCase,
             importSessionUseCase,
+            sessionMarkerRepository,
             context
         )
     }

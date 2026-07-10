@@ -85,6 +85,7 @@ class SessionListViewModelTest {
             exportSessionUseCase,
             getSessionPointsUseCase,
             importSessionUseCase,
+            sessionMarkerRepository,
             context
         )
     }
