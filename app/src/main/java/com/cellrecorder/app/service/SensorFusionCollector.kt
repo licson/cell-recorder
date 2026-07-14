@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.cos
@@ -140,7 +141,10 @@ class SensorFusionCollector @Inject constructor(
                 latch.countDown()
             }
         }
-        latch.await(5, TimeUnit.SECONDS)
+        val acquired = latch.await(5, TimeUnit.SECONDS)
+        if (!acquired) {
+            Timber.w("Sensor unregister timed out after 5s in SensorFusionCollector.stop")
+        }
         baselineYaw = null
         smoothedDelta = 0f
         _headingDelta.value = 0f

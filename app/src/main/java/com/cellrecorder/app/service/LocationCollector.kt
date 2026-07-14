@@ -12,6 +12,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -92,11 +93,13 @@ open class LocationCollector @Inject constructor(
         if (isGooglePlayServicesAvailable()) {
             try {
                 return fusedLocationClient.lastLocation.await()?.toUpdate()
-            } catch (_: Exception) { }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { }
         }
         return try {
             locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)?.toUpdate()
-        } catch (_: Exception) {
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) {
             null
         }
     }
@@ -107,7 +110,8 @@ open class LocationCollector @Inject constructor(
         return try {
             GoogleApiAvailability.getInstance()
                 .isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS
-        } catch (_: Exception) {
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) {
             false
         }
     }

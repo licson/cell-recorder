@@ -29,6 +29,9 @@ interface SessionDao {
     @Query("UPDATE sessions SET pointCount = pointCount + 1 WHERE id = :id")
     suspend fun incrementPointCount(id: Long)
 
+    @Query("UPDATE sessions SET pointCount = pointCount + :delta WHERE id = :id")
+    suspend fun incrementPointCountBy(id: Long, delta: Int)
+
     @Query("UPDATE sessions SET pointCount = (SELECT COUNT(*) FROM cell_records WHERE sessionId = :sessionId) WHERE id = :sessionId")
     suspend fun refreshPointCount(sessionId: Long)
 

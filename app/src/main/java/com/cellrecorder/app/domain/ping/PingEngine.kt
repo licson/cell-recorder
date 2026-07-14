@@ -59,6 +59,7 @@ class PingEngine @Inject constructor() {
 
         var process = startProcess()
         var reader = process.inputStream.bufferedReader()
+        var restartCount = 0
 
         launch(Dispatchers.IO) {
             try {
@@ -67,7 +68,8 @@ class PingEngine @Inject constructor() {
                         val line = reader.readLine()
                         if (line == null) {
                             trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis(), outcome = PingOutcome.PROCESS_ERROR))
-                            delay(1000)
+                            delay(PingBackoff.delayForFailure(restartCount))
+                            restartCount++
                             if (!isActive) break
                             process.destroyForcibly()
                             process = startProcess()
@@ -76,11 +78,15 @@ class PingEngine @Inject constructor() {
                         }
                         if (!line.contains("icmp_seq=")) continue
                         val parsed = parseLine(line)
+                        if (parsed.second == PingOutcome.SUCCESS) {
+                            restartCount = 0
+                        }
                         trySend(PingResult(latencyMs = parsed.first, timestamp = System.currentTimeMillis(), outcome = parsed.second))
                     } catch (e: Exception) {
                         if (!isActive) break
                         trySend(PingResult(latencyMs = null, timestamp = System.currentTimeMillis(), outcome = PingOutcome.PROCESS_ERROR))
-                        delay(1000)
+                        delay(PingBackoff.delayForFailure(restartCount))
+                        restartCount++
                         if (!isActive) break
                         process.destroyForcibly()
                         process = startProcess()

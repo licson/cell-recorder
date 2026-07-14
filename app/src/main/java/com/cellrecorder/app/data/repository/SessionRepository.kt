@@ -26,6 +26,9 @@ class SessionRepository @Inject constructor(
     suspend fun incrementPointCount(id: Long) =
         sessionDao.incrementPointCount(id)
 
+    suspend fun incrementPointCount(id: Long, delta: Int) =
+        sessionDao.incrementPointCountBy(id, delta)
+
     suspend fun updateName(id: Long, name: String) = sessionDao.updateName(id, name)
 
     suspend fun updatePrimarySimSlot(id: Long, simSlotIndex: Int?) =

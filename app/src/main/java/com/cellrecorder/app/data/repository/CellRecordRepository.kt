@@ -32,6 +32,11 @@ class CellRecordRepository @Inject constructor(
         caBandsByRecord: List<List<CellRecordCaBandEntity>>
     ): List<Long> = cellRecordDao.insertRecordBatch(records, caBandsByRecord)
 
+    suspend fun insertSingle(
+        record: CellRecordEntity,
+        caBands: List<CellRecordCaBandEntity>
+    ): Long = cellRecordDao.insertSingle(record, caBands)
+
     fun getBySessionIdWithCaBands(sessionId: Long): Flow<List<CellRecordWithCaBands>> =
         cellRecordDao.getBySessionIdWithCaBands(sessionId)
 

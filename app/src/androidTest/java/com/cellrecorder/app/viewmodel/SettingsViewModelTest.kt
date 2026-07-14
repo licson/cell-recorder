@@ -18,8 +18,10 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -60,6 +62,8 @@ class SettingsViewModelTest {
         }
         val crashDir = File(app.filesDir, "crash_logs")
         if (crashDir.exists()) crashDir.listFiles()?.forEach { it.delete() }
+        val logsDir = File(app.filesDir, "app_logs")
+        if (logsDir.exists()) logsDir.listFiles()?.forEach { it.delete() }
         val getConfigUseCase = GetConfigUseCase(configRepository)
         val updateConfigUseCase = UpdateConfigUseCase(configRepository)
         viewModel = SettingsViewModel(getConfigUseCase, updateConfigUseCase, speedTestEngine, debugRingBuffer, app)
@@ -144,8 +148,8 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun getLatestCrashLog_returnsNullWhenNoCrash() = runBlocking {
-        val log = viewModel.getLatestCrashLog()
+    fun getLogsForShare_returnsNullWhenNoLogs() = runBlocking {
+        val log = viewModel.getLogsForShare()
         assertNull(log)
     }
 
@@ -177,18 +181,66 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun getLatestCrashLog_returnsSeededContent() = runBlocking {
+    fun getLogsForShare_returnsCrashAndRollingContent() = runBlocking {
         val crashDir = File(app.filesDir, "crash_logs").apply { mkdirs() }
-        val logContent = "java.lang.RuntimeException: test crash\n\tat com.example.Test.test(Test.java:10)"
-        val logFile = File(crashDir, "crash_test.txt")
+        val logsDir = File(app.filesDir, "app_logs").apply { mkdirs() }
+        val crashContent = "java.lang.RuntimeException: test crash\n\tat com.example.Test.test(Test.java:10)"
+        val rollingContent = "2026-07-13 12:00:00.000 E recording started\n2026-07-13 12:05:00.000 E point recorded\n"
+        val crashFile = File(crashDir, "crash_test.txt")
+        val rollingFile = File(logsDir, "runtime.log")
         try {
-            logFile.writeText(logContent)
+            crashFile.writeText(crashContent)
+            rollingFile.writeText(rollingContent)
 
-            val result = viewModel.getLatestCrashLog()
+            val result = viewModel.getLogsForShare()
             assertNotNull(result)
-            assertEquals(logContent, result)
+            assertTrue("result should contain crash content", result!!.contains(crashContent))
+            assertTrue("result should contain rolling content", result.contains(rollingContent))
+            assertTrue("crash section should come before rolling section",
+                result.indexOf(crashContent) < result.indexOf(rollingContent))
+            assertTrue("result should contain Crash Log header", result.contains("=== Crash Log ==="))
+            assertTrue("result should contain Runtime Log header", result.contains("=== Runtime Log ==="))
         } finally {
-            logFile.delete()
+            crashFile.delete()
+            rollingFile.delete()
+        }
+    }
+
+    @Test
+    fun getLogsForShare_returnsRollingOnlyWhenNoCrash() = runBlocking {
+        val logsDir = File(app.filesDir, "app_logs").apply { mkdirs() }
+        val rollingContent = "2026-07-13 12:00:00.000 E recording started\n"
+        val rollingFile = File(logsDir, "runtime.log")
+        try {
+            rollingFile.writeText(rollingContent)
+
+            val result = viewModel.getLogsForShare()
+            assertNotNull(result)
+            assertTrue(result!!.contains(rollingContent))
+            assertFalse("should NOT contain Crash Log header when no crash",
+                result.contains("=== Crash Log ==="))
+            assertTrue("should contain Runtime Log header", result.contains("=== Runtime Log ==="))
+        } finally {
+            rollingFile.delete()
+        }
+    }
+
+    @Test
+    fun getLogsForShare_returnsCrashOnlyWhenNoRolling() = runBlocking {
+        val crashDir = File(app.filesDir, "crash_logs").apply { mkdirs() }
+        val crashContent = "java.lang.RuntimeException: test crash\n"
+        val crashFile = File(crashDir, "crash_test.txt")
+        try {
+            crashFile.writeText(crashContent)
+
+            val result = viewModel.getLogsForShare()
+            assertNotNull(result)
+            assertTrue(result!!.contains(crashContent))
+            assertTrue("should contain Crash Log header", result.contains("=== Crash Log ==="))
+            assertFalse("should NOT contain Runtime Log header when no rolling log",
+                result.contains("=== Runtime Log ==="))
+        } finally {
+            crashFile.delete()
         }
     }
 }

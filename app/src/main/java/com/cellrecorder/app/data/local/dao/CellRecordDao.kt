@@ -33,6 +33,18 @@ interface CellRecordDao {
     suspend fun insertCaBands(caBands: List<CellRecordCaBandEntity>)
 
     @Transaction
+    suspend fun insertSingle(
+        record: CellRecordEntity,
+        caBands: List<CellRecordCaBandEntity>
+    ): Long {
+        val id = insert(record)
+        if (caBands.isNotEmpty()) {
+            insertCaBands(caBands.map { it.copy(cellRecordId = id) })
+        }
+        return id
+    }
+
+    @Transaction
     suspend fun insertRecordBatch(
         records: List<CellRecordEntity>,
         caBandsByRecord: List<List<CellRecordCaBandEntity>>

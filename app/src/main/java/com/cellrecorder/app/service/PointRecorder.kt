@@ -9,6 +9,8 @@ import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.SessionRepository
 import com.cellrecorder.app.domain.model.CellRecordSnapshot
 import com.cellrecorder.app.domain.ping.PingSlidingWindow
+import kotlinx.coroutines.CancellationException
+import timber.log.Timber
 import java.util.Locale
 import javax.inject.Inject
 
@@ -143,12 +145,34 @@ class PointRecorder @Inject constructor(
         records: List<CellRecordEntity>,
         caBandsByRecord: List<List<CellRecordCaBandEntity>>,
         sessionId: Long
-    ) {
-        if (records.isNotEmpty()) {
-            cellRecordRepository.insertRecordBatch(records, caBandsByRecord)
-        }
-        sessionRepository.incrementPointCount(sessionId)
-        totalPointCount++
+    ): Int {
+        if (records.isEmpty()) return 0
+        val items = records.zip(caBandsByRecord)
+        return BatchInsertStrategy.execute(
+            items = items,
+            batchInsert = { cellRecordRepository.insertRecordBatch(
+                it.map { p -> p.first },
+                it.map { p -> p.second }
+            ) },
+            singleInsert = { cellRecordRepository.insertSingle(it.first, it.second) },
+            isTransient = { e ->
+                DbExceptionClassifier.classify(e) == DbExceptionClassifier.Classification.TRANSIENT
+            },
+            onFatal = { e ->
+                Timber.e(e, "Fatal DB failure; stopping recording")
+                stateManager.update { state ->
+                    state?.copy(
+                        isRecording = false,
+                        errorMessage = "Storage failure: ${e.message}"
+                    ) ?: RecordingState(
+                        sessionId = sessionId,
+                        isRecording = false,
+                        errorMessage = "Storage failure: ${e.message}"
+                    )
+                }
+                throw FatalRecordingException("Storage failure: ${e.message}", e)
+            }
+        )
     }
 
     suspend fun recordPoint(
@@ -160,7 +184,13 @@ class PointRecorder @Inject constructor(
         activeSubs: Map<Int, SubscriptionInfo>,
         pingWindow: PingSlidingWindow
     ) {
-        val snapshots = cellInfoCollector.snapshots(config)
+        val snapshots = try {
+            cellInfoCollector.snapshots(config)
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            Timber.e(e, "CellInfoCollector.snapshots failed in recordPoint; using empty list")
+            emptyList()
+        }
         val pingAvg = pingWindow.avgLatencyMs()
         val pingLoss = pingWindow.packetLossPct()
 
@@ -186,12 +216,18 @@ class PointRecorder @Inject constructor(
                     pingLoss = pingLoss
                 ))
                 caBandsByRecord.add(caEntities)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
                 continue
             }
         }
 
-        insertBatch(records, caBandsByRecord, sessionId)
+        val insertedCount = insertBatch(records, caBandsByRecord, sessionId)
+        val increment = PointCountPolicy.incrementFor(insertedCount)
+        if (increment > 0) {
+            sessionRepository.incrementPointCount(sessionId, increment)
+            totalPointCount += increment
+        }
 
         synchronized(this) {
             _recordedPath.addLast(location.latitude to location.longitude)
@@ -228,9 +264,16 @@ class PointRecorder @Inject constructor(
         config: AppConfigEntity,
         activeSubs: Map<Int, SubscriptionInfo>,
         pingWindow: PingSlidingWindow,
-        originResetCount: Int = 0
+        originResetCount: Int = 0,
+        locationSource: String = "INDOOR_IMU"
     ) {
-        val snapshots = cellInfoCollector.snapshots(config)
+        val snapshots = try {
+            cellInfoCollector.snapshots(config)
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            Timber.e(e, "CellInfoCollector.snapshots failed in recordIndoorPoint; using empty list")
+            emptyList()
+        }
         val pingAvg = pingWindow.avgLatencyMs()
         val pingLoss = pingWindow.packetLossPct()
 
@@ -250,18 +293,24 @@ class PointRecorder @Inject constructor(
                     relativeX = indoorUpdate.relativeX,
                     relativeY = indoorUpdate.relativeY,
                     isLocationEstimated = false,
-                    locationSource = "INDOOR_IMU",
+                    locationSource = locationSource,
                     activeSubs = activeSubs,
                     pingAvg = pingAvg,
                     pingLoss = pingLoss
                 ))
                 caBandsByRecord.add(caEntities)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
                 continue
             }
         }
 
-        insertBatch(records, caBandsByRecord, sessionId)
+        val insertedCount = insertBatch(records, caBandsByRecord, sessionId)
+        val increment = PointCountPolicy.incrementFor(insertedCount)
+        if (increment > 0) {
+            sessionRepository.incrementPointCount(sessionId, increment)
+            totalPointCount += increment
+        }
 
         synchronized(this) {
             val pathIndex = _recordedPath.size
@@ -298,7 +347,13 @@ class PointRecorder @Inject constructor(
         activeSubs: Map<Int, SubscriptionInfo>,
         pingWindow: PingSlidingWindow
     ) {
-        val snapshots = cellInfoCollector.snapshots(config)
+        val snapshots = try {
+            cellInfoCollector.snapshots(config)
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            Timber.e(e, "CellInfoCollector.snapshots failed in recordTunnelPoint; using empty list")
+            emptyList()
+        }
         val pingAvg = pingWindow.avgLatencyMs()
         val pingLoss = pingWindow.packetLossPct()
 
@@ -324,12 +379,18 @@ class PointRecorder @Inject constructor(
                     pingLoss = pingLoss
                 ))
                 caBandsByRecord.add(caEntities)
-            } catch (e: Exception) {
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
                 continue
             }
         }
 
-        insertBatch(records, caBandsByRecord, sessionId)
+        val insertedCount = insertBatch(records, caBandsByRecord, sessionId)
+        val increment = PointCountPolicy.incrementFor(insertedCount)
+        if (increment > 0) {
+            sessionRepository.incrementPointCount(sessionId, increment)
+            totalPointCount += increment
+        }
 
         lastRecordedTime = System.currentTimeMillis()
 

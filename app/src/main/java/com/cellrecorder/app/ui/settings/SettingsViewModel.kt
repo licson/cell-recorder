@@ -13,6 +13,7 @@ import com.cellrecorder.app.domain.speedtest.SpeedTestEngine
 import com.cellrecorder.app.domain.speedtest.model.SpeedTestResult
 import com.cellrecorder.app.domain.usecase.GetConfigUseCase
 import com.cellrecorder.app.domain.usecase.UpdateConfigUseCase
+import com.cellrecorder.app.logging.RollingFileTree
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -377,13 +378,57 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    suspend fun getLatestCrashLog(): String? {
+    suspend fun getLogsForShare(): String? {
         return withContext(Dispatchers.IO) {
-            val logDir = File(app.filesDir, "crash_logs")
-            logDir.listFiles()
-                ?.sortedByDescending { it.lastModified() }
-                ?.firstOrNull()
-                ?.readText()
+            // Flush any queued writes so the share payload reflects the latest entries.
+            RollingFileTree.flushPlanted()
+            val crashContent = readLatestCrashLog()
+            val rollingContent = readRollingLog()
+            if (crashContent == null && rollingContent == null) return@withContext null
+            buildString {
+                if (crashContent != null) {
+                    append("=== Crash Log ===\n")
+                    append(crashContent)
+                    if (!crashContent.endsWith('\n')) append('\n')
+                    if (rollingContent != null) {
+                        append("\n=== Runtime Log ===\n")
+                        append(rollingContent)
+                    }
+                } else {
+                    append("=== Runtime Log ===\n")
+                    append(rollingContent)
+                }
+            }
         }
+    }
+
+    private fun readLatestCrashLog(): String? {
+        val logDir = File(app.filesDir, "crash_logs")
+        val latest = logDir.listFiles()
+            ?.sortedByDescending { it.lastModified() }
+            ?.firstOrNull()
+            ?: return null
+        return try { latest.readText() } catch (_: Exception) { null }?.takeIf { it.isNotBlank() }
+    }
+
+    private fun readRollingLog(): String? {
+        val logDir = File(app.filesDir, RollingFileTree.LOG_DIR_NAME)
+        val current = File(logDir, RollingFileTree.CURRENT_FILE_NAME)
+        val rotated = File(logDir, RollingFileTree.ROTATED_FILE_NAME)
+        val currentText = readLogFile(current)
+        val rotatedText = readLogFile(rotated)
+        if (currentText == null && rotatedText == null) return null
+        return buildString {
+            if (rotatedText != null) {
+                append(rotatedText)
+                if (!rotatedText.endsWith('\n')) append('\n')
+            }
+            if (currentText != null) append(currentText)
+        }
+    }
+
+    private fun readLogFile(file: File): String? {
+        if (!file.exists()) return null
+        return try { file.readText() } catch (_: Exception) { null }?.takeIf { it.isNotBlank() }
     }
 }

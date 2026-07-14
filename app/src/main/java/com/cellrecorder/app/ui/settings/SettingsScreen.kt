@@ -245,19 +245,19 @@ fun SettingsScreen(
                 HorizontalDivider()
                 ClickableAboutRow(
                     icon = Icons.Default.BugReport,
-                    label = "Share Crash Log",
+                    label = "Share Logs",
                     onClick = {
                         scope.launch {
-                            val log = viewModel.getLatestCrashLog()
+                            val log = viewModel.getLogsForShare()
                             if (log != null) {
                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, "Cell Recorder Crash Log")
+                                    putExtra(Intent.EXTRA_SUBJECT, "Cell Recorder Logs")
                                     putExtra(Intent.EXTRA_TEXT, log)
                                 }
-                                context.startActivity(Intent.createChooser(intent, "Share Crash Log"))
+                                context.startActivity(Intent.createChooser(intent, "Share Logs"))
                             } else {
-                                Toast.makeText(context, "No crash logs available", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "No logs available", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }

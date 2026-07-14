@@ -2,20 +2,41 @@ package com.cellrecorder.app
 
 import android.app.Application
 import android.os.Build
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
+import com.cellrecorder.app.logging.RollingFileTree
 import dagger.hilt.android.HiltAndroidApp
+import timber.log.Timber
 import java.io.File
 import java.io.FileWriter
 import java.io.PrintWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
 @HiltAndroidApp
-class CellRecorderApp : Application() {
+class CellRecorderApp : Application(), Configuration.Provider {
+
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
 
     override fun onCreate() {
         super.onCreate()
+        installTimber()
         installCrashLogger()
+    }
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
+
+    private fun installTimber() {
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
+        Timber.plant(RollingFileTree(filesDir))
     }
 
     private fun installCrashLogger() {
