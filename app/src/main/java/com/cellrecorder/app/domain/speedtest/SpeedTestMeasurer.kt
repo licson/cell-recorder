@@ -29,6 +29,54 @@ object SpeedTestMeasurer {
     private val MEDIA_TYPE_OCTET_STREAM: MediaType =
         "application/octet-stream".toMediaType()
 
+    /**
+     * Tiny pre-upload probe: issues a single small HTTP POST (~1 KB payload of
+     * the same `content1=...` shape used by the full upload) with a 5-second
+     * timeout. Used by [SpeedTestEngine] to detect carrier-hostile or
+     * server-broken upload conditions before burning the 3-second upload
+     * warmup. Returns `null` on success, or a human-readable failure reason
+     * on non-2xx response, exception, or timeout.
+     */
+    suspend fun probeUpload(
+        serverUrl: String,
+        secure: Boolean,
+        httpClient: SpeedTestHttpClient
+    ): String? = withContext(Dispatchers.IO) {
+        val url = if (secure && serverUrl.startsWith("http:")) {
+            "https://${serverUrl.substring(7)}"
+        } else serverUrl
+
+        val probePayloadSize = 1024
+        val payload = buildUploadPayload(probePayloadSize)
+        try {
+            val body = object : RequestBody() {
+                override fun contentType(): MediaType = MEDIA_TYPE_OCTET_STREAM
+                override fun contentLength(): Long = payload.size.toLong()
+                override fun writeTo(sink: BufferedSink) {
+                    sink.write(payload)
+                    sink.flush()
+                }
+            }
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", buildUserAgent())
+                .header("Cache-Control", "no-cache")
+                .post(body)
+                .build()
+            httpClient.client.newBuilder()
+                .callTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+                .newCall(request)
+                .execute()
+                .use { resp ->
+                    if (resp.isSuccessful) null
+                    else "HTTP ${resp.code}"
+                }
+        } catch (e: Exception) {
+            e.message ?: e.javaClass.simpleName
+        }
+    }
+
     data class ThroughputSample(
         val bytesTransferred: Long,
         val elapsedMs: Long,

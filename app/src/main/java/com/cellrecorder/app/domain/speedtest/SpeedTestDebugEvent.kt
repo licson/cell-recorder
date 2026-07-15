@@ -7,7 +7,7 @@ package com.cellrecorder.app.domain.speedtest
  *
  * @property timestampMs Wall-clock millisecond timestamp of the event.
  * @property phase One of: `config_fetch`, `server_select`, `gauge`, `download`,
- *                 `upload`, `done`, `error`.
+ *                 `probe`, `upload`, `done`, `error`.
  * @property status One of: `ok`, `warn`, `fail`, `info`.
  * @property message Human-readable description of the event.
  * @property serverId The server ID associated with the event, if any.
@@ -28,6 +28,7 @@ data class SpeedTestDebugEvent(
         const val SERVER_SELECT = "server_select"
         const val GAUGE = "gauge"
         const val DOWNLOAD = "download"
+        const val PROBE = "probe"
         const val UPLOAD = "upload"
         const val DONE = "done"
         const val ERROR = "error"

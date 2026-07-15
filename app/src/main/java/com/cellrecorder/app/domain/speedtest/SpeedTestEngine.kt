@@ -63,7 +63,8 @@ class SpeedTestEngine @Inject constructor(
                     downloadBps = null, uploadBps = null,
                     serverId = null, serverName = null,
                     serverHost = null, serverLocation = null,
-                    succeeded = false, errorMessage = "SKIPPED_WIFI",
+                    downloadSucceeded = false, uploadSucceeded = null,
+                    errorMessage = "SKIPPED_WIFI",
                     startedAt = startedAt, finishedAt = startedAt
                 )
             }
@@ -78,7 +79,8 @@ class SpeedTestEngine @Inject constructor(
                     downloadBps = null, uploadBps = null,
                     serverId = null, serverName = null,
                     serverHost = null, serverLocation = null,
-                    succeeded = false, errorMessage = "Config fetch failed",
+                    downloadSucceeded = false, uploadSucceeded = null,
+                    errorMessage = "Config fetch failed",
                     startedAt = startedAt, finishedAt = startedAt
                 )
             }
@@ -104,7 +106,8 @@ class SpeedTestEngine @Inject constructor(
                     downloadBps = null, uploadBps = null,
                     serverId = null, serverName = null,
                     serverHost = null, serverLocation = null,
-                    succeeded = false, errorMessage = "Server selection failed",
+                    downloadSucceeded = false, uploadSucceeded = null,
+                    errorMessage = "Server selection failed",
                     startedAt = startedAt, finishedAt = startedAt
                 )
             }
@@ -147,58 +150,98 @@ class SpeedTestEngine @Inject constructor(
             )
 
             val downloadBps = computeBps(downloadResult)
-
-            var uploadBps: Long? = null
-            var uploadFailed = false
-            if (uploadEnabled) {
-                emit(SpeedTestDebugEvent.Phase.UPLOAD, SpeedTestDebugEvent.Status.INFO, "Upload starting", serverId = server.id.toLong(), serverHost = server.host)
-                onStatus("Uploading")
-                val uploadResult = SpeedTestMeasurer.measureUpload(
-                    serverUrl = server.url,
-                    uploadSizes = config.uploadSizes,
-                    uploadCount = config.uploadCount,
-                    uploadMax = config.uploadMax,
-                    uploadThreads = (config.upload.threads * 2).coerceAtMost(16),
-                    testLengthSec = config.upload.testLengthSec,
-                    secure = true,
-                    estimatedBps = cachedGaugeBps ?: 0L,
-                    httpClient = httpClient
-                )
-                uploadBps = computeBps(uploadResult)
-                uploadFailed = !uploadResult.anyRequestSucceeded ||
-                    (uploadResult.postWarmupBytes == 0L && uploadResult.postWarmupMs > 0)
-            }
-
             val downloadFailed = !downloadResult.anyRequestSucceeded ||
                 (downloadResult.postWarmupBytes == 0L && downloadResult.postWarmupMs > 0)
-            val measurementFailed = downloadFailed || (uploadEnabled && uploadFailed)
 
-            if (measurementFailed) {
+            // Download failure is the only measurement-driven cache invalidation
+            // trigger. Upload-only failures keep the cache warm (the server is
+            // by construction reachable since download just succeeded).
+            if (downloadFailed) {
                 invalidateCache()
                 onStatus("Failed")
-                val errMsg = buildErrorMessage(downloadFailed, uploadFailed && uploadEnabled)
-                emit(SpeedTestDebugEvent.Phase.ERROR, SpeedTestDebugEvent.Status.FAIL, "Measurement failed: $errMsg", serverId = server.id.toLong(), serverHost = server.host)
+                emit(SpeedTestDebugEvent.Phase.ERROR, SpeedTestDebugEvent.Status.FAIL, "Measurement failed: download", serverId = server.id.toLong(), serverHost = server.host)
                 val finishedAt = System.currentTimeMillis()
                 return@withContext SpeedTestResult(
-                    downloadBps = if (downloadFailed) null else downloadBps,
-                    uploadBps = if (uploadEnabled && uploadFailed) null else uploadBps,
-                    serverId = server.id,
-                    serverName = server.name,
-                    serverHost = server.host,
-                    serverLocation = server.sponsor,
-                    succeeded = false,
-                    errorMessage = errMsg,
-                    startedAt = startedAt,
-                    finishedAt = finishedAt
+                    downloadBps = null, uploadBps = null,
+                    serverId = server.id, serverName = server.name,
+                    serverHost = server.host, serverLocation = server.sponsor,
+                    downloadSucceeded = false, uploadSucceeded = null,
+                    errorMessage = "No data transferred: download measurement failed",
+                    startedAt = startedAt, finishedAt = finishedAt
                 )
             }
 
-            onStatus("Completed")
-            if (primeOnSuccess) {
+            emit(
+                SpeedTestDebugEvent.Phase.DOWNLOAD,
+                SpeedTestDebugEvent.Status.OK,
+                "Download complete: $downloadBps",
+                serverId = server.id.toLong(),
+                serverHost = server.host,
+                bytes = downloadBps
+            )
+
+            // Upload phase: optional, gated by the pre-upload probe.
+            var uploadBps: Long? = null
+            var uploadSucceeded: Boolean? = null
+            var uploadErrorMsg: String? = null
+            if (uploadEnabled) {
+                emit(SpeedTestDebugEvent.Phase.PROBE, SpeedTestDebugEvent.Status.INFO, "Pre-upload probe starting", serverId = server.id.toLong(), serverHost = server.host)
+                val probeError = SpeedTestMeasurer.probeUpload(
+                    serverUrl = server.url,
+                    secure = true,
+                    httpClient = httpClient
+                )
+                if (probeError != null) {
+                    uploadSucceeded = false
+                    uploadErrorMsg = "Upload probe failed: $probeError"
+                    emit(SpeedTestDebugEvent.Phase.PROBE, SpeedTestDebugEvent.Status.FAIL, uploadErrorMsg!!, serverId = server.id.toLong(), serverHost = server.host)
+                    // Cache is NOT invalidated: the server is reachable (download succeeded).
+                } else {
+                    emit(SpeedTestDebugEvent.Phase.PROBE, SpeedTestDebugEvent.Status.OK, "Probe ok", serverId = server.id.toLong(), serverHost = server.host)
+                    emit(SpeedTestDebugEvent.Phase.UPLOAD, SpeedTestDebugEvent.Status.INFO, "Upload starting", serverId = server.id.toLong(), serverHost = server.host)
+                    onStatus("Uploading")
+                    val uploadResult = SpeedTestMeasurer.measureUpload(
+                        serverUrl = server.url,
+                        uploadSizes = config.uploadSizes,
+                        uploadCount = config.uploadCount,
+                        uploadMax = config.uploadMax,
+                        uploadThreads = (config.upload.threads * 2).coerceAtMost(16),
+                        testLengthSec = config.upload.testLengthSec,
+                        secure = true,
+                        estimatedBps = cachedGaugeBps ?: 0L,
+                        httpClient = httpClient
+                    )
+                    uploadBps = computeBps(uploadResult)
+                    val uploadFailed = !uploadResult.anyRequestSucceeded ||
+                        (uploadResult.postWarmupBytes == 0L && uploadResult.postWarmupMs > 0)
+                    if (uploadFailed) {
+                        uploadSucceeded = false
+                        uploadErrorMsg = "No data transferred: upload measurement failed"
+                        emit(SpeedTestDebugEvent.Phase.UPLOAD, SpeedTestDebugEvent.Status.FAIL, uploadErrorMsg!!, serverId = server.id.toLong(), serverHost = server.host)
+                        // Cache is NOT invalidated on upload-only failure.
+                    } else {
+                        uploadSucceeded = true
+                        emit(SpeedTestDebugEvent.Phase.UPLOAD, SpeedTestDebugEvent.Status.OK, "Upload complete: $uploadBps", serverId = server.id.toLong(), serverHost = server.host)
+                    }
+                }
+            }
+
+            // A cycle counts as "successful for priming" only when both phases
+            // that were attempted succeeded. Upload-disabled tests with a
+            // successful download still prime the cache.
+            val overallSucceeded = uploadSucceeded != false
+            onStatus(if (overallSucceeded) "Completed" else "Partial")
+            if (primeOnSuccess && overallSucceeded) {
                 primedSinceLastInvalidation.set(true)
             }
             val finishedAt = System.currentTimeMillis()
-            emit(SpeedTestDebugEvent.Phase.DONE, SpeedTestDebugEvent.Status.OK, "Test completed: ↓$downloadBps ↑$uploadBps", serverId = server.id.toLong(), serverHost = server.host)
+            emit(
+                SpeedTestDebugEvent.Phase.DONE,
+                SpeedTestDebugEvent.Status.OK,
+                "Test done: ↓$downloadBps ↑$uploadBps (download=true, upload=$uploadSucceeded)",
+                serverId = server.id.toLong(),
+                serverHost = server.host
+            )
             SpeedTestResult(
                 downloadBps = downloadBps,
                 uploadBps = uploadBps,
@@ -206,8 +249,9 @@ class SpeedTestEngine @Inject constructor(
                 serverName = server.name,
                 serverHost = server.host,
                 serverLocation = server.sponsor,
-                succeeded = true,
-                errorMessage = null,
+                downloadSucceeded = true,
+                uploadSucceeded = uploadSucceeded,
+                errorMessage = uploadErrorMsg,
                 startedAt = startedAt,
                 finishedAt = finishedAt
             )
@@ -218,7 +262,8 @@ class SpeedTestEngine @Inject constructor(
                 downloadBps = null, uploadBps = null,
                 serverId = null, serverName = null,
                 serverHost = null, serverLocation = null,
-                succeeded = false, errorMessage = e.message ?: "Unknown error",
+                downloadSucceeded = false, uploadSucceeded = null,
+                errorMessage = e.message ?: "Unknown error",
                 startedAt = startedAt, finishedAt = startedAt
             )
         }
@@ -273,13 +318,6 @@ class SpeedTestEngine @Inject constructor(
 
         val avgBps = retained.sum() / retained.size
         return (avgBps * OVERHEAD_COMPENSATION).toLong()
-    }
-
-    private fun buildErrorMessage(downloadFailed: Boolean, uploadFailed: Boolean): String {
-        val parts = mutableListOf<String>()
-        if (downloadFailed) parts.add("download")
-        if (uploadFailed) parts.add("upload")
-        return "No data transferred: ${parts.joinToString(", ")} measurement failed"
     }
 
     fun invalidateCache() {
