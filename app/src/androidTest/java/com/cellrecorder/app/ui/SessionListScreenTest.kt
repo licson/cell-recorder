@@ -5,6 +5,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,6 +29,8 @@ import com.cellrecorder.app.ui.sessionlist.SessionListViewModel
 import com.cellrecorder.app.ui.theme.CellRecorderTheme
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import kotlinx.coroutines.flow.first
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -44,6 +48,7 @@ class SessionListScreenTest {
     val composeTestRule = createAndroidComposeRule<HiltTestActivity>()
 
     private lateinit var viewModel: SessionListViewModel
+    private lateinit var sessionRepository: SessionRepository
 
     @Before
     fun setUp() {
@@ -52,7 +57,7 @@ class SessionListScreenTest {
         val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        val sessionRepository = SessionRepository(db.sessionDao())
+        sessionRepository = SessionRepository(db.sessionDao())
         val cellRecordRepository = CellRecordRepository(db.cellRecordDao())
         val getSessionsUseCase = GetSessionsUseCase(sessionRepository)
         val createSessionUseCase = CreateSessionUseCase(sessionRepository)
@@ -159,5 +164,69 @@ class SessionListScreenTest {
         }
 
         composeTestRule.onNodeWithContentDescription("Select").assertIsDisplayed()
+    }
+
+    @Test
+    fun newSessionDialog_showsThreeRecordingModeChips() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                SessionListScreen(
+                    onStartRecording = {},
+                    onOpenSession = {},
+                    onOpenSettings = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.onNodeWithContentDescription("New Session").performClick()
+        composeTestRule.onNodeWithText("Outdoor").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Indoor").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Tunnel").assertIsDisplayed()
+    }
+
+    @Test
+    fun newSessionDialog_selectingTunnelShowsTunnelGuidanceNote() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                SessionListScreen(
+                    onStartRecording = {},
+                    onOpenSession = {},
+                    onOpenSettings = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.onNodeWithContentDescription("New Session").performClick()
+        composeTestRule.onNodeWithText("Tunnel").performClick()
+        composeTestRule.onNodeWithText("Tunnel mode samples on a fixed time cadence", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun newSessionDialog_confirmingTunnelCreatesSessionWithTunnelMode() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                SessionListScreen(
+                    onStartRecording = {},
+                    onOpenSession = {},
+                    onOpenSettings = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.onNodeWithContentDescription("New Session").performClick()
+        composeTestRule.onNodeWithText("Tunnel").performClick()
+        // Type a session name so the confirm button is enabled
+        composeTestRule.onNodeWithText("Session Name").performTextInput("TunnelTest")
+        composeTestRule.onNodeWithText("Start Recording").performClick()
+
+        // Verify a session was created with recordingMode = TUNNEL
+        composeTestRule.waitUntil(3000) { viewModel.sessions.value.isNotEmpty() }
+        kotlinx.coroutines.runBlocking {
+            val sessions = sessionRepository.getAll().first()
+            assertTrue(
+                "At least one session should exist with recordingMode = TUNNEL",
+                sessions.any { it.recordingMode == "TUNNEL" }
+            )
+        }
     }
 }

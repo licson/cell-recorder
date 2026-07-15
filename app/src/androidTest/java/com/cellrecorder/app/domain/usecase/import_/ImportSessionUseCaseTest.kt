@@ -280,6 +280,76 @@ class ImportSessionUseCaseTest {
         assertNotNull(refreshedSession.endedAt)
     }
 
+    @Test
+    fun importCsv_withMarkersCompanion_createsTunnelSessionAndPersistsMarkersWithSeq() = runBlocking {
+        val csv = "timestamp,lat,lon\n1000,40.0,-74.0"
+        val markers = "timestamp,seq,type,label\n3000,3,STOP,end\n1000,1,NOTE,start\n2000,2,WAYPOINT,mid"
+
+        val summary = useCase.importCsv(csv, "Tunnel With Markers", markers)
+
+        assertEquals("TUNNEL", summary.recordingMode)
+
+        val sessions = sessionRepository.getAll().first()
+        assertEquals(1, sessions.size)
+        assertEquals("TUNNEL", sessions[0].recordingMode)
+        val sessionId = sessions[0].id
+
+        val importedMarkers = sessionMarkerRepository.getMarkersForSession(sessionId).first()
+        assertEquals(3, importedMarkers.size)
+        assertTrue(importedMarkers.map { it.seq }.toSet() == setOf(1, 2, 3))
+        assertTrue(importedMarkers.any { it.type == "NOTE" && it.label == "start" })
+        assertTrue(importedMarkers.any { it.type == "STOP" && it.label == "end" })
+    }
+
+    @Test
+    fun importGeoJson_withTunnelMode_createsTunnelSessionAndPersistsMarkers() = runBlocking {
+        val geojson = """
+            {"type":"FeatureCollection","tunnelMode":true,"features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[-74.0,40.0,0.0]},"properties":{"timestamp":1000,"rat":"4G"}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[0.0,0.0]},"properties":{"timestamp":2000,"markerType":"NOTE","seq":1,"label":"entry"}}
+            ]}
+        """.trimIndent()
+
+        val summary = useCase.importGeoJson(geojson, "Tunnel GeoJSON")
+
+        assertEquals("TUNNEL", summary.recordingMode)
+
+        val sessions = sessionRepository.getAll().first()
+        assertEquals(1, sessions.size)
+        assertEquals("TUNNEL", sessions[0].recordingMode)
+        val sessionId = sessions[0].id
+
+        val markers = sessionMarkerRepository.getMarkersForSession(sessionId).first()
+        assertEquals(1, markers.size)
+        assertEquals(1, markers[0].seq)
+        assertEquals("NOTE", markers[0].type)
+        assertEquals("entry", markers[0].label)
+    }
+
+    @Test
+    fun importGeoJson_outdoorWithMarkers_createsOutdoorSessionAndPersistsMarkers() = runBlocking {
+        val geojson = """
+            {"type":"FeatureCollection","features":[
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[-74.0,40.0,0.0]},"properties":{"timestamp":1000,"rat":"4G"}},
+                {"type":"Feature","geometry":{"type":"Point","coordinates":[0.0,0.0]},"properties":{"timestamp":2000,"markerType":"WAYPOINT","seq":4,"label":"out"}}
+            ]}
+        """.trimIndent()
+
+        val summary = useCase.importGeoJson(geojson, "Outdoor With Markers")
+
+        assertEquals("OUTDOOR", summary.recordingMode)
+
+        val sessions = sessionRepository.getAll().first()
+        assertEquals(1, sessions.size)
+        assertEquals("OUTDOOR", sessions[0].recordingMode)
+        val sessionId = sessions[0].id
+
+        val markers = sessionMarkerRepository.getMarkersForSession(sessionId).first()
+        assertEquals(1, markers.size)
+        assertEquals(4, markers[0].seq)
+        assertEquals("WAYPOINT", markers[0].type)
+    }
+
     private fun csvWithCaBands(): String {
         val caBands = "\"[{\"\"band\"\":3,\"\"earfcn\"\":1800,\"\"pci\"\":42,\"\"rsrp\"\":-95,\"\"rsrq\"\":-10,\"\"sinr\"\":15}]\""
         return "timestamp,lat,lon,alt,accuracy,rat,pci,rsrp,rsrq,sinr,mcc,mnc,band,earfcn,tac,ca_bands\n" +

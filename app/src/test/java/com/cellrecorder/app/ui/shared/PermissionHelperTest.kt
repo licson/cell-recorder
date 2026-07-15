@@ -301,6 +301,32 @@ class PermissionHelperTest {
         }
 
         @Test
+        fun `allGrantedForMode TUNNEL returns true when ONLY foreground and phone-state are granted (deny both background and indoor)`() {
+            stubAllGranted()
+            stubDenied(
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                Manifest.permission.ACTIVITY_RECOGNITION
+            )
+            assertTrue(
+                PermissionHelper.allGrantedForMode("TUNNEL", context),
+                "Tunnel mode must be fully granted with only foreground + phone state (+ notifications on Tiramisu+); " +
+                    "it excludes both ACCESS_BACKGROUND_LOCATION and ACTIVITY_RECOGNITION"
+            )
+        }
+
+        @Test
+        fun `missingAllForMode TUNNEL returns empty set when only background and indoor are missing`() {
+            stubAllGranted()
+            stubDenied(
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                Manifest.permission.ACTIVITY_RECOGNITION
+            )
+            val missing = PermissionHelper.missingAllForMode("TUNNEL", context).toSet()
+            assertTrue(missing.isEmpty(),
+                "Tunnel mode missingAllForMode must be empty when only background and indoor perms are missing (both excluded from tunnel)")
+        }
+
+        @Test
         fun `allGrantedForMode INDOOR returns false when indoor permission is missing`() {
             stubDenied(Manifest.permission.ACTIVITY_RECOGNITION)
             assertFalse(PermissionHelper.allGrantedForMode("INDOOR", context))

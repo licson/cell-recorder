@@ -24,6 +24,8 @@ import io.mockk.mockk
 import io.mockk.runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -35,15 +37,19 @@ import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.util.regex.Pattern
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RecordingViewModelTest {
 
     companion object {
         private val testDispatcher = UnconfinedTestDispatcher()
+        val NOTE_AUTO_LABEL_PATTERN: Pattern = Pattern.compile("""^NOTE #\d+ \d{2}:\d{2}:\d{2}$""")
 
         @JvmStatic
         @BeforeAll
@@ -176,4 +182,211 @@ class RecordingViewModelTest {
         assertEquals(labels, result)
         coVerify { recentMarkerLabelRepository.getByTypeOrdered(MarkerType.NOTE) }
     }
+
+    @Test
+    fun `quickMark auto-label matches NOTE #N HH-MM-SS format`() = runTest(testDispatcher) {
+        val session = SessionEntity(id = 10, name = "Test", createdAt = 0)
+        val (repo, state) = newCountingMarkerRepo()
+        val vm = buildViewModelWithMarkerRepo(repo)
+        stubSessionLoad(session)
+
+        vm.loadSession(10)
+        vm.quickMark().join()
+
+        assertEquals(1, state.inserted.size)
+        val label = state.inserted[0].label
+        assertNotNull(label)
+        assertTrue(NOTE_AUTO_LABEL_PATTERN.matcher(label).matches(),
+            "Expected auto-label 'NOTE #N HH:MM:SS', got '$label'")
+    }
+
+    @Test
+    fun `createMarker inserts marker with WAYPOINT type and label`() = runTest(testDispatcher) {
+        val session = SessionEntity(id = 10, name = "Test", createdAt = 0)
+        val (repo, state) = newCountingMarkerRepo()
+        val vm = buildViewModelWithMarkerRepo(repo)
+        stubSessionLoad(session)
+
+        vm.loadSession(10)
+        vm.createMarker(MarkerType.WAYPOINT, "Central").join()
+
+        assertEquals(1, state.inserted.size)
+        assertEquals(MarkerType.WAYPOINT.toStorageString(), state.inserted[0].type)
+        assertEquals("Central", state.inserted[0].label)
+    }
+
+    @Test
+    fun `editMarker updates the row in place without changing seq`() = runTest(testDispatcher) {
+        val (repo, state) = newCountingMarkerRepo()
+        val vm = buildViewModelWithMarkerRepo(repo)
+        val original = SessionMarkerEntity(id = 5, sessionId = 10, timestamp = 1000, seq = 3, type = "WAYPOINT", label = "old")
+        state.rows[5] = original
+
+        vm.editMarker(5, MarkerType.WAYPOINT, "King's Cross").join()
+
+        val updated = state.rows[5]
+        assertNotNull(updated)
+        assertEquals("King's Cross", updated!!.label)
+        assertEquals("WAYPOINT", updated.type)
+        assertEquals(3, updated.seq, "seq must be unchanged after edit")
+        assertEquals(1000L, updated.timestamp, "timestamp must be unchanged after edit")
+        assertTrue(state.upsertedRecents.any { it.label == "King's Cross" },
+            "editing a marker's label should upsert the new label into recent_marker_labels")
+    }
+
+    @Test
+    fun `editMarker does not decrement the old label in recents`() = runTest(testDispatcher) {
+        val (repo, state) = newCountingMarkerRepo()
+        val vm = buildViewModelWithMarkerRepo(repo)
+        state.rows[5] = SessionMarkerEntity(id = 5, sessionId = 10, timestamp = 1000, seq = 1, type = "WAYPOINT", label = "old")
+
+        vm.editMarker(5, MarkerType.WAYPOINT, "new").join()
+
+        assertTrue(state.decrementedRecents.isEmpty(),
+            "editing a marker's label must NOT decrement the old recent label")
+    }
+
+    @Test
+    fun `seq increments monotonically per session`() = runTest(testDispatcher) {
+        val session = SessionEntity(id = 10, name = "Test", createdAt = 0)
+        val (repo, state) = newCountingMarkerRepo()
+        val vm = buildViewModelWithMarkerRepo(repo)
+        stubSessionLoad(session)
+
+        vm.loadSession(10)
+        repeat(3) { vm.quickMark().join() }
+
+        val seqs = state.inserted.map { it.seq }
+        assertEquals(listOf(1, 2, 3), seqs, "seq must increment monotonically per session")
+    }
+
+    @Test
+    fun `concurrent quickMark calls do not collide on seq`() = runTest(testDispatcher) {
+        val session = SessionEntity(id = 10, name = "Test", createdAt = 0)
+        val (repo, state) = newCountingMarkerRepo()
+        val vm = buildViewModelWithMarkerRepo(repo)
+        stubSessionLoad(session)
+
+        vm.loadSession(10)
+        val jobs = (1..50).map { async { vm.quickMark().join() } }
+        jobs.awaitAll()
+
+        val seqs = state.inserted.map { it.seq }.sorted()
+        assertEquals((1..50).toList(), seqs, "All 50 concurrent quickMark calls must get unique, contiguous seq values")
+    }
+
+    @Test
+    fun `seq is per-session (two sessions each start at seq=1)`() = runTest(testDispatcher) {
+        val sessionA = SessionEntity(id = 10, name = "A", createdAt = 0)
+        val sessionB = SessionEntity(id = 20, name = "B", createdAt = 0)
+        val (repo, state) = newCountingMarkerRepo()
+        val vm = buildViewModelWithMarkerRepo(repo)
+
+        every { sessionRepository.getById(10) } returns flowOf(sessionA)
+        every { sessionRepository.getById(20) } returns flowOf(sessionB)
+        vm.loadSession(10)
+        vm.quickMark().join()
+        vm.quickMark().join()
+        vm.loadSession(20)
+        vm.quickMark().join()
+
+        val seqsBySession = state.inserted.groupBy { it.sessionId }.mapValues { it.value.map { m -> m.seq } }
+        assertEquals(listOf(1, 2), seqsBySession[10])
+        assertEquals(listOf(1), seqsBySession[20])
+    }
+
+    private fun stubSessionLoad(session: SessionEntity) {
+        every { sessionRepository.getById(session.id) } returns flowOf(session)
+    }
+
+    private fun buildViewModelWithMarkerRepo(markerRepo: SessionMarkerRepository): RecordingViewModel =
+        RecordingViewModel(
+            sessionRepository = sessionRepository,
+            sessionMarkerRepository = markerRepo,
+            recentMarkerLabelRepository = recentMarkerLabelRepository,
+            recordingMutex = recordingMutex,
+            cellInfoCollector = cellInfoCollector,
+            configRepository = configRepository,
+            stateManager = stateManager,
+            indoorPositionCollector = indoorPositionCollector,
+            context = context
+        )
+}
+
+private class CountingRepoState {
+    val inserted = mutableListOf<SessionMarkerEntity>()
+    val upsertedRecents = mutableListOf<RecentMarkerLabelEntity>()
+    val decrementedRecents = mutableListOf<String>()
+    val rows = mutableMapOf<Long, SessionMarkerEntity>()
+    val maxSeqBySession = mutableMapOf<Long, Int>()
+    var nextId = 1L
+}
+
+private fun newCountingMarkerRepo(): Pair<SessionMarkerRepository, CountingRepoState> {
+    val state = CountingRepoState()
+    val repo = mockk<SessionMarkerRepository>(relaxed = true)
+
+    coEvery { repo.insertMarker(any(), any(), any()) } answers {
+        val sessionId = firstArg<Long>()
+        val type = secondArg<MarkerType>()
+        val label = thirdArg<String?>()
+        synchronized(state) {
+            val seq = (state.maxSeqBySession[sessionId] ?: 0) + 1
+            state.maxSeqBySession[sessionId] = seq
+            val id = state.nextId++
+            val m = SessionMarkerEntity(id = id, sessionId = sessionId, timestamp = System.currentTimeMillis(), seq = seq, type = type.toStorageString(), label = label)
+            state.rows[id] = m
+            state.inserted += m
+            if (!label.isNullOrBlank()) {
+                state.upsertedRecents += RecentMarkerLabelEntity(type = type.toStorageString(), label = label, useCount = 1, lastUsed = System.currentTimeMillis())
+            }
+            id
+        }
+    }
+
+    coEvery { repo.insertMarkerWithAutoLabel(any(), any()) } answers {
+        val sessionId = firstArg<Long>()
+        val type = secondArg<MarkerType>()
+        synchronized(state) {
+            val seq = (state.maxSeqBySession[sessionId] ?: 0) + 1
+            state.maxSeqBySession[sessionId] = seq
+            val id = state.nextId++
+            val now = System.currentTimeMillis()
+            val timeStr = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(now))
+            val label = "${type.toStorageString()} #$seq $timeStr"
+            val m = SessionMarkerEntity(id = id, sessionId = sessionId, timestamp = now, seq = seq, type = type.toStorageString(), label = label)
+            state.rows[id] = m
+            state.inserted += m
+            state.upsertedRecents += RecentMarkerLabelEntity(type = type.toStorageString(), label = label, useCount = 1, lastUsed = now)
+            id
+        }
+    }
+
+    coEvery { repo.updateMarker(any(), any(), any()) } answers {
+        val id = firstArg<Long>()
+        val type = secondArg<MarkerType>()
+        val label = thirdArg<String?>()
+        synchronized(state) {
+            val existing = state.rows[id]
+            if (existing != null) {
+                state.rows[id] = existing.copy(type = type.toStorageString(), label = label)
+                if (!label.isNullOrBlank()) {
+                    state.upsertedRecents += RecentMarkerLabelEntity(type = type.toStorageString(), label = label, useCount = 1, lastUsed = System.currentTimeMillis())
+                }
+            }
+        }
+        Unit
+    }
+
+    coEvery { repo.deleteMarker(any()) } answers {
+        val id = firstArg<Long>()
+        synchronized(state) {
+            state.rows.remove(id)?.let { m -> state.decrementedRecents += m.label ?: "" }
+        }
+        Unit
+    }
+
+    every { repo.getMarkersForSession(any()) } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+
+    return repo to state
 }

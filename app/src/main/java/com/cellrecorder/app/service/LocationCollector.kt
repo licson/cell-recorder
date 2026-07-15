@@ -12,6 +12,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.qualifiers.ApplicationContext
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -40,12 +41,17 @@ open class LocationCollector @Inject constructor(
     private val locationManager: LocationManager =
         context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
+    @VisibleForTesting
+    @Volatile
+    internal var locationFlowFailure: Throwable? = null
+
     private val locationRequest: LocationRequest = LocationRequest.Builder(1000L)
         .setMinUpdateIntervalMillis(1000L)
         .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
         .build()
 
     fun locationFlow(): Flow<LocationUpdate> = callbackFlow {
+        locationFlowFailure?.let { throw it }
         if (isGooglePlayServicesAvailable()) {
             val callback = object : com.google.android.gms.location.LocationCallback() {
                 override fun onLocationResult(result: LocationResult) {

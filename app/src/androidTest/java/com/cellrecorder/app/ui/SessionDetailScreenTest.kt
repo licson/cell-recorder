@@ -2,7 +2,9 @@ package com.cellrecorder.app.ui
 
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -15,6 +17,7 @@ import com.cellrecorder.app.HiltTestActivity
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.local.entity.AppConfigEntity
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.ConfigRepository
 import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
@@ -51,6 +54,7 @@ class SessionDetailScreenTest {
     private lateinit var viewModel: SessionDetailViewModel
     private var populatedSessionId: Long = 0L
     private var emptySessionId: Long = 0L
+    private var tunnelSessionId: Long = 0L
 
     @Before
     fun setUp() {
@@ -133,6 +137,32 @@ class SessionDetailScreenTest {
                 avgLatencyMs = 20.0
             )
             db.cellRecordDao().insertAll(records)
+
+            // Create a tunnel session with markers and TUNNEL cell records
+            tunnelSessionId = sessionRepository.create(
+                name = "Tunnel Session",
+                createdAt = 1_700_000_002_000L,
+                recordingMode = "TUNNEL"
+            )
+            val tunnelRecords = (0..1).map { i ->
+                CellRecordEntity(
+                    sessionId = tunnelSessionId,
+                    timestamp = 1_700_000_002_000L + i * 1000L,
+                    latitude = 0.0,
+                    longitude = 0.0,
+                    altitude = 0.0,
+                    accuracy = 0f,
+                    relativeX = null,
+                    relativeY = null,
+                    rat = "UNKNOWN",
+                    locationSource = "TUNNEL",
+                    simSlotIndex = 0,
+                    rsrp = -90,
+                    rsrq = -10,
+                    sinr = 5
+                )
+            }
+            db.cellRecordDao().insertAll(tunnelRecords)
         }
 
         val getSessionPointsUseCase = GetSessionPointsUseCase(cellRecordRepository)
@@ -145,6 +175,11 @@ class SessionDetailScreenTest {
             db.recentMarkerLabelDao(),
             db
         )
+        // Seed markers for the populated session (for task 8.6)
+        runBlocking {
+            sessionMarkerRepository.insertMarkerWithAutoLabel(populatedSessionId, com.cellrecorder.app.domain.model.MarkerType.NOTE)
+            sessionMarkerRepository.insertMarkerWithAutoLabel(populatedSessionId, com.cellrecorder.app.domain.model.MarkerType.WAYPOINT)
+        }
         val recentMarkerLabelRepository = RecentMarkerLabelRepository(db.recentMarkerLabelDao())
 
         viewModel = SessionDetailViewModel(
@@ -324,5 +359,72 @@ class SessionDetailScreenTest {
         composeTestRule.waitUntil(2000) { viewModel.selectedRecord.value != null }
         composeTestRule.onNodeWithText("Anchor Cell").assertExists()
         composeTestRule.onNodeWithText("200:5").assertExists()
+    }
+
+    @Test
+    fun markersSection_isDisplayed_whenMarkersExist() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                SessionDetailScreen(
+                    sessionId = populatedSessionId,
+                    onNavigateBack = {},
+                    onOpenReplay = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.markers.value.isNotEmpty() }
+        composeTestRule.onNodeWithText("Markers (2)", substring = true).assertExists()
+    }
+
+    @Test
+    fun markersSection_isHidden_whenNoMarkersExist() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                SessionDetailScreen(
+                    sessionId = emptySessionId,
+                    onNavigateBack = {},
+                    onOpenReplay = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.session.value != null }
+        composeTestRule.waitUntil(2000) { viewModel.markers.value.isEmpty() }
+    }
+
+    @Test
+    fun markersSection_expandingShowsRowsWithEditAndDeleteButtons() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                SessionDetailScreen(
+                    sessionId = populatedSessionId,
+                    onNavigateBack = {},
+                    onOpenReplay = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.markers.value.isNotEmpty() }
+        composeTestRule.onNodeWithText("Markers (2)", substring = true).performClick()
+        composeTestRule.waitUntil(2000) { viewModel.markers.value.isNotEmpty() }
+        composeTestRule.onAllNodesWithContentDescription("Edit").assertCountEquals(2)
+        composeTestRule.onAllNodesWithContentDescription("Delete").assertCountEquals(2)
+    }
+
+    @Test
+    fun tunnelSession_showsPlaceholderPanelInsteadOfMap() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                SessionDetailScreen(
+                    sessionId = tunnelSessionId,
+                    onNavigateBack = {},
+                    onOpenReplay = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.session.value != null }
+        composeTestRule.onNodeWithText("Tunnel recording", substring = true).assertExists()
     }
 }

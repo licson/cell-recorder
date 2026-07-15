@@ -10,6 +10,7 @@ import com.cellrecorder.app.domain.model.RatDistribution
 import com.cellrecorder.app.domain.model.RatDistributionPerSim
 import com.cellrecorder.app.domain.model.Sim5GTime
 import com.cellrecorder.app.domain.model.SimSlotDistribution
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,6 +19,11 @@ import javax.inject.Singleton
 class CellRecordRepository @Inject constructor(
     private val cellRecordDao: CellRecordDao
 ) {
+
+    @VisibleForTesting
+    @Volatile
+    internal var insertRecordBatchFailure: Throwable? = null
+
     suspend fun insert(record: CellRecordEntity): Long =
         cellRecordDao.insert(record)
 
@@ -30,7 +36,10 @@ class CellRecordRepository @Inject constructor(
     suspend fun insertRecordBatch(
         records: List<CellRecordEntity>,
         caBandsByRecord: List<List<CellRecordCaBandEntity>>
-    ): List<Long> = cellRecordDao.insertRecordBatch(records, caBandsByRecord)
+    ): List<Long> {
+        insertRecordBatchFailure?.let { throw it }
+        return cellRecordDao.insertRecordBatch(records, caBandsByRecord)
+    }
 
     suspend fun insertSingle(
         record: CellRecordEntity,

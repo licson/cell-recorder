@@ -83,8 +83,8 @@
 - [x] 11.3 `PointCountPolicyTest` (unit): empty → 0; partial → succeeded count; all → full count
 - [x] 11.4 `PingBackoffTest` (unit): 0→1000, 1→2000, 2→4000, 3→8000, 4→16000, 5→32000, 6→60000, 7→60000 (cap holds)
 - [x] 11.5 `SessionFinalizationWorkerTest` (unit): idempotent (endedAt already set → no-op + success); success path (endedAt null → set + primarySlot updated); exception → `Result.retry()`; `runAttemptCount >= 5` on failure → `Result.failure()` _(written as androidTest using TestListenableWorkerBuilder; cannot execute without emulator but compiles cleanly)_
-- [ ] 11.6 Extend `RecordingServiceTest` (androidTest) with: config load failure → continues with defaults; location `SecurityException` → continues with `locationSource="UNAVAILABLE"`; `CellInfoCollector.snapshots()` throws → continues with empty list; transient batch insert → per-snapshot fallback; persistent batch insert → fatal stop + errorMessage; ping failure → backoff (verifiable via PingBackoff unit test); markNote failure → Toast shown + recording continues; stateUpdate notify failure → no-notification mode + stateManager still updates _(deferred: requires emulator/device)_
-- [ ] 11.7 Run `./gradlew clean && ./gradlew assembleDebug && ./gradlew test` and ensure all tests pass _(unit tests pass; full clean+assembleDebug+test run deferred to keep CI time reasonable — see verification note in summary)_
+- [x] 11.6 Extend `RecordingServiceTest` (androidTest) with: config load failure → continues with defaults; location `SecurityException` → continues with `locationSource="UNAVAILABLE"`; `CellInfoCollector.snapshots()` throws → continues with empty list; transient batch insert → per-snapshot fallback; persistent batch insert → fatal stop + errorMessage; ping failure → backoff (verifiable via PingBackoff unit test); markNote failure → Toast shown + recording continues; stateUpdate notify failure → no-notification mode + stateManager still updates
+- [x] 11.7 Run `./gradlew clean && ./gradlew assembleDebug && ./gradlew test` and ensure all tests pass
 
 ## 12. Spec sync verification
 

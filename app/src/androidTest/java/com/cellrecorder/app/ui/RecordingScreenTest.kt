@@ -50,6 +50,7 @@ class RecordingScreenTest {
     private lateinit var viewModel: RecordingViewModel
     private lateinit var stateManager: RecordingStateManager
     private var sessionId: Long = 0L
+    private var tunnelSessionId: Long = 0L
 
     @Before
     fun setUp() {
@@ -66,6 +67,11 @@ class RecordingScreenTest {
                 name = "Rec Session",
                 createdAt = 1_700_000_000_000L,
                 recordingMode = "OUTDOOR"
+            )
+            tunnelSessionId = sessionRepository.create(
+                name = "Tunnel Rec Session",
+                createdAt = 1_700_000_000_000L,
+                recordingMode = "TUNNEL"
             )
         }
 
@@ -242,5 +248,109 @@ class RecordingScreenTest {
         }
         composeTestRule.waitUntil(2000) { viewModel.session.value != null }
         composeTestRule.onNodeWithContentDescription("Stop").assertIsDisplayed()
+    }
+
+    @Test
+    fun markButton_isDisplayed_whenRecordingActive_inOutdoorMode() {
+        stateManager.currentState = RecordingState(
+            sessionId = sessionId,
+            isRecording = true,
+            recordingMode = "OUTDOOR",
+            currentLatitude = 1.0,
+            currentLongitude = 1.0
+        )
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                RecordingScreen(
+                    sessionId = sessionId,
+                    onNavigateBack = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.session.value != null }
+        composeTestRule.onNodeWithText("Mark").assertIsDisplayed()
+    }
+
+    @Test
+    fun markButton_isDisplayed_whenRecordingActive_inIndoorMode() {
+        stateManager.currentState = RecordingState(
+            sessionId = sessionId,
+            isRecording = true,
+            recordingMode = "INDOOR",
+            currentRelativeX = 0.0,
+            currentRelativeY = 0.0
+        )
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                RecordingScreen(
+                    sessionId = sessionId,
+                    onNavigateBack = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.session.value != null }
+        composeTestRule.onNodeWithText("Mark").assertIsDisplayed()
+    }
+
+    @Test
+    fun markButton_isDisplayed_whenRecordingActive_inTunnelMode() {
+        stateManager.currentState = RecordingState(
+            sessionId = sessionId,
+            isRecording = true,
+            recordingMode = "TUNNEL"
+        )
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                RecordingScreen(
+                    sessionId = sessionId,
+                    onNavigateBack = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.session.value != null }
+        composeTestRule.onNodeWithText("Mark").assertIsDisplayed()
+    }
+
+    @Test
+    fun markButton_isNotDisplayed_whenRecordingInactive() {
+        stateManager.currentState = RecordingState(
+            sessionId = sessionId,
+            isRecording = false,
+            recordingMode = "OUTDOOR"
+        )
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                RecordingScreen(
+                    sessionId = sessionId,
+                    onNavigateBack = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.session.value != null }
+        composeTestRule.onNodeWithContentDescription("Start").assertIsDisplayed()
+    }
+
+    @Test
+    fun tunnelPlaceholderPanel_isDisplayed_inTunnelMode() {
+        stateManager.currentState = RecordingState(
+            sessionId = tunnelSessionId,
+            isRecording = true,
+            recordingMode = "TUNNEL"
+        )
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                RecordingScreen(
+                    sessionId = tunnelSessionId,
+                    onNavigateBack = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.session.value != null }
+        composeTestRule.onNodeWithText("Tunnel recording in progress", substring = true).assertIsDisplayed()
     }
 }

@@ -13,6 +13,7 @@ import androidx.test.filters.MediumTest
 import com.cellrecorder.app.HiltTestActivity
 import com.cellrecorder.app.data.local.AppDatabase
 import com.cellrecorder.app.data.local.entity.CellRecordEntity
+import com.cellrecorder.app.data.local.entity.SessionMarkerEntity
 import com.cellrecorder.app.data.repository.CellRecordRepository
 import com.cellrecorder.app.data.repository.RecentMarkerLabelRepository
 import com.cellrecorder.app.data.repository.SessionMarkerRepository
@@ -25,6 +26,7 @@ import com.cellrecorder.app.ui.theme.CellRecorderTheme
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -102,6 +104,11 @@ class ReplayScreenTest {
             db.recentMarkerLabelDao(),
             db
         )
+        // Seed markers for the marker pin test
+        runBlocking {
+            sessionMarkerRepository.insertMarkerWithAutoLabel(populatedSessionId, com.cellrecorder.app.domain.model.MarkerType.NOTE)
+            sessionMarkerRepository.insertMarkerWithAutoLabel(populatedSessionId, com.cellrecorder.app.domain.model.MarkerType.WAYPOINT)
+        }
         val recentMarkerLabelRepository = RecentMarkerLabelRepository(db.recentMarkerLabelDao())
         viewModel = ReplayViewModel(
             getSessionPointsUseCase,
@@ -212,5 +219,21 @@ class ReplayScreenTest {
         }
         composeTestRule.waitUntil(2000) { viewModel.filteredRecords.value.isNotEmpty() }
         composeTestRule.onNodeWithText("Replay").assertIsDisplayed()
+    }
+
+    @Test
+    fun markersLoaded_rendersMarkerPins() {
+        composeTestRule.setContent {
+            CellRecorderTheme {
+                ReplayScreen(
+                    sessionId = populatedSessionId,
+                    onNavigateBack = {},
+                    viewModel = viewModel
+                )
+            }
+        }
+        composeTestRule.waitUntil(2000) { viewModel.filteredRecords.value.isNotEmpty() }
+        composeTestRule.waitUntil(2000) { viewModel.markers.value.isNotEmpty() }
+        assertEquals(2, viewModel.markers.value.size)
     }
 }

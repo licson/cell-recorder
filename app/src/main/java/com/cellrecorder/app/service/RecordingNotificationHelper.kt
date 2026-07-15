@@ -11,12 +11,21 @@ import android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
 import androidx.core.app.NotificationCompat
 import com.cellrecorder.app.R
 import com.cellrecorder.app.ui.MainActivity
+import androidx.annotation.VisibleForTesting
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class RecordingNotificationHelper @Inject constructor() {
+
+    @VisibleForTesting
+    @Volatile
+    internal var notifyFailure: Throwable? = null
+
+    @VisibleForTesting
+    @Volatile
+    internal var notifyCallCount: Int = 0
 
     fun createChannel(context: Context) {
         val channel = NotificationChannel(
@@ -158,6 +167,8 @@ class RecordingNotificationHelper @Inject constructor() {
     }
 
     fun notify(context: Context, notification: Notification) {
+        notifyCallCount++
+        notifyFailure?.let { throw it }
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
     }

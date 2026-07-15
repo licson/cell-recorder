@@ -76,4 +76,17 @@ class RecordingScreenPermissionTest {
             }
         }
     }
+
+    @Test
+    fun tunnelMode_doesNotRequestActivityRecognition() {
+        ActivityScenario.launch(HiltTestActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                val missing = PermissionHelper.missingAllForMode("TUNNEL", activity)
+                assertFalse(
+                    "Tunnel mode must NOT request ACTIVITY_RECOGNITION",
+                    missing.contains(Manifest.permission.ACTIVITY_RECOGNITION)
+                )
+            }
+        }
+    }
 }

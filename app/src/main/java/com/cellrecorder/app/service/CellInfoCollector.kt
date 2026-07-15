@@ -16,6 +16,7 @@ import cz.mroczis.netmonster.core.model.cell.CellWcdma
 import cz.mroczis.netmonster.core.model.cell.ICell
 import cz.mroczis.netmonster.core.model.connection.PrimaryConnection
 import cz.mroczis.netmonster.core.model.connection.SecondaryConnection
+import androidx.annotation.VisibleForTesting
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,7 +26,12 @@ class CellInfoCollector @Inject constructor(
     private val netMonster: INetMonster
 ) {
 
+    @VisibleForTesting
+    @Volatile
+    internal var snapshotsFailure: Throwable? = null
+
     fun snapshots(config: AppConfigEntity): List<CellRecordSnapshot> {
+        snapshotsFailure?.let { throw it }
         val cells = netMonster.getCells()
         return cells.groupBy { it.subscriptionId }.map { (subId, subCells) ->
             val serving = subCells.firstOrNull { it.connectionStatus is PrimaryConnection }

@@ -279,8 +279,8 @@ class ExportSessionUseCaseTest {
             id = 20,
             sessionId = 3,
             timestamp = 1500L,
-            latitude = 40.0,
-            longitude = -74.0,
+            latitude = 0.0,
+            longitude = 0.0,
             altitude = 0.0,
             accuracy = 0f,
             rat = "UNKNOWN",
@@ -303,6 +303,145 @@ class ExportSessionUseCaseTest {
         fun `tunnel GeoJSON does not set indoorMode flag`() {
             val data = useCase.exportGeoJson(tunnelSession, tunnelRecords)
             assertFalse(data.content.contains("\"indoorMode\""), "Tunnel session should not set indoorMode")
+        }
+    }
+
+    @Nested
+    inner class MarkerExportComprehensive {
+
+        private val tunnelSession = SessionEntity(
+            id = 3, name = "Tunnel", createdAt = 1000L, endedAt = 2000L, pointCount = 3, recordingMode = "TUNNEL"
+        )
+
+        private val outdoorSession = SessionEntity(
+            id = 1, name = "Test Session", createdAt = 1000L, endedAt = 2000L, pointCount = 1
+        )
+
+        private val indoorSession = SessionEntity(
+            id = 2, name = "Indoor", createdAt = 1000L, endedAt = 2000L, pointCount = 1, recordingMode = "INDOOR"
+        )
+
+        private val tunnelRecord = CellRecordEntity(
+            id = 20, sessionId = 3, timestamp = 1500L,
+            latitude = 0.0, longitude = 0.0, altitude = 0.0, accuracy = 0f,
+            rat = "UNKNOWN", locationSource = "TUNNEL", pci = 1, rsrp = -90, rsrq = -10, sinr = 5
+        )
+        private val tunnelRecords = listOf(CellRecordWithCaBands(record = tunnelRecord, caBands = emptyList()))
+
+        // 3 markers with seq out of insertion order; export must sort by seq ascending.
+        private val threeMarkers = listOf(
+            SessionMarkerEntity(id = 31, sessionId = 3, timestamp = 3000, seq = 3, type = "STOP", label = "end"),
+            SessionMarkerEntity(id = 10, sessionId = 3, timestamp = 1000, seq = 1, type = "NOTE", label = "first"),
+            SessionMarkerEntity(id = 20, sessionId = 3, timestamp = 2000, seq = 2, type = "WAYPOINT", label = "mid")
+        )
+
+        @Test
+        fun `tunnel session with 3 markers produces markers CSV with header and 3 rows sorted by seq`() {
+            val data = useCase.exportMarkersCsv(tunnelSession, threeMarkers)
+                ?: fail("exportMarkersCsv should return data for non-empty markers")
+            val lines = data.content.trimEnd().lines()
+            assertEquals("timestamp,seq,type,label", lines[0])
+            assertEquals(4, lines.size, "header + 3 rows")
+            // rows must be sorted by seq ascending
+            assertTrue(lines[1].contains(",1,NOTE,first"), "row 1 should be seq=1")
+            assertTrue(lines[2].contains(",2,WAYPOINT,mid"), "row 2 should be seq=2")
+            assertTrue(lines[3].contains(",3,STOP,end"), "row 3 should be seq=3")
+            assertTrue(data.suggestedFilename.endsWith("_markers.csv"))
+        }
+
+        @Test
+        fun `outdoor session with markers also produces a markers file (universal markers)`() {
+            val m = listOf(SessionMarkerEntity(id = 1, sessionId = 1, timestamp = 100, seq = 1, type = "NOTE", label = "x"))
+            val data = useCase.exportMarkersCsv(outdoorSession, m)
+            assertNotNull(data, "outdoor sessions must also emit a markers CSV (universal markers per D12)")
+        }
+
+        @Test
+        fun `indoor session with markers also produces a markers file (universal markers)`() {
+            val m = listOf(SessionMarkerEntity(id = 1, sessionId = 2, timestamp = 100, seq = 1, type = "NOTE", label = "y"))
+            val data = useCase.exportMarkersCsv(indoorSession, m)
+            assertNotNull(data, "indoor sessions must also emit a markers CSV (universal markers per D12)")
+        }
+
+        @Test
+        fun `session with zero markers produces no markers file`() {
+            assertNull(useCase.exportMarkersCsv(tunnelSession, emptyList()))
+        }
+
+        @Test
+        fun `marker label with embedded double quote is escaped as doubled quotes`() {
+            val m = SessionMarkerEntity(id = 1, sessionId = 3, timestamp = 1, seq = 1, type = "NOTE", label = "a\"b")
+            val data = useCase.exportMarkersCsv(tunnelSession, listOf(m)) ?: fail("expected data")
+            assertTrue(data.content.contains("\"a\"\"b\""), "embedded double quote in label should be escaped as doubled quotes")
+        }
+
+        @Test
+        fun `marker label with embedded newline is quoted`() {
+            val m = SessionMarkerEntity(id = 1, sessionId = 3, timestamp = 1, seq = 1, type = "NOTE", label = "line1\nline2")
+            val data = useCase.exportMarkersCsv(tunnelSession, listOf(m)) ?: fail("expected data")
+            assertTrue(data.content.contains("\"line1\nline2\""), "embedded newline in label should be quoted")
+        }
+
+        @Test
+        fun `export contains no recent_marker_labels data in CSV`() {
+            val csv = useCase.exportCsv(tunnelSession, tunnelRecords).content
+            val markersCsv = useCase.exportMarkersCsv(tunnelSession, threeMarkers)?.content ?: ""
+            assertFalse(csv.contains("recent_marker_labels", ignoreCase = true),
+                "cell records CSV must not contain recent_marker_labels data")
+            assertFalse(markersCsv.contains("recent_marker_labels", ignoreCase = true),
+                "markers CSV must not contain recent_marker_labels data")
+        }
+
+        @Test
+        fun `tunnel cell-record GeoJSON features have zero-zero coordinates`() {
+            val data = useCase.exportGeoJson(tunnelSession, tunnelRecords)
+            // tunnel records store 0.0/0.0 in DB and export reads them as-is
+            assertTrue(data.content.contains("\"coordinates\":[0.0,0.0,0.0]"),
+                "tunnel cell-record features should have [0.0, 0.0, 0.0] coordinates")
+        }
+
+        @Test
+        fun `outdoor session with markers emits marker Point features with zero-zero coordinates and no tunnelMode`() {
+            val m = SessionMarkerEntity(id = 1, sessionId = 1, timestamp = 100, seq = 1, type = "NOTE", label = "outdoor mark")
+            val data = useCase.exportGeoJson(outdoorSession, records, listOf(m))
+            assertFalse(data.content.contains("\"tunnelMode\""), "outdoor session must not set tunnelMode")
+            assertTrue(data.content.contains("\"markerType\":\"NOTE\""))
+            // marker features are the only features with 2-element [0.0,0.0] coordinates (cell records have 3-element [lon,lat,alt])
+            assertTrue(data.content.contains("\"coordinates\":[0.0,0.0]"),
+                "outdoor marker feature should have [0.0, 0.0] coordinates (2-element)")
+        }
+
+        @Test
+        fun `indoor session with markers emits marker Point features with zero-zero coordinates preserving indoorMode and no tunnelMode`() {
+            val m = SessionMarkerEntity(id = 1, sessionId = 2, timestamp = 100, seq = 1, type = "NOTE", label = "indoor mark")
+            val indoorRecord = CellRecordEntity(
+                id = 10, sessionId = 2, timestamp = 1500L,
+                latitude = 0.0, longitude = 0.0, altitude = 0.0, accuracy = 0f,
+                relativeX = 5.5, relativeY = 7.2, rat = "UNKNOWN", pci = 1, rsrp = -90, rsrq = -10, sinr = 5
+            )
+            val indoorRecords = listOf(CellRecordWithCaBands(record = indoorRecord, caBands = emptyList()))
+            val data = useCase.exportGeoJson(indoorSession, indoorRecords, listOf(m))
+            assertTrue(data.content.contains("\"indoorMode\":true"), "indoor session must preserve indoorMode")
+            assertFalse(data.content.contains("\"tunnelMode\""), "indoor session must not set tunnelMode")
+            assertTrue(data.content.contains("\"markerType\":\"NOTE\""))
+            assertTrue(data.content.contains("\"coordinates\":[0.0,0.0]"),
+                "indoor marker feature should have [0.0, 0.0] coordinates (2-element)")
+        }
+
+        @Test
+        fun `export contains no recent_marker_labels data in GeoJSON`() {
+            val data = useCase.exportGeoJson(tunnelSession, tunnelRecords, threeMarkers)
+            assertFalse(data.content.contains("recent_marker_labels", ignoreCase = true),
+                "GeoJSON must not contain recent_marker_labels data")
+        }
+
+        @Test
+        fun `marker feature has Point geometry type`() {
+            val m = SessionMarkerEntity(id = 1, sessionId = 3, timestamp = 100, seq = 1, type = "NOTE", label = "x")
+            val data = useCase.exportGeoJson(tunnelSession, tunnelRecords, listOf(m))
+            // marker features have 2-element [0.0,0.0] coordinates with Point geometry
+            assertTrue(data.content.contains("\"type\":\"Point\",\"coordinates\":[0.0,0.0]"),
+                "marker feature should have Point geometry with [0.0, 0.0] coordinates")
         }
     }
 
