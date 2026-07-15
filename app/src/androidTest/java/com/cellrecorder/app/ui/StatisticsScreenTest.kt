@@ -157,7 +157,8 @@ class StatisticsScreenTest {
                     ratAtTest = "4G",
                     rsrpAtTest = -95,
                     bandAtTest = 3,
-                    succeeded = true,
+                    downloadSucceeded = true,
+                    uploadSucceeded = true,
                     errorMessage = null,
                     networkType = "LTE"
                 )

@@ -364,10 +364,10 @@ private fun SpeedTestEntryRow(record: SpeedTestRecordEntity) {
             modifier = Modifier.weight(0.3f)
         )
         Text(
-            text = if (record.succeeded) "↓${record.downloadBps?.let { formatBps(it) } ?: "?"}" else "Failed",
+            text = if (record.downloadSucceeded) "↓${record.downloadBps?.let { formatBps(it) } ?: "?"}" else "Failed",
             style = MaterialTheme.typography.bodySmall,
             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-            color = if (record.succeeded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+            color = if (record.downloadSucceeded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
             modifier = Modifier.weight(0.4f)
         )
         if (hasDuration && durationMs != null) {

@@ -15,10 +15,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Type-aware marker dialog** — the label field is hidden for Segment Start / Segment End (the type is the entire semantic content) and shown for Waypoint, Stop, and Note to reduce decision fatigue on a moving train.
 - **Tunnel session detail** — tunnel sessions show a placeholder panel instead of a map, a `src` column showing `TUNNEL` in the records table, and a "Tunnel record (no GPS coordinates)" message in the record detail sheet, so sentinel coordinates are never confused for real GPS fixes.
 - **Markers in export/import** — markers are emitted as a companion `markers_<session>.csv` file and as `Point` features in GeoJSON exports for any session with markers. Tunnel sessions add a `tunnelMode: true` flag. Import restores markers with original sequence numbers and does not touch the recents table.
+- **Speedtest pre-upload probe** — before each upload measurement, the speedtest engine now issues a tiny POST to the server. If the carrier or server can't accept uploads, the upload phase is skipped for that cycle without burning the full 3-second upload warmup, saving mobile data on networks where upload is broken.
+
+### Changed
+- **Speedtest results now record download and upload success separately** — instead of a single pass/fail flag, each speedtest stores `downloadSucceeded` and `uploadSucceeded`. A test where download worked but upload failed is now shown as "Download only" instead of "Failed", and its download speed is preserved in your session analytics. Existing sessions are re-included automatically: any past test that had a download speed now counts toward your download averages, even if upload had failed.
+- **Speedtest success rate is now based on download success** — because download is the headline metric, the per-session and global success rates count a test as successful when its download phase succeeded, regardless of upload outcome. This means your reported success rate may go up after upgrading, reflecting tests that previously failed only because of upload.
 
 ### Fixed
+- **Speedtest no longer re-downloads the multi-megabyte server list when only upload fails** — previously, an upload-only failure caused the engine to discard the cached server, config, and gauge, forcing the next test to re-fetch the 5–10 MB server list and re-run the gauge. On networks where upload always fails (carrier-dependent, server-independent), this wasted mobile data every cycle. The cache is now preserved when only upload fails; re-discovery only happens when the download phase itself fails or the server is unreachable.
 - **Tunnel mode no longer launches the GPS-loss fallback recording job** — the fallback job that extrapolates GPS position after a fix loss is no longer started for tunnel sessions, preventing spurious `SENSOR_FUSION` records from being written when no GPS was expected in the first place.
 - **Tunnel mode permission flow no longer requires GPS or background location** — the permission helper now excludes `ACCESS_FINE_LOCATION` and `ACCESS_BACKGROUND_LOCATION` from the tunnel permission set, and the rationale dialog no longer mentions location for tunnel sessions, matching the tunnel spec.
+
+### Breaking
+- **Speedtest CSV export schema changed** — the `succeeded` column in the `session_name_speedtest.csv` file has been replaced by two columns: `download_succeeded` (always `1` or `0`) and `upload_succeeded` (`1`, `0`, or empty when upload was not run). External tools that parsed the old `succeeded` column will need to be updated.
 
 ## [1.2.1] - 2026-06-30
 

@@ -231,11 +231,11 @@ class StatisticsViewModelTest {
             listOf(
                 TestDataFactory.speedTestRecord(
                     sessionId = sessionId, downloadBps = 100_000_000L,
-                    uploadBps = 20_000_000L, succeeded = true
+                    uploadBps = 20_000_000L, downloadSucceeded = true, uploadSucceeded = true
                 ),
                 TestDataFactory.speedTestRecord(
-                    sessionId = sessionId, downloadBps = 200_000_000L,
-                    uploadBps = 40_000_000L, succeeded = false
+                    sessionId = sessionId, downloadBps = null,
+                    uploadBps = null, downloadSucceeded = false, uploadSucceeded = null
                 )
             )
         )
@@ -254,11 +254,11 @@ class StatisticsViewModelTest {
             listOf(
                 TestDataFactory.speedTestRecord(
                     sessionId = sessionId, downloadBps = null,
-                    uploadBps = null, succeeded = false
+                    uploadBps = null, downloadSucceeded = false, uploadSucceeded = null
                 ),
                 TestDataFactory.speedTestRecord(
                     sessionId = sessionId, downloadBps = null,
-                    uploadBps = null, succeeded = false
+                    uploadBps = null, downloadSucceeded = false, uploadSucceeded = null
                 )
             )
         )
@@ -277,11 +277,11 @@ class StatisticsViewModelTest {
             listOf(
                 TestDataFactory.speedTestRecord(
                     sessionId = sessionId, downloadBps = 50_000_000L,
-                    uploadBps = 10_000_000L, succeeded = true
+                    uploadBps = 10_000_000L, downloadSucceeded = true, uploadSucceeded = true
                 ),
                 TestDataFactory.speedTestRecord(
                     sessionId = sessionId, downloadBps = 150_000_000L,
-                    uploadBps = 30_000_000L, succeeded = true
+                    uploadBps = 30_000_000L, downloadSucceeded = true, uploadSucceeded = true
                 )
             )
         )

@@ -546,7 +546,7 @@ private fun SpeedTestSummaryCard(
     isSelected: Boolean = false
 ) {
     val total = markers.size
-    val succeeded = markers.count { it.record.succeeded }
+    val succeeded = markers.count { it.record.downloadSucceeded }
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
         shape = RoundedCornerShape(6.dp),

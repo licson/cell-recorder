@@ -119,9 +119,9 @@ class SpeedTestRecordDaoTest {
 
     @Test
     fun getSuccessRate() = runBlocking {
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = false))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = true, uploadSucceeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = true, uploadSucceeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = false, uploadSucceeded = null))
 
         val rate = dao.getSuccessRate().first()
         assertNotNull(rate)
@@ -162,12 +162,12 @@ class SpeedTestRecordDaoTest {
     @Test
     fun getAvgBps_handlesNullRows() = runBlocking {
         // Only null rows -> AVG returns null (WHERE downloadBps IS NOT NULL filters them all out)
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadBps = null, uploadBps = null, succeeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadBps = null, uploadBps = null, downloadSucceeded = true, uploadSucceeded = null))
         assertNull(dao.getAvgDownloadBps().first())
         assertNull(dao.getAvgUploadBps().first())
 
         // Add a non-null row -> AVG should be computed only over the non-null row
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadBps = 100_000_000L, uploadBps = 20_000_000L, succeeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadBps = 100_000_000L, uploadBps = 20_000_000L, downloadSucceeded = true, uploadSucceeded = true))
 
         val avgDownload = dao.getAvgDownloadBps().first()
         val avgUpload = dao.getAvgUploadBps().first()
@@ -179,9 +179,9 @@ class SpeedTestRecordDaoTest {
 
     @Test
     fun getSuccessRate_allFailed_returnsZero() = runBlocking {
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = false))
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = false))
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = false))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = false, uploadSucceeded = null))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = false, uploadSucceeded = null))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = false, uploadSucceeded = null))
 
         val rate = dao.getSuccessRate().first()
         assertNotNull(rate)
@@ -190,9 +190,9 @@ class SpeedTestRecordDaoTest {
 
     @Test
     fun getSuccessRate_allSucceeded_returnsOne() = runBlocking {
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
-        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = true, uploadSucceeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = true, uploadSucceeded = true))
+        dao.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = true, uploadSucceeded = true))
 
         val rate = dao.getSuccessRate().first()
         assertNotNull(rate)
@@ -228,7 +228,8 @@ class SpeedTestRecordDaoTest {
             sessionId = sessionId,
             timestamp = 1000L,
             finishedAt = 4500L,
-            succeeded = true
+            downloadSucceeded = true,
+            uploadSucceeded = true
         ))
 
         val loaded = dao.getBySessionIdOnce(sessionId)
@@ -253,13 +254,14 @@ class SpeedTestRecordDaoTest {
             sessionId = sessionId,
             timestamp = 7000L,
             finishedAt = 7000L, // instant bail-out: finishedAt = timestamp
-            succeeded = false
+            downloadSucceeded = false,
+            uploadSucceeded = null
         ))
 
         val loaded = dao.getBySessionIdOnce(sessionId)
         assertEquals(1, loaded.size)
         assertEquals(7000L, loaded[0].timestamp)
         assertEquals(7000L, loaded[0].finishedAt)
-        assertEquals(false, loaded[0].succeeded)
+        assertEquals(false, loaded[0].downloadSucceeded)
     }
 }

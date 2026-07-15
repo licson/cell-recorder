@@ -102,8 +102,8 @@ class SpeedTestRecordRepositoryTest {
 
     @Test
     fun getSuccessRate() = runBlocking {
-        repository.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = true))
-        repository.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, succeeded = false))
+        repository.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = true, uploadSucceeded = true))
+        repository.insert(TestDataFactory.speedTestRecord(sessionId = sessionId, downloadSucceeded = false, uploadSucceeded = null))
 
         val rate = repository.getSuccessRate().first()
         assertNotNull(rate)

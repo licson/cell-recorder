@@ -44,26 +44,35 @@ object SpeedTestAnalyticsEngine {
             )
         }
 
-        val succeeded = measuredRecords.filter { it.succeeded }
-        val downloadValues = succeeded.mapNotNull { it.downloadBps }
-        val uploadValues = succeeded.mapNotNull { it.uploadBps }
+        // Download samples come from records where the download phase produced
+        // a non-null `downloadBps` (download ran, regardless of upload
+        // outcome). This retroactively re-includes legacy rows where the old
+        // whole-test `succeeded = false` but `downloadBps` was set.
+        val downloadValues = measuredRecords.mapNotNull { it.downloadBps }
+        // Upload samples come from records where the upload phase produced a
+        // non-null `uploadBps` (upload ran and succeeded).
+        val uploadValues = measuredRecords.mapNotNull { it.uploadBps }
         val durations = measuredRecords
             .filter { it.finishedAt > 0 && it.finishedAt > it.timestamp }
             .map { it.finishedAt - it.timestamp }
 
+        // Success rate is computed from `downloadSucceeded` (download is the
+        // headline metric; a partial-success cycle counts as success here).
+        val succeededCount = measuredRecords.count { it.downloadSucceeded }
+
         return SpeedTestSessionAnalytics(
             sampleCount = measuredRecords.size,
-            failureCount = measuredRecords.size - succeeded.size,
-            successRate = if (measuredRecords.isNotEmpty()) succeeded.size.toDouble() / measuredRecords.size else 0.0,
+            failureCount = measuredRecords.size - succeededCount,
+            successRate = if (measuredRecords.isNotEmpty()) succeededCount.toDouble() / measuredRecords.size else 0.0,
             avgDownloadBps = downloadValues.average().toLong().takeIf { downloadValues.isNotEmpty() },
             p95DownloadBps = percentile(downloadValues, 0.95),
             avgUploadBps = uploadValues.average().toLong().takeIf { uploadValues.isNotEmpty() },
             p95UploadBps = percentile(uploadValues, 0.95),
-            serverName = succeeded.firstOrNull()?.serverName,
-            downloadByRsrp = computeRsrpCorrelation(succeeded) { it.downloadBps },
-            downloadByRat = computeRatCorrelation(succeeded),
-            downloadBySim = computeSimCorrelation(succeeded),
-            uploadByRsrp = computeRsrpCorrelation(uploadRecords(succeeded)) { it.uploadBps }.takeIf { it.isNotEmpty() },
+            serverName = measuredRecords.firstOrNull { it.downloadSucceeded }?.serverName,
+            downloadByRsrp = computeRsrpCorrelation(measuredRecords) { it.downloadBps },
+            downloadByRat = computeRatCorrelation(measuredRecords),
+            downloadBySim = computeSimCorrelation(measuredRecords),
+            uploadByRsrp = computeRsrpCorrelation(uploadRecords(measuredRecords)) { it.uploadBps }.takeIf { it.isNotEmpty() },
             downloadHistogram = computeDownloadHistogram(downloadValues),
             avgDurationMs = durations.average().toLong().takeIf { durations.isNotEmpty() }
         )

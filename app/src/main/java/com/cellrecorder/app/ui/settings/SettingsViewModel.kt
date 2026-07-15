@@ -43,7 +43,8 @@ sealed interface ManualLaunchUiState {
         val uploadBps: Long?,
         val serverName: String?,
         val serverHost: String?,
-        val succeeded: Boolean,
+        val downloadSucceeded: Boolean,
+        val uploadSucceeded: Boolean?,
         val errorMessage: String?
     ) : ManualLaunchUiState
 }
@@ -315,7 +316,8 @@ class SettingsViewModel @Inject constructor(
                 uploadBps = result.uploadBps,
                 serverName = result.serverName,
                 serverHost = result.serverHost,
-                succeeded = result.succeeded,
+                downloadSucceeded = result.downloadSucceeded,
+                uploadSucceeded = result.uploadSucceeded,
                 errorMessage = result.errorMessage
             )
         }

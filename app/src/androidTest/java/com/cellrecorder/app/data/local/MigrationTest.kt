@@ -5,6 +5,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -370,7 +371,79 @@ class MigrationTest {
     }
 
     @Test
-    fun migrateFullChain1To15() {
+    fun migrateFrom15To16() {
+        val db = helper.createDatabase(TEST_DB, 15)
+        db.execSQL(
+            """INSERT INTO sessions (id, name, createdAt, pointCount, recordingMode) VALUES (1, 'test', 1000, 5, 'OUTDOOR')"""
+        )
+        // Three legacy rows representing the cases the migration must handle:
+        //  (a) fully successful test (succeeded=1, both bps set)
+        //  (b) partial-success legacy row: succeeded=0 but downloadBps IS NOT NULL
+        //      → must be retroactively re-included: downloadSucceeded=1
+        //  (c) SKIPPED_WIFI instant bail-out: succeeded=0, both bps NULL, errorMessage='SKIPPED_WIFI'
+        //      → downloadSucceeded=0, uploadSucceeded=NULL
+        db.execSQL(
+            """INSERT INTO speed_test_records (id, sessionId, timestamp, finishedAt, downloadBps, uploadBps, serverName, serverHost, serverLocation, serverId, dataSimSlotIndex, ratAtTest, rsrpAtTest, bandAtTest, succeeded, errorMessage, networkType)
+               VALUES (1, 1, 500, 700, 100000000, 20000000, 'srv', 'host', 'loc', 42, 0, '4G', -90, 3, 1, NULL, 'CELLULAR')"""
+        )
+        db.execSQL(
+            """INSERT INTO speed_test_records (id, sessionId, timestamp, finishedAt, downloadBps, uploadBps, serverName, serverHost, serverLocation, serverId, dataSimSlotIndex, ratAtTest, rsrpAtTest, bandAtTest, succeeded, errorMessage, networkType)
+               VALUES (2, 1, 800, 1000, 50000000, NULL, 'srv', 'host', 'loc', 42, 0, '4G', -85, 3, 0, 'No data transferred: upload measurement failed', 'CELLULAR')"""
+        )
+        db.execSQL(
+            """INSERT INTO speed_test_records (id, sessionId, timestamp, finishedAt, downloadBps, uploadBps, serverName, serverHost, serverLocation, serverId, dataSimSlotIndex, ratAtTest, rsrpAtTest, bandAtTest, succeeded, errorMessage, networkType)
+               VALUES (3, 1, 1200, 1200, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, 'SKIPPED_WIFI', 'WIFI')"""
+        )
+        db.close()
+
+        val migratedDb = helper.runMigrationsAndValidate(TEST_DB, 16, true, AppDatabase.MIGRATION_15_16)
+
+        // Row (a): fully successful → downloadSucceeded=1, uploadSucceeded=1
+        val rowA = migratedDb.query("SELECT downloadSucceeded, uploadSucceeded, downloadBps, uploadBps, errorMessage, networkType FROM speed_test_records WHERE id = 1")
+        assertTrue("Row A should survive migration", rowA.moveToFirst())
+        assertEquals(1, rowA.getInt(0))
+        assertEquals(1, rowA.getInt(1))
+        assertEquals(100000000L, rowA.getLong(2))
+        assertEquals(20000000L, rowA.getLong(3))
+        assertTrue("Row A errorMessage should be null", rowA.isNull(4))
+        assertEquals("CELLULAR", rowA.getString(5))
+        rowA.close()
+
+        // Row (b): legacy partial-success → retroactively downloadSucceeded=1, uploadSucceeded=NULL
+        val rowB = migratedDb.query("SELECT downloadSucceeded, uploadSucceeded, downloadBps, uploadBps, errorMessage FROM speed_test_records WHERE id = 2")
+        assertTrue("Row B should survive migration", rowB.moveToFirst())
+        assertEquals("Legacy partial row should have downloadSucceeded=1", 1, rowB.getInt(0))
+        assertTrue("Legacy partial row should have uploadSucceeded NULL", rowB.isNull(1))
+        assertEquals(50000000L, rowB.getLong(2))
+        assertTrue("Row B uploadBps should be null", rowB.isNull(3))
+        assertEquals("No data transferred: upload measurement failed", rowB.getString(4))
+        rowB.close()
+
+        // Row (c): SKIPPED_WIFI → downloadSucceeded=0, uploadSucceeded=NULL
+        val rowC = migratedDb.query("SELECT downloadSucceeded, uploadSucceeded, downloadBps, uploadBps, errorMessage, networkType FROM speed_test_records WHERE id = 3")
+        assertTrue("Row C should survive migration", rowC.moveToFirst())
+        assertEquals(0, rowC.getInt(0))
+        assertTrue("Row C uploadSucceeded should be null", rowC.isNull(1))
+        assertTrue("Row C downloadBps should be null", rowC.isNull(2))
+        assertTrue("Row C uploadBps should be null", rowC.isNull(3))
+        assertEquals("SKIPPED_WIFI", rowC.getString(4))
+        assertEquals("WIFI", rowC.getString(5))
+        rowC.close()
+
+        // The legacy `succeeded` column MUST be gone
+        val columnsCursor = migratedDb.query("PRAGMA table_info(speed_test_records)")
+        val columnNames = mutableSetOf<String>()
+        while (columnsCursor.moveToNext()) {
+            columnNames.add(columnsCursor.getString(1))
+        }
+        columnsCursor.close()
+        assertTrue("downloadSucceeded column should exist", columnNames.contains("downloadSucceeded"))
+        assertTrue("uploadSucceeded column should exist", columnNames.contains("uploadSucceeded"))
+        assertFalse("succeeded column should be dropped", columnNames.contains("succeeded"))
+    }
+
+    @Test
+    fun migrateFullChain1To16() {
         val db = helper.createDatabase(TEST_DB, 1)
         db.execSQL(
             """INSERT INTO sessions (id, name, createdAt, pointCount) VALUES (1, 'full-chain', 1000, 5)"""
@@ -388,7 +461,7 @@ class MigrationTest {
         db.close()
 
         val migratedDb = helper.runMigrationsAndValidate(
-            TEST_DB, 15, true,
+            TEST_DB, 16, true,
             AppDatabase.MIGRATION_1_2,
             AppDatabase.MIGRATION_2_3,
             AppDatabase.MIGRATION_3_4,
@@ -402,7 +475,8 @@ class MigrationTest {
             AppDatabase.MIGRATION_11_12,
             AppDatabase.MIGRATION_12_13,
             AppDatabase.MIGRATION_13_14,
-            AppDatabase.MIGRATION_14_15
+            AppDatabase.MIGRATION_14_15,
+            AppDatabase.MIGRATION_15_16
         )
 
         val sessionCursor = migratedDb.query("SELECT name, pointCount FROM sessions WHERE id = 1")

@@ -13,7 +13,8 @@ class SpeedTestAnalyticsEngineTest {
     private fun record(
         downloadBps: Long? = null,
         uploadBps: Long? = null,
-        succeeded: Boolean = true,
+        downloadSucceeded: Boolean = downloadBps != null,
+        uploadSucceeded: Boolean? = if (uploadBps != null) true else null,
         rsrpAtTest: Int? = null,
         ratAtTest: String? = null,
         dataSimSlotIndex: Int? = null,
@@ -37,7 +38,8 @@ class SpeedTestAnalyticsEngineTest {
         ratAtTest = ratAtTest,
         rsrpAtTest = rsrpAtTest,
         bandAtTest = null,
-        succeeded = succeeded,
+        downloadSucceeded = downloadSucceeded,
+        uploadSucceeded = uploadSucceeded,
         errorMessage = errorMessage,
         networkType = networkType
     )
@@ -55,15 +57,15 @@ class SpeedTestAnalyticsEngineTest {
     inner class AnalyzeAverages {
 
         @Test
-        fun `avg download is null when no succeeded records have downloadBps`() {
+        fun `avg download is null when no records have downloadBps`() {
             val result = SpeedTestAnalyticsEngine.analyze(
-                listOf(record(downloadBps = null, succeeded = true))
+                listOf(record(downloadBps = null, downloadSucceeded = true))
             )
             assertNull(result?.avgDownloadBps)
         }
 
         @Test
-        fun `avg download is mean of succeeded records`() {
+        fun `avg download is mean of records with downloadBps`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
                     record(downloadBps = 10_000_000L),
@@ -75,7 +77,7 @@ class SpeedTestAnalyticsEngineTest {
         }
 
         @Test
-        fun `avg upload is mean of succeeded records`() {
+        fun `avg upload is mean of records with uploadBps`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
                     record(uploadBps = 1_000_000L),
@@ -86,14 +88,50 @@ class SpeedTestAnalyticsEngineTest {
         }
 
         @Test
-        fun `failed records are excluded from download average`() {
+        fun `download-failed rows (downloadBps=null) are excluded from download average`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
-                    record(downloadBps = 10_000_000L, succeeded = true),
-                    record(downloadBps = 1_000_000_000L, succeeded = false)
+                    record(downloadBps = 10_000_000L, downloadSucceeded = true),
+                    record(downloadBps = null, downloadSucceeded = false)
                 )
             )
             assertEquals(10_000_000L, result?.avgDownloadBps)
+        }
+
+        @Test
+        fun `legacy partial-success rows (downloadSucceeded=true, uploadSucceeded=false) are retroactively included in download average`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(downloadBps = 10_000_000L, uploadBps = null, downloadSucceeded = true, uploadSucceeded = false, errorMessage = "No data transferred: upload measurement failed"),
+                    record(downloadBps = 20_000_000L, uploadBps = null, downloadSucceeded = true, uploadSucceeded = false, errorMessage = "No data transferred: upload measurement failed")
+                )
+            )
+            assertEquals(15_000_000L, result?.avgDownloadBps)
+            assertNull(result?.avgUploadBps)
+        }
+
+        @Test
+        fun `partial-success rows contribute to download stats but not upload stats`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(downloadBps = 10_000_000L, uploadBps = null, downloadSucceeded = true, uploadSucceeded = false, errorMessage = "Upload probe failed: HTTP 500"),
+                    record(downloadBps = 20_000_000L, uploadBps = 5_000_000L, downloadSucceeded = true, uploadSucceeded = true)
+                )
+            )
+            assertEquals(15_000_000L, result?.avgDownloadBps)
+            assertEquals(5_000_000L, result?.avgUploadBps)
+        }
+
+        @Test
+        fun `upload-disabled rows contribute to download stats only`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(downloadBps = 10_000_000L, uploadBps = null, downloadSucceeded = true, uploadSucceeded = null),
+                    record(downloadBps = 20_000_000L, uploadBps = null, downloadSucceeded = true, uploadSucceeded = null)
+                )
+            )
+            assertEquals(15_000_000L, result?.avgDownloadBps)
+            assertNull(result?.avgUploadBps)
         }
     }
 
@@ -101,24 +139,35 @@ class SpeedTestAnalyticsEngineTest {
     inner class AnalyzeSuccessRate {
 
         @Test
-        fun `successRate is fraction of succeeded records`() {
+        fun `successRate is fraction of records with downloadSucceeded=true`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
-                    record(succeeded = true),
-                    record(succeeded = true),
-                    record(succeeded = false),
-                    record(succeeded = false)
+                    record(downloadSucceeded = true),
+                    record(downloadSucceeded = true),
+                    record(downloadBps = null, downloadSucceeded = false),
+                    record(downloadBps = null, downloadSucceeded = false)
                 )
             )
             assertEquals(0.5, result?.successRate ?: 0.0, 1e-9)
         }
 
         @Test
-        fun `sampleCount includes all records and failureCount only failures`() {
+        fun `partial-success rows count as success for successRate (download is headline)`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
-                    record(succeeded = true),
-                    record(succeeded = false)
+                    record(downloadBps = 10_000_000L, downloadSucceeded = true, uploadSucceeded = false, errorMessage = "Upload probe failed: HTTP 500"),
+                    record(downloadBps = 20_000_000L, downloadSucceeded = true, uploadSucceeded = true)
+                )
+            )
+            assertEquals(1.0, result?.successRate ?: 0.0, 1e-9)
+        }
+
+        @Test
+        fun `sampleCount includes all records and failureCount only download-failed`() {
+            val result = SpeedTestAnalyticsEngine.analyze(
+                listOf(
+                    record(downloadSucceeded = true),
+                    record(downloadBps = null, downloadSucceeded = false)
                 )
             )
             assertEquals(2, result?.sampleCount)
@@ -126,12 +175,12 @@ class SpeedTestAnalyticsEngineTest {
         }
 
         @Test
-        fun `serverName is from first succeeded record`() {
+        fun `serverName is from first record with downloadSucceeded=true`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
-                    record(succeeded = false, serverName = "Failed"),
-                    record(succeeded = true, serverName = "Server1"),
-                    record(succeeded = true, serverName = "Server2")
+                    record(downloadBps = null, downloadSucceeded = false, serverName = "Failed"),
+                    record(downloadBps = 1L, downloadSucceeded = true, serverName = "Server1"),
+                    record(downloadBps = 2L, downloadSucceeded = true, serverName = "Server2")
                 )
             )
             assertEquals("Server1", result?.serverName)
@@ -145,9 +194,9 @@ class SpeedTestAnalyticsEngineTest {
         fun `SKIPPED_WIFI records are excluded from sampleCount`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
-                    record(succeeded = true, downloadBps = 10_000_000L),
-                    record(succeeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI"),
-                    record(succeeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI")
+                    record(downloadSucceeded = true, downloadBps = 10_000_000L),
+                    record(downloadSucceeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI"),
+                    record(downloadSucceeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI")
                 )
             )
             assertEquals(1, result?.sampleCount)
@@ -159,7 +208,7 @@ class SpeedTestAnalyticsEngineTest {
         fun `only SKIPPED_WIFI records returns empty analytics not null`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
-                    record(succeeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI")
+                    record(downloadSucceeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI")
                 )
             )
             assertNotNull(result)
@@ -169,12 +218,12 @@ class SpeedTestAnalyticsEngineTest {
         }
 
         @Test
-        fun `SKIPPED_WIFI mixed with real failures counts only real failures`() {
+        fun `SKIPPED_WIFI mixed with real download failures counts only real failures`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
-                    record(succeeded = true, downloadBps = 5_000_000L),
-                    record(succeeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI"),
-                    record(succeeded = false, errorMessage = "No data transferred: upload measurement failed")
+                    record(downloadSucceeded = true, downloadBps = 5_000_000L),
+                    record(downloadSucceeded = false, errorMessage = "SKIPPED_WIFI", networkType = "WIFI"),
+                    record(downloadBps = null, downloadSucceeded = false, errorMessage = "No data transferred: download measurement failed")
                 )
             )
             assertEquals(2, result?.sampleCount)
@@ -243,7 +292,7 @@ class SpeedTestAnalyticsEngineTest {
     inner class AnalyzePercentileIntegration {
 
         @Test
-        fun `p95DownloadBps matches percentile of succeeded download values`() {
+        fun `p95DownloadBps matches percentile of records with downloadBps`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 (1..10L).map { record(downloadBps = it * 1_000_000L) }
             )
@@ -251,7 +300,7 @@ class SpeedTestAnalyticsEngineTest {
         }
 
         @Test
-        fun `p95UploadBps matches percentile of succeeded upload values`() {
+        fun `p95UploadBps matches percentile of records with uploadBps`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 (1..9L).map { record(uploadBps = it * 100_000L) }
             )
@@ -259,9 +308,9 @@ class SpeedTestAnalyticsEngineTest {
         }
 
         @Test
-        fun `p95DownloadBps is null when no succeeded records have downloadBps`() {
+        fun `p95DownloadBps is null when no records have downloadBps`() {
             val result = SpeedTestAnalyticsEngine.analyze(
-                listOf(record(downloadBps = null, succeeded = true))
+                listOf(record(downloadBps = null, downloadSucceeded = true))
             )
             assertNull(result?.p95DownloadBps)
         }
@@ -390,9 +439,9 @@ class SpeedTestAnalyticsEngineTest {
     inner class DownloadHistogram {
 
         @Test
-        fun `empty succeeded download values returns empty histogram`() {
+        fun `empty download values returns empty histogram`() {
             val result = SpeedTestAnalyticsEngine.analyze(
-                listOf(record(downloadBps = null, succeeded = true))
+                listOf(record(downloadBps = null, downloadSucceeded = true))
             )
             assertTrue((result?.downloadHistogram ?: emptyList()).isEmpty())
         }
@@ -479,8 +528,8 @@ class SpeedTestAnalyticsEngineTest {
         fun `avgDurationMs is null when all records are instant bail-outs (finishedAt = timestamp)`() {
             val result = SpeedTestAnalyticsEngine.analyze(
                 listOf(
-                    record(downloadBps = null, succeeded = false, timestamp = 5000L, finishedAt = 5000L, errorMessage = "SKIPPED_WIFI"),
-                    record(downloadBps = null, succeeded = false, timestamp = 6000L, finishedAt = 6000L, errorMessage = "Server selection failed")
+                    record(downloadBps = null, downloadSucceeded = false, timestamp = 5000L, finishedAt = 5000L, errorMessage = "SKIPPED_WIFI"),
+                    record(downloadBps = null, downloadSucceeded = false, timestamp = 6000L, finishedAt = 6000L, errorMessage = "Server selection failed")
                 )
             )
             assertNull(result?.avgDurationMs)
@@ -504,7 +553,7 @@ class SpeedTestAnalyticsEngineTest {
                 listOf(
                     record(downloadBps = 10_000_000L, timestamp = 1000L, finishedAt = 4000L),   // 3s, counted
                     record(downloadBps = 20_000_000L, timestamp = 5000L, finishedAt = 0L),      // legacy, ignored
-                    record(downloadBps = null, succeeded = false, timestamp = 6000L, finishedAt = 6000L, errorMessage = "SKIPPED_WIFI") // instant, ignored
+                    record(downloadBps = null, downloadSucceeded = false, timestamp = 6000L, finishedAt = 6000L, errorMessage = "SKIPPED_WIFI") // instant, ignored
                 )
             )
             assertNotNull(result?.avgDurationMs)

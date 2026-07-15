@@ -464,19 +464,29 @@ recordingJob = launch {
                                 onStatus = { status -> stateManager.update { it?.copy(speedTestStatus = status) } }
                             )
 
-                            if (!result.succeeded && result.errorMessage == "SKIPPED_WIFI") {
+                            if (!result.downloadSucceeded && result.errorMessage == "SKIPPED_WIFI") {
                                 stateManager.update { it?.copy(
                                     speedTestStatus = "SkippedWiFi",
                                     lastSpeedTestDownloadBps = null,
                                     lastSpeedTestUploadBps = null
                                 ) }
-                            } else if (!result.succeeded) {
-                                // Engine may have already invalidated for measurement failures;
-                                // this covers config/selection exceptions
+                            } else if (!result.downloadSucceeded) {
+                                // Engine already invalidated for download failures and
+                                // escaping exceptions; this covers config/selection paths
+                                // that bailed out before reaching the engine's own
+                                // invalidation point.
                                 speedTestEngine.invalidateCache()
                                 stateManager.update { it?.copy(
                                     speedTestStatus = "Failed",
                                     lastSpeedTestDownloadBps = null,
+                                    lastSpeedTestUploadBps = null
+                                ) }
+                            } else if (result.uploadSucceeded == false) {
+                                // Partial success: download ok, upload failed. The engine
+                                // does NOT invalidate the cache on upload-only failure.
+                                stateManager.update { it?.copy(
+                                    speedTestStatus = "Partial",
+                                    lastSpeedTestDownloadBps = result.downloadBps,
                                     lastSpeedTestUploadBps = null
                                 ) }
                             } else {
@@ -502,7 +512,8 @@ recordingJob = launch {
                                     ratAtTest = dataSnapshot?.rat,
                                     rsrpAtTest = dataSnapshot?.rsrp,
                                     bandAtTest = dataSnapshot?.bandNumber,
-                                    succeeded = result.succeeded,
+                                    downloadSucceeded = result.downloadSucceeded,
+                                    uploadSucceeded = result.uploadSucceeded,
                                     errorMessage = result.errorMessage,
                                     networkType = if (result.errorMessage == "SKIPPED_WIFI") "WIFI" else "CELLULAR"
                                 ))

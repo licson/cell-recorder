@@ -492,11 +492,18 @@ private fun SpeedTestResultSummary(finished: ManualLaunchUiState.Finished) {
         sdf.format(java.util.Date(finished.finishedAt))
     }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        val resultLabel = when {
+            finished.downloadSucceeded && finished.uploadSucceeded == true -> "Success"
+            finished.downloadSucceeded && finished.uploadSucceeded == false -> "Download only"
+            finished.downloadSucceeded -> "Download only"
+            else -> "Failed"
+        }
+        val resultColor = if (finished.downloadSucceeded) Color(0xFF4CAF50) else Color(0xFFF44336)
         Text(
-            text = "Result: ${if (finished.succeeded) "Success" else "Failed"}",
+            text = "Result: $resultLabel",
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
-            color = if (finished.succeeded) Color(0xFF4CAF50) else Color(0xFFF44336)
+            color = resultColor
         )
         Text(
             text = "Start: $startTimeStr  Finish: $finishTimeStr",

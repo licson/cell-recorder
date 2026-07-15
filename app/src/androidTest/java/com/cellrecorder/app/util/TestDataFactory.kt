@@ -103,7 +103,8 @@ object TestDataFactory {
         finishedAt: Long = 0L,
         downloadBps: Long? = 100_000_000L,
         uploadBps: Long? = 20_000_000L,
-        succeeded: Boolean = true
+        downloadSucceeded: Boolean = true,
+        uploadSucceeded: Boolean? = true
     ): SpeedTestRecordEntity = SpeedTestRecordEntity(
         id = id,
         sessionId = sessionId,
@@ -119,7 +120,8 @@ object TestDataFactory {
         ratAtTest = null,
         rsrpAtTest = null,
         bandAtTest = null,
-        succeeded = succeeded,
+        downloadSucceeded = downloadSucceeded,
+        uploadSucceeded = uploadSucceeded,
         errorMessage = null,
         networkType = null
     )

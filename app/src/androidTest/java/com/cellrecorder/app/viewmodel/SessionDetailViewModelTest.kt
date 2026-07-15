@@ -186,13 +186,15 @@ class SessionDetailViewModelTest {
                     sessionId = sessionId,
                     downloadBps = 100_000_000L,
                     uploadBps = 20_000_000L,
-                    succeeded = true
+                    downloadSucceeded = true,
+                    uploadSucceeded = true
                 ),
                 TestDataFactory.speedTestRecord(
                     sessionId = sessionId,
                     downloadBps = 200_000_000L,
                     uploadBps = 40_000_000L,
-                    succeeded = true
+                    downloadSucceeded = true,
+                    uploadSucceeded = true
                 )
             )
         )

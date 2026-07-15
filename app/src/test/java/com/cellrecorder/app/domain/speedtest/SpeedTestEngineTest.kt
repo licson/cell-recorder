@@ -2,8 +2,13 @@ package com.cellrecorder.app.domain.speedtest
 
 import com.cellrecorder.app.domain.speedtest.SpeedTestMeasurer.MeasurementResult
 import com.cellrecorder.app.domain.speedtest.SpeedTestMeasurer.ThroughputSample
+import com.cellrecorder.app.domain.speedtest.model.SpeedTestServerInfo
 import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.unmockkObject
+import io.mockk.mockkObject
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -298,6 +303,184 @@ class SpeedTestEngineTest {
             val ringBuffer = mockRingBuffer()
             val engine = SpeedTestEngine(mockAppContext(), mockHttpClient(), ringBuffer)
             assertNotNull(engine)
+        }
+    }
+
+    @Nested
+    inner class ProbeSkipAndCachePolicy {
+
+        private fun makeConfig(): SpeedTestProtocolConfig = SpeedTestProtocolConfig(
+            client = SpeedTestClientConfig("1.2.3.4", 0.0, 0.0, "isp", hasValidLocation = false),
+            download = SpeedTestDownloadConfig(threadsPerUrl = 4, testLengthSec = 10),
+            upload = SpeedTestUploadConfig(threads = 4, ratio = 4, testLengthSec = 10, maxChunkCount = 4),
+            server = SpeedTestServerConfig(ignoreIds = emptyList(), threadCount = 4)
+        )
+
+        private fun makeServer(): SpeedTestServerInfo = SpeedTestServerInfo(
+            id = 1, name = "TestServer", host = "host",
+            url = "http://test.example.com/upload", lat = 0.0, lon = 0.0, sponsor = "loc"
+        )
+
+        private fun successDownloadResult(): MeasurementResult = MeasurementResult(
+            totalBytes = 10_000_000L,
+            totalElapsedMs = 10000L,
+            postWarmupBytes = 8_000_000L,
+            postWarmupMs = 8500L,
+            samples = listOf(ThroughputSample(8_000_000L, 1000L, 64_000_000.0, 0L)),
+            anyRequestSucceeded = true
+        )
+
+        private fun failedUploadResult(): MeasurementResult = MeasurementResult(
+            totalBytes = 0L,
+            totalElapsedMs = 13000L,
+            postWarmupBytes = 0L,
+            postWarmupMs = 10000L,
+            samples = emptyList(),
+            anyRequestSucceeded = false
+        )
+
+        private fun setField(engine: SpeedTestEngine, name: String, value: Any?) {
+            val field = SpeedTestEngine::class.java.getDeclaredField(name)
+            field.isAccessible = true
+            field.set(engine, value)
+        }
+
+        private fun getField(engine: SpeedTestEngine, name: String): Any? {
+            val field = SpeedTestEngine::class.java.getDeclaredField(name)
+            field.isAccessible = true
+            return field.get(engine)
+        }
+
+        private fun makeEngineWithCachedState(): SpeedTestEngine {
+            io.mockk.mockkStatic(android.util.Log::class)
+            every { android.util.Log.d(any<String>(), any<String>()) } returns 0
+            every { android.util.Log.w(any<String>(), any<String>()) } returns 0
+            every { android.util.Log.w(any<String>(), any<Throwable>()) } returns 0
+            every { android.util.Log.e(any<String>(), any<String>()) } returns 0
+            every { android.util.Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
+            val appContext = mockk<android.content.Context>(relaxed = true)
+            every { appContext.getSystemService(any()) } returns null
+            val httpClient = mockk<SpeedTestHttpClient>(relaxed = true)
+            val ringBuffer = mockk<SpeedTestDebugRingBuffer>(relaxed = true)
+            coEvery { ringBuffer.append(any()) } returns Unit
+            val engine = SpeedTestEngine(appContext, httpClient, ringBuffer)
+            setField(engine, "cachedConfig", makeConfig())
+            setField(engine, "cachedServer", makeServer())
+            setField(engine, "gaugeAttempted", true)
+            setField(engine, "cachedGaugeBps", 50_000_000L)
+            return engine
+        }
+
+        @Test
+        fun `probeUpload failure skips measureUpload and sets uploadSucceeded false`() = runTest {
+            val engine = makeEngineWithCachedState()
+            mockkObject(SpeedTestMeasurer)
+
+            coEvery {
+                SpeedTestMeasurer.measureDownload(any(), any(), any(), any(), any(), any(), any())
+            } returns successDownloadResult()
+            coEvery { SpeedTestMeasurer.probeUpload(any(), any(), any()) } returns "HTTP 500"
+
+            val result = engine.runTest(uploadEnabled = true)
+
+            assertTrue(result.downloadSucceeded, "Download should succeed")
+            assertEquals(false, result.uploadSucceeded)
+            assertNull(result.uploadBps, "UploadBps should be null")
+            assertTrue(
+                result.errorMessage?.startsWith("Upload probe failed:") == true,
+                "ErrorMessage should start with 'Upload probe failed'"
+            )
+
+            coVerify(exactly = 0) {
+                SpeedTestMeasurer.measureUpload(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            }
+
+            val cachedServer = getField(engine, "cachedServer")
+            assertNotNull(cachedServer, "Cache should be retained on probe failure (upload-only failure)")
+
+            unmockkObject(SpeedTestMeasurer)
+            io.mockk.unmockkStatic(android.util.Log::class)
+        }
+
+        @Test
+        fun `upload measurement failure retains cache and sets uploadSucceeded false`() = runTest {
+            val engine = makeEngineWithCachedState()
+            mockkObject(SpeedTestMeasurer)
+
+            coEvery {
+                SpeedTestMeasurer.measureDownload(any(), any(), any(), any(), any(), any(), any())
+            } returns successDownloadResult()
+            coEvery { SpeedTestMeasurer.probeUpload(any(), any(), any()) } returns null
+            coEvery {
+                SpeedTestMeasurer.measureUpload(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            } returns failedUploadResult()
+
+            val result = engine.runTest(uploadEnabled = true)
+
+            assertTrue(result.downloadSucceeded, "Download should succeed")
+            assertEquals(false, result.uploadSucceeded, "Upload should fail when measurement fails")
+            assertNull(result.uploadBps, "UploadBps should be null on upload failure")
+
+            val cachedServer = getField(engine, "cachedServer")
+            assertNotNull(cachedServer, "Cache should be retained on upload measurement failure")
+
+            unmockkObject(SpeedTestMeasurer)
+            io.mockk.unmockkStatic(android.util.Log::class)
+        }
+
+        @Test
+        fun `download failure invalidates cache and sets downloadSucceeded false`() = runTest {
+            val engine = makeEngineWithCachedState()
+            mockkObject(SpeedTestMeasurer)
+
+            val failedDownload = MeasurementResult(
+                totalBytes = 0L, totalElapsedMs = 11500L,
+                postWarmupBytes = 0L, postWarmupMs = 10000L,
+                samples = emptyList(),
+                anyRequestSucceeded = false
+            )
+            coEvery {
+                SpeedTestMeasurer.measureDownload(any(), any(), any(), any(), any(), any(), any())
+            } returns failedDownload
+
+            val result = engine.runTest(uploadEnabled = true)
+
+            assertFalse(result.downloadSucceeded, "Download should fail")
+            assertNull(result.uploadSucceeded, "Upload should not run when download fails")
+            assertNull(result.downloadBps, "DownloadBps should be null on download failure")
+
+            val cachedServer = getField(engine, "cachedServer")
+            assertNull(cachedServer, "Cache should be invalidated on download failure")
+
+            unmockkObject(SpeedTestMeasurer)
+            io.mockk.unmockkStatic(android.util.Log::class)
+        }
+
+        @Test
+        fun `upload disabled sets uploadSucceeded null and retains cache`() = runTest {
+            val engine = makeEngineWithCachedState()
+            mockkObject(SpeedTestMeasurer)
+
+            coEvery {
+                SpeedTestMeasurer.measureDownload(any(), any(), any(), any(), any(), any(), any())
+            } returns successDownloadResult()
+
+            val result = engine.runTest(uploadEnabled = false)
+
+            assertTrue(result.downloadSucceeded, "Download should succeed")
+            assertEquals(null, result.uploadSucceeded, "UploadSucceeded should be null when upload disabled")
+            assertNull(result.uploadBps, "UploadBps should be null when upload disabled")
+
+            val cachedServer = getField(engine, "cachedServer")
+            assertNotNull(cachedServer, "Cache should be retained when upload is disabled")
+
+            coVerify(exactly = 0) { SpeedTestMeasurer.probeUpload(any(), any(), any()) }
+            coVerify(exactly = 0) {
+                SpeedTestMeasurer.measureUpload(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            }
+
+            unmockkObject(SpeedTestMeasurer)
+            io.mockk.unmockkStatic(android.util.Log::class)
         }
     }
 }

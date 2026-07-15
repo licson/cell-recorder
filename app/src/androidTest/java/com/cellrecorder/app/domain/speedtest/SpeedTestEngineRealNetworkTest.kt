@@ -135,12 +135,14 @@ class SpeedTestEngineRealNetworkTest {
         skipIfNetworkSwitchedToWifi(result)
         logResult("download-only", result)
 
-        assertTrue("Download should succeed: ${result.errorMessage}", result.succeeded)
+        assertTrue("Download should succeed: ${result.errorMessage}", result.downloadSucceeded)
         assertNotNull("downloadBps should be non-null on success", result.downloadBps)
         assertTrue(
             "downloadBps should be positive but was ${result.downloadBps}",
             result.downloadBps!! > 0L
         )
+        // Upload was not run, so uploadSucceeded must be null
+        assertEquals("uploadSucceeded should be null when uploadEnabled=false", null, result.uploadSucceeded)
     }
 
     @Test
@@ -150,7 +152,8 @@ class SpeedTestEngineRealNetworkTest {
         skipIfNetworkSwitchedToWifi(result)
         logResult("download+upload", result)
 
-        assertTrue("Test should succeed: ${result.errorMessage}", result.succeeded)
+        assertTrue("Download should succeed: ${result.errorMessage}", result.downloadSucceeded)
+        assertTrue("Upload should succeed: ${result.errorMessage}", result.uploadSucceeded == true)
         assertNotNull("downloadBps should be non-null", result.downloadBps)
         assertTrue(
             "downloadBps should be positive but was ${result.downloadBps}",
@@ -171,11 +174,15 @@ class SpeedTestEngineRealNetworkTest {
         logResult("end-to-end", result)
 
         assertTrue(
-            "End-to-end test should succeed: ${result.errorMessage}",
-            result.succeeded
+            "End-to-end test should have downloadSucceeded=true: ${result.errorMessage}",
+            result.downloadSucceeded
+        )
+        assertTrue(
+            "End-to-end test should have uploadSucceeded=true: ${result.errorMessage}",
+            result.uploadSucceeded == true
         )
         assertEquals(
-            "succeeded=true should have null errorMessage",
+            "Fully successful test should have null errorMessage",
             null,
             result.errorMessage
         )
@@ -202,14 +209,14 @@ class SpeedTestEngineRealNetworkTest {
         logResult("cache-reuse-1", first)
         assumeTrue(
             "First call must succeed to verify cache reuse (got: ${first.errorMessage})",
-            first.succeeded
+            first.downloadSucceeded
         )
 
         val second = speedTestEngine.runTest(uploadEnabled = false)
         skipIfNetworkSwitchedToWifi(second)
         logResult("cache-reuse-2", second)
 
-        assertTrue("Second call should succeed: ${second.errorMessage}", second.succeeded)
+        assertTrue("Second call should succeed: ${second.errorMessage}", second.downloadSucceeded)
         assertEquals(
             "Cached server should be reused on second call",
             first.serverId,
@@ -255,7 +262,12 @@ class SpeedTestEngineRealNetworkTest {
             "SKIPPED_WIFI",
             result.errorMessage
         )
-        assertFalse("Should not succeed on WiFi", result.succeeded)
+        assertFalse("Should not have downloadSucceeded on WiFi", result.downloadSucceeded)
+        assertEquals(
+            "uploadSucceeded should be null on WiFi skip (upload was not run)",
+            null,
+            result.uploadSucceeded
+        )
         assertEquals(
             "downloadBps should be null on WiFi skip",
             null,
@@ -318,7 +330,7 @@ class SpeedTestEngineRealNetworkTest {
         val ulMbps = result.uploadBps?.let { it / 1_000_000.0 }
         Log.i(
             TAG,
-            "[$label] succeeded=${result.succeeded} " +
+            "[$label] downloadSucceeded=${result.downloadSucceeded} uploadSucceeded=${result.uploadSucceeded} " +
                 "server=${result.serverName}/${result.serverHost} " +
                 "download=${dlMbps?.let { "%.2f Mbps".format(it) } ?: "null"} " +
                 "upload=${ulMbps?.let { "%.2f Mbps".format(it) } ?: "null"} " +
