@@ -27,13 +27,13 @@ interface SpeedTestRecordDao {
     @Query("SELECT COUNT(*) FROM speed_test_records")
     fun getTotalCount(): Flow<Int>
 
-    @Query("SELECT AVG(downloadBps) FROM speed_test_records WHERE succeeded = 1 AND downloadBps IS NOT NULL")
+    @Query("SELECT AVG(downloadBps) FROM speed_test_records WHERE downloadSucceeded = 1 AND downloadBps IS NOT NULL")
     fun getAvgDownloadBps(): Flow<Double?>
 
-    @Query("SELECT AVG(uploadBps) FROM speed_test_records WHERE succeeded = 1 AND uploadBps IS NOT NULL")
+    @Query("SELECT AVG(uploadBps) FROM speed_test_records WHERE uploadSucceeded = 1 AND uploadBps IS NOT NULL")
     fun getAvgUploadBps(): Flow<Double?>
 
-    @Query("SELECT CAST(SUM(CASE WHEN succeeded = 1 THEN 1 ELSE 0 END) AS REAL) / CAST(COUNT(*) AS REAL) FROM speed_test_records")
+    @Query("SELECT CAST(SUM(CASE WHEN downloadSucceeded = 1 THEN 1 ELSE 0 END) AS REAL) / CAST(COUNT(*) AS REAL) FROM speed_test_records WHERE errorMessage != 'SKIPPED_WIFI' OR errorMessage IS NULL")
     fun getSuccessRate(): Flow<Double?>
 
     @Query("SELECT COUNT(*) FROM speed_test_records WHERE sessionId = :sessionId")

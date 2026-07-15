@@ -28,7 +28,7 @@ import com.cellrecorder.app.data.local.entity.SpeedTestRecordEntity
         SessionMarkerEntity::class,
         RecentMarkerLabelEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -210,6 +210,56 @@ abstract class AppDatabase : RoomDatabase() {
 
         val MIGRATION_14_15 = Migration(14, 15) { db ->
             db.execSQL("ALTER TABLE speed_test_records ADD COLUMN finishedAt INTEGER NOT NULL DEFAULT 0")
+        }
+
+        val MIGRATION_15_16 = Migration(15, 16) { db ->
+            // Replace the single whole-test `succeeded` column with per-phase
+            // `downloadSucceeded` (NOT NULL) and `uploadSucceeded` (nullable).
+            // SQLite on API 30 cannot DROP COLUMN directly, so we use the
+            // create-new-table / copy-data / drop-old-table / rename pattern.
+            db.execSQL(
+                """CREATE TABLE IF NOT EXISTS `speed_test_records_new` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `sessionId` INTEGER NOT NULL,
+                    `timestamp` INTEGER NOT NULL,
+                    `finishedAt` INTEGER NOT NULL,
+                    `downloadBps` INTEGER,
+                    `uploadBps` INTEGER,
+                    `serverName` TEXT,
+                    `serverHost` TEXT,
+                    `serverLocation` TEXT,
+                    `serverId` INTEGER,
+                    `dataSimSlotIndex` INTEGER,
+                    `ratAtTest` TEXT,
+                    `rsrpAtTest` INTEGER,
+                    `bandAtTest` INTEGER,
+                    `downloadSucceeded` INTEGER NOT NULL,
+                    `uploadSucceeded` INTEGER,
+                    `errorMessage` TEXT,
+                    `networkType` TEXT,
+                    FOREIGN KEY(`sessionId`) REFERENCES `sessions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )"""
+            )
+            db.execSQL(
+                """INSERT INTO `speed_test_records_new`
+                   (`id`, `sessionId`, `timestamp`, `finishedAt`,
+                    `downloadBps`, `uploadBps`, `serverName`, `serverHost`,
+                    `serverLocation`, `serverId`, `dataSimSlotIndex`,
+                    `ratAtTest`, `rsrpAtTest`, `bandAtTest`,
+                    `downloadSucceeded`, `uploadSucceeded`, `errorMessage`, `networkType`)
+                   SELECT `id`, `sessionId`, `timestamp`, `finishedAt`,
+                          `downloadBps`, `uploadBps`, `serverName`, `serverHost`,
+                          `serverLocation`, `serverId`, `dataSimSlotIndex`,
+                          `ratAtTest`, `rsrpAtTest`, `bandAtTest`,
+                          CASE WHEN `downloadBps` IS NOT NULL THEN 1 ELSE 0 END,
+                          CASE WHEN `uploadBps` IS NOT NULL THEN 1 ELSE NULL END,
+                          `errorMessage`, `networkType`
+                   FROM `speed_test_records`"""
+            )
+            db.execSQL("DROP TABLE `speed_test_records`")
+            db.execSQL("ALTER TABLE `speed_test_records_new` RENAME TO `speed_test_records`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_speed_test_records_sessionId` ON `speed_test_records` (`sessionId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_speed_test_records_timestamp` ON `speed_test_records` (`timestamp`)")
         }
 
         val CALLBACK = object : Callback() {
