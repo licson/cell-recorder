@@ -24,9 +24,7 @@ This spec covers session CRUD, replay, and detail views. It does not define:
 - `speedtest/spec.md` — speedtest data displayed in replay.
 - `ui/spec.md` — screen layouts and controls for session views.
 - `indoor/spec.md` — indoor session positioning and canvas behavior.
-
 ## Requirements
-
 ### Requirement: Session List
 
 The system SHALL display past sessions sorted by creation date descending.
@@ -119,7 +117,7 @@ The system SHALL display an analytics panel alongside the map.
 
 ### Requirement: Session Replay
 
-The system SHALL replay a session's recorded path with animated playback. For `5G_NSA` records, the replay stats panel SHALL display both the NR cell data and the LTE anchor cell data. 5G NSA anchor semantics are defined in `cell-info/spec.md`.
+The system SHALL replay a session's recorded path with animated playback. For `5G_NSA` records, the replay stats panel SHALL display both the NR cell data and the LTE anchor cell data, including the anchor Cell ID formatted as `anchorEnbOrGnbId:anchorLcid` (rendering `---` when either component is missing). 5G NSA anchor semantics are defined in `cell-info/spec.md`.
 
 #### Scenario: Replay started
 - GIVEN a session with recorded points
@@ -134,7 +132,7 @@ The system SHALL replay a session's recorded path with animated playback. For `5
 - GIVEN replay mode is active
 - WHEN the marker reaches a point
 - THEN the current point's RAT, PCI, RSRP, RSRQ, SINR, ping, and packet loss are shown in a stats panel
-- AND for `5G_NSA` records, the LTE anchor's band, PCI, and RSRP are also displayed
+- AND for `5G_NSA` records, the LTE anchor's Cell ID (`anchorEnbOrGnbId:anchorLcid`, or `---` if either is missing), band, PCI, and RSRP are also displayed
 
 #### Scenario: Timeline chart in replay
 - GIVEN replay mode is active
@@ -143,7 +141,7 @@ The system SHALL replay a session's recorded path with animated playback. For `5
 
 ### Requirement: Session Replay — Speedtest Markers
 
-The system SHALL display speedtest markers on the replay timeline when speedtest records exist for the session. Speedtest data semantics are defined in `speedtest/spec.md`.
+The system SHALL display speedtest markers on the replay timeline when speedtest records exist for the session. When the finish time is known and the test ran for a positive duration, the marker is rendered as a range indicator spanning start to finish on the RAT timeline. Speedtest data semantics are defined in `speedtest/spec.md`.
 
 #### Scenario: Speedtest markers on timeline
 - GIVEN a session with speedtest records and replay mode is active
@@ -151,15 +149,28 @@ The system SHALL display speedtest markers on the replay timeline when speedtest
 - THEN colored markers are shown on the RAT timeline at positions corresponding to the nearest cell record timestamps
 - AND markers are color-coded by download speed (red for slow, yellow for moderate, green for fast)
 
+#### Scenario: Speedtest range indicator for positive-duration tests
+- GIVEN a session with speedtest records where `finishedAt > timestamp` and `finishedAt > 0`
+- WHEN the replay RAT timeline is displayed
+- THEN a range indicator is rendered spanning from the start timestamp to the finish timestamp
+- AND the range indicator is color-coded by download speed (same coloring as point markers)
+- AND the range indicator visually communicates the test's duration on the timeline
+
+#### Scenario: Point marker for instant bail-outs
+- GIVEN a session with speedtest records where `finishedAt = timestamp` or `finishedAt = 0`
+- WHEN the replay RAT timeline is displayed
+- THEN a point marker (not a range) is rendered at the start timestamp
+- AND no range indicator is shown (the test did not run for a positive duration)
+
 #### Scenario: Speedtest detail card
 - GIVEN the replay timeline with speedtest markers
-- WHEN a user taps a marker
+- WHEN a user taps a marker or range indicator
 - THEN a detail card is shown below the timeline
-- AND the card displays: timestamp, download speed, upload speed, server name/ID, RSRP at test, RAT at test, and band at test
+- AND the card displays: timestamp, finish time (when known), duration (when positive), download speed, upload speed, server name/ID, RSRP at test, RAT at test, and band at test
 
 #### Scenario: Speedtest card auto-updates during playback
 - GIVEN replay mode is active and the user is scrubbing or playing
-- WHEN the current position passes a speedtest marker
+- WHEN the current position passes a speedtest marker or range indicator
 - THEN the speedtest detail card updates to show the last speedtest result at or before the current position
 - AND the card continues showing that result until the next marker is passed
 - AND the card shows "Position" label for auto-updated markers and "Selected" label for manually tapped markers
@@ -376,4 +387,27 @@ The system SHALL display session markers as vertical pins on the replay timeline
 - AND pins are visually distinct from speedtest markers
 - AND each pin is tappable to open a marker detail card with edit and delete actions
 - (Marker detail card: `ui/spec.md`)
+
+### Requirement: Speedtest Duration Badge in Session Detail
+
+The system SHALL display a duration badge per speedtest entry in the Session Detail screen when the finish time is known. Duration is computed as `finishedAt - timestamp`.
+
+#### Scenario: Duration badge shown for completed tests
+
+- GIVEN a session detail screen with speedtest records
+- WHEN a speedtest record has `finishedAt > 0` AND `finishedAt > timestamp`
+- THEN a duration badge is rendered next to the speedtest entry
+- AND the badge displays the duration formatted as human-readable time (e.g., "2.3s")
+
+#### Scenario: Duration badge hidden for legacy rows
+
+- GIVEN a session detail screen with speedtest records
+- WHEN a speedtest record has `finishedAt = 0` (legacy row, unknown finish time)
+- THEN no duration badge is rendered for that entry
+
+#### Scenario: Duration badge hidden for instant bail-outs
+
+- GIVEN a session detail screen with speedtest records
+- WHEN a speedtest record has `finishedAt = timestamp` (instant bail-out, duration zero)
+- THEN no duration badge is rendered (or a "skipped"/"instant" label is shown instead)
 

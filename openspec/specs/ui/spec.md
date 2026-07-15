@@ -32,9 +32,7 @@ This spec covers screen layouts, controls, navigation, and visual feedback. It d
 - `permission-flow/spec.md` — how permission rationale and settings dialogs are rendered.
 - `test-foundation/spec.md` — UI smoke test coverage requirements.
 - `instrumented-test-coverage/spec.md` — Compose screen test coverage requirements.
-
 ## Requirements
-
 ### Requirement: Bottom Navigation
 
 The system SHALL provide a bottom navigation bar with three primary destinations.
@@ -120,7 +118,7 @@ The system SHALL provide a settings screen for configuring recording and analyti
 
 ### Requirement: Settings Screen — Speed Test Section
 
-The system SHALL provide a "Speed Test" settings section for configuring continuous throughput tests.
+The system SHALL provide a "Speed Test" settings section for configuring continuous throughput tests. The section also provides a manual "Launch Test" affordance for priming the mobile connection and a debug card for diagnosing engine behavior. Manual launch and diagnostics are defined in `speedtest-diagnostics/spec.md`.
 
 #### Scenario: Speed test settings displayed
 - GIVEN the Settings screen
@@ -140,6 +138,35 @@ The system SHALL provide a "Speed Test" settings section for configuring continu
 - GIVEN the user has previously accepted the EULA
 - WHEN the user toggles speed tests OFF and ON again
 - THEN the EULA dialog is not shown again (toggle activates immediately)
+
+#### Scenario: Launch Test button shown when enabled
+- GIVEN the Settings screen
+- WHEN `speedTestEnabled` is true
+- THEN a "Launch Test" button is rendered inside the Speed Test card
+- AND tapping the button triggers a manual speedtest launch (see `speedtest-diagnostics/spec.md`)
+
+#### Scenario: Launch Test button hidden when disabled
+- GIVEN the Settings screen
+- WHEN `speedTestEnabled` is false
+- THEN the "Launch Test" button is NOT rendered
+
+#### Scenario: Debug card collapsed by default
+- GIVEN the Settings screen and `speedTestEnabled` is true
+- WHEN no manual launch is in progress
+- THEN the debug card is collapsed or summary-only
+- AND does not dominate the Settings page
+
+#### Scenario: Debug card expands on launch
+- GIVEN the "Launch Test" button is tapped
+- WHEN the manual launch begins
+- THEN the debug card expands to show the live event stream from the ring buffer (see `speedtest-diagnostics/spec.md`)
+- AND the event list auto-scrolls to the newest event
+
+#### Scenario: Share Debug Log action
+- GIVEN the debug card is expanded
+- WHEN the user taps the "Share Debug Log" action
+- THEN the current ring buffer snapshot is serialized as plain text
+- AND an `Intent.ACTION_SEND` chooser is displayed (mirrors the existing "Share Crash Log" pattern)
 
 ### Requirement: Global Statistics Screen
 
@@ -325,7 +352,7 @@ The system SHALL display a sensor health warning when step detection is not rece
 
 ### Requirement: Live Info Screen — Structured CA Bands and Anchor
 
-The system SHALL display structured Carrier Aggregation band information and 5G NSA anchor cell details on the Live Info screen. Band labels SHALL use RAT-appropriate prefixes (e.g., "B3", "n78").
+The system SHALL display structured Carrier Aggregation band information and 5G NSA anchor cell details on the Live Info screen. Band labels SHALL use RAT-appropriate prefixes (e.g., "B3", "n78"). The anchor cell's Cell ID SHALL be displayed formatted as `anchorEnbOrGnbId:anchorLcid`, matching the primary LTE Cell ID format, and SHALL render `---` when either identity component is missing.
 
 #### Scenario: CA bands displayed as chips
 - GIVEN the Live Info tab is selected and a SIM has active CA bands
@@ -335,12 +362,13 @@ The system SHALL display structured Carrier Aggregation band information and 5G 
 
 #### Scenario: Anchor cell displayed in structured rows
 - GIVEN the Live Info tab is selected and a SIM is on 5G NSA
-- THEN the anchor cell section shows structured rows: Band (with "B" prefix), ARFCN, PCI, TAC
-- AND a second row shows RSRP, RSRQ, SINR with signal quality color coding
+- THEN the anchor cell section shows a first row with Cell ID (`anchorEnbOrGnbId:anchorLcid`, or `---` if either is missing)
+- AND a second row shows Band (with "B" prefix), ARFCN, PCI, TAC
+- AND a final row shows RSRP, RSRQ, SINR with signal quality color coding
 
 ### Requirement: Recording Screen — Expandable SimCard
 
-The system SHALL provide an expandable SimCard on the RecordingScreen that reveals full 5G NSA anchor and CA band details when expanded. The card's chevron icon SHALL respond to tap events to toggle expansion. Band labels SHALL use RAT-appropriate prefixes.
+The system SHALL provide an expandable SimCard on the RecordingScreen that reveals full 5G NSA anchor and CA band details when expanded. The card's chevron icon SHALL respond to tap events to toggle expansion. Band labels SHALL use RAT-appropriate prefixes. The expanded anchor block SHALL include the anchor Cell ID formatted as `anchorEnbOrGnbId:anchorLcid` (rendering `---` when either component is missing). The collapsed compact anchor row SHALL NOT include the Cell ID, to preserve its one-line summary.
 
 #### Scenario: SimCard collapsed state
 - GIVEN the RecordingScreen shows the live stats panel
@@ -350,7 +378,7 @@ The system SHALL provide an expandable SimCard on the RecordingScreen that revea
 
 #### Scenario: SimCard expanded state
 - GIVEN the user taps a SimCard with anchor or CA data (or its chevron icon)
-- THEN the card expands to show full anchor details (Band, ARFCN, PCI, TAC, RSRP, RSRQ, SINR)
+- THEN the card expands to show full anchor details (Cell ID as `anchorEnbOrGnbId:anchorLcid` or `---`, Band, ARFCN, PCI, TAC, RSRP, RSRQ, SINR)
 - AND structured CA band rows (Band, PCI, EARFCN, RSRP, RSRQ, SINR per band)
 - AND CA bands that have EARFCN data display the actual EARFCN value (not "---")
 - AND all signal values are color-coded by quality
@@ -390,7 +418,7 @@ The system SHALL display a bottom sheet when a user taps a record in the session
 
 #### Scenario: Anchor Cell section
 - GIVEN the record detail bottom sheet is open and the record is 5G NSA with anchor data
-- THEN the Anchor Cell section shows Band (with "B" prefix), EARFCN, PCI, TAC, RSRP, RSRQ, SINR
+- THEN the Anchor Cell section shows Cell ID (`anchorEnbOrGnbId:anchorLcid`, or `---` if either is missing), Band (with "B" prefix), EARFCN, PCI, TAC, RSRP, RSRQ, SINR
 - AND each signal value is color-coded using the appropriate color function
 - AND the section is hidden for non-5G_NSA records or when anchor data is missing
 
@@ -498,13 +526,13 @@ The system SHALL support importing markers from the session list import flow.
 
 ### Requirement: Replay Screen — Expandable StatsPanel
 
-The system SHALL provide an expandable StatsPanel in the ReplayScreen that matches the live RecordingScreen SimCard behavior.
+The system SHALL provide an expandable StatsPanel in the ReplayScreen that matches the live RecordingScreen SimCard behavior. The expanded anchor block SHALL include the anchor Cell ID formatted as `anchorEnbOrGnbId:anchorLcid` (rendering `---` when either component is missing). The collapsed compact anchor row SHALL NOT include the Cell ID.
 
 #### Scenario: StatsPanel expandable
 - GIVEN the ReplayScreen is active and a record is selected
 - THEN the StatsPanel is expandable when anchor or CA data exists
 - AND the collapsed state shows a compact anchor row and CA band count badge
-- AND the expanded state shows full anchor details and structured CA band rows
+- AND the expanded state shows full anchor details (including anchor Cell ID as `anchorEnbOrGnbId:anchorLcid` or `---`) and structured CA band rows
 - AND CA bands that have EARFCN data display the actual EARFCN value
 - AND all signal values are color-coded by quality
 

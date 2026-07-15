@@ -16,12 +16,10 @@ This spec covers the RecordDetailSheet composable's content sections, scenarios,
 - `ui/spec.md` — SessionDetailScreen record list and signal quality color coding.
 - `cell-info/spec.md` — primary cell, CA band, and anchor cell field semantics.
 - `connectivity/spec.md` — avgLatencyMs and packetLossPct semantics.
-
 ## Requirements
-
 ### Requirement: Record detail bottom sheet
 
-The system SHALL display a `ModalBottomSheet` when the user taps a cell record row in the SessionDetailScreen, showing the full record data including primary cell details, CA bands, anchor cell, location, and connectivity.
+The system SHALL display a `ModalBottomSheet` when the user taps a cell record row in the SessionDetailScreen, showing the full record data including primary cell details, CA bands, anchor cell, location, and connectivity. The Anchor Cell section SHALL include the anchor Cell ID formatted as `anchorEnbOrGnbId:anchorLcid` (rendering `---` when either component is missing), matching the primary LTE Cell ID format.
 
 #### Scenario: Tap record row opens detail sheet
 - GIVEN the SessionDetailScreen with record rows displayed
@@ -45,7 +43,7 @@ The system SHALL display a `ModalBottomSheet` when the user taps a cell record r
 
 #### Scenario: Anchor cell section for 5G NSA
 - GIVEN a record detail bottom sheet is open for a `5G_NSA` record with anchor data
-- THEN the Anchor Cell section displays: band, EARFCN, PCI, TAC, bandwidth, RSRP, RSRQ, SINR, RSSI, CQI, and Timing Advance
+- THEN the Anchor Cell section displays: Cell ID (`anchorEnbOrGnbId:anchorLcid`, or `---` if either is missing), band, EARFCN, PCI, TAC, bandwidth, RSRP, RSRQ, SINR, RSSI, CQI, and Timing Advance
 - AND each signal metric is color-coded by quality
 
 #### Scenario: No anchor section for non-NSA records
@@ -65,3 +63,4 @@ The system SHALL display a `ModalBottomSheet` when the user taps a cell record r
 - GIVEN a record detail bottom sheet is open
 - WHEN the user swipes down or taps outside the sheet
 - THEN the sheet is dismissed and the record list remains at its scroll position
+

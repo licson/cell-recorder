@@ -28,7 +28,7 @@ This spec covers the speedtest protocol and measurement. It does not define:
 ## HTTP Client
 
 All HTTP requests SHALL use a shared `OkHttpClient` instance with connection pooling (8 idle connections, 30s keep-alive) to enable TLS session resumption and reduce connection establishment overhead across parallel measurement threads.
-
+## Requirements
 ### Requirement: Speedtest Protocol — Config Retrieval
 
 The system SHALL fetch the Speedtest.net configuration at the start of each recording session to determine test parameters.
@@ -62,7 +62,7 @@ The system SHALL discover and select the optimal speedtest server at the start o
 
 ### Requirement: Speedtest Protocol — Server Selection
 
-The system SHALL select the best server by geographic distance and HTTP latency.
+The system SHALL select the best server by geographic distance and HTTP latency. The cached server is reused across test cycles within a session, invalidated on test failure, and may be inherited from a successful manual prime (see `speedtest-diagnostics/spec.md`).
 
 #### Scenario: Closest servers selected
 - GIVEN a parsed server list
@@ -82,6 +82,7 @@ The system SHALL select the best server by geographic distance and HTTP latency.
 - WHEN subsequent test cycles run
 - THEN the best server is reused without re-discovery
 - AND the cached server is invalidated only if a test fails
+- AND a successful manual prime prior to session start MAY be inherited (see `speedtest-diagnostics/spec.md`)
 
 #### Scenario: Server ID override
 - GIVEN an optional `speedTestServerId` is configured in Settings
@@ -89,9 +90,15 @@ The system SHALL select the best server by geographic distance and HTTP latency.
 - THEN the system skips automatic server discovery
 - AND uses the specified server ID from the server list
 
+#### Scenario: Server re-primed on manual launch
+- GIVEN a manual "Launch Test" is triggered (see `speedtest-diagnostics/spec.md`)
+- WHEN `reprimeServerAndGauge()` is called
+- THEN the cached server is cleared
+- AND the next `runTest()` re-runs server selection fresh
+
 ### Requirement: Speedtest Protocol — Gauge Phase
 
-The system SHALL perform a short gauge download before the full download test to estimate connection speed and select appropriate file sizes.
+The system SHALL perform a short gauge download before the full download test to estimate connection speed and select appropriate file sizes. The cached gauge is reused across test cycles, invalidated on test failure, and cleared by `reprimeServerAndGauge()` on manual launch.
 
 #### Scenario: Gauge download executed
 - GIVEN the best server is selected
@@ -108,6 +115,12 @@ The system SHALL perform a short gauge download before the full download test to
 - WHEN subsequent test cycles run
 - THEN the gauge result is reused without re-gauging
 - AND the cached gauge is invalidated if a test fails
+
+#### Scenario: Gauge re-primed on manual launch
+- GIVEN a manual "Launch Test" is triggered (see `speedtest-diagnostics/spec.md`)
+- WHEN `reprimeServerAndGauge()` is called
+- THEN the cached gauge and gauge-attempted flag are cleared
+- AND the next `runTest()` re-runs the gauge phase fresh
 
 ### Requirement: Speedtest Protocol — Download Measurement
 
@@ -212,3 +225,43 @@ The system SHALL capture cellular conditions at the start of each speed test for
 - WHEN the system records cell info
 - THEN the current cellular conditions are snapshotted via `CellInfoCollector.snapshots()`
 - AND the primary data SIM's RAT, RSRP, band number, and SIM slot index are stored on the speedtest record as `ratAtTest`, `rsrpAtTest`, `bandAtTest`, and `dataSimSlotIndex`
+
+### Requirement: Speedtest Result Timing
+
+The system SHALL capture both start and finish wall-clock timestamps on every `SpeedTestResult` produced by the engine. The engine owns the test lifecycle and is the source of truth for timing.
+
+#### Scenario: Successful test timing
+
+- GIVEN a speedtest runs to completion successfully
+- WHEN `runTest()` returns
+- THEN `SpeedTestResult.startedAt` is the wall-clock millisecond timestamp captured at engine entry
+- AND `SpeedTestResult.finishedAt` is the wall-clock millisecond timestamp captured at the moment `runTest()` returns
+- AND `finishedAt > startedAt` (duration is positive)
+
+#### Scenario: Instant bail-out timing
+
+- GIVEN a speedtest exits early via SKIPPED_WIFI, config fetch failure, server selection failure, or exception
+- WHEN `runTest()` returns
+- THEN `SpeedTestResult.startedAt` is the wall-clock millisecond timestamp captured at engine entry
+- AND `SpeedTestResult.finishedAt = startedAt` (duration is zero, signalling the test never ran)
+
+### Requirement: Speedtest Engine Re-prime
+
+The system SHALL provide a `reprimeServerAndGauge()` operation on the speedtest engine that clears the cached server, cached gauge, and gauge-attempted flag while retaining the cached config. This is the priming primitive used by manual launches.
+
+#### Scenario: Re-prime clears server and gauge
+
+- GIVEN the engine has a cached server, cached gauge, and gauge-attempted flag
+- WHEN `reprimeServerAndGauge()` is called
+- THEN `cachedServer` is set to null
+- AND `cachedGaugeBps` is set to null
+- AND `gaugeAttempted` is set to false
+- AND `cachedConfig` is retained
+
+#### Scenario: Re-prime triggers fresh server selection
+
+- GIVEN `reprimeServerAndGauge()` has been called
+- WHEN `runTest()` next executes
+- THEN server selection runs fresh (geographic discovery + latency pings, or preferred-server bypass)
+- AND the gauge phase runs fresh
+

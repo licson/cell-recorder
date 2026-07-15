@@ -27,9 +27,7 @@ This spec covers the foreground service mechanics only. It does not define:
 - `db-write-safety/spec.md` — database durability during service teardown.
 - `process-cleanup/spec.md` — subprocess cleanup on service cancellation.
 - `ui/spec.md` — how the notification tap action opens the UI.
-
 ## Requirements
-
 ### Requirement: Foreground Service
 
 The system SHALL run recording as a foreground service with `FOREGROUND_SERVICE_TYPE_LOCATION`.
@@ -175,27 +173,34 @@ The system SHALL adapt the foreground service behavior for indoor recording mode
 
 ### Requirement: Tunnel Mode Service Behavior
 
-The system SHALL adapt the foreground service behavior for tunnel recording mode. Tunnel recording details are defined in `recording/spec.md`.
+The system SHALL adapt the foreground service behavior for tunnel recording mode. Tunnel mode uses `FOREGROUND_SERVICE_TYPE_LOCATION` (required for cell info access on Android 11+) but does not register any location listener, step detector, accelerometer, or rotation sensor. Tunnel mode behavior is defined in `tunnel/spec.md`.
 
-#### Scenario: Tunnel recording starts without GPS
+#### Scenario: Tunnel recording starts without GPS or sensors
+
 - GIVEN a session with `recordingMode = "TUNNEL"`
 - WHEN the recording service starts
 - THEN the service uses `FOREGROUND_SERVICE_TYPE_LOCATION` (required for cell info access on Android 11+)
 - AND no GPS location requests are made
-- AND points are recorded on a fixed time cadence using `tunnelRecordingIntervalMs`
-- AND each record is tagged with `locationSource = "TUNNEL"`
+- AND `IndoorPositionCollector` is NOT initialized
+- AND no step detector, accelerometer, or rotation sensor is registered
+- AND the fallback recording job (GPS loss detection) is NOT launched
+- (Tunnel mode: `tunnel/spec.md`; recording lifecycle: `recording/spec.md`)
 
 #### Scenario: Tunnel notification content
-- GIVEN an active tunnel recording
-- THEN the notification displays elapsed time, point count, and current ping latency
-- AND the notification does NOT display GPS status or accuracy
 
-#### Scenario: Tunnel notification mark action
 - GIVEN an active tunnel recording
-- THEN the notification includes a "Mark Note" action
-- AND tapping the action drops a `NOTE` marker with an auto-generated label
-- AND the marker is persisted without opening the app UI
-- AND the action uses `PendingIntent.getForegroundService()`
+- THEN the notification displays elapsed time, point count, and marker count (e.g., "Tunnel recording — 5 markers")
+- AND the notification does not display GPS status (irrelevant in tunnel mode)
+- AND the notification does not display indoor tracking confidence (irrelevant in tunnel mode)
+- AND the notification includes a "Mark Note" action button (per `markers/spec.md`) that broadcasts an intent to create a new `NOTE` marker
+
+#### Scenario: Tunnel recording time-based triggers
+
+- GIVEN an active tunnel recording
+- WHEN `recordingIntervalMs` has elapsed since the last recorded point
+- THEN a point is recorded with sentinel coordinates and `locationSource = "TUNNEL"`
+- AND no distance-based trigger is used
+- (Tunnel mode: `tunnel/spec.md`)
 
 ### Requirement: Sensor Registration Verification
 
@@ -278,4 +283,40 @@ The system SHALL include a "Mark Note" action button on the foreground service n
 - THEN both writes are serialized through the recording mutex
 - AND the marker's `timestamp` reflects the wall-clock at lock acquisition
 - (Concurrency rules: `thread-safety/spec.md`; Marker creation: `markers/spec.md`)
+
+### Requirement: Conditional Speedtest Cache Invalidation at Session Start
+
+The system SHALL conditionally invalidate the speedtest engine's cache at recording session start based on whether a successful manual prime has occurred since the last invalidation. The prime state flag is defined in `speedtest-diagnostics/spec.md`.
+
+#### Scenario: Warm handoff after successful manual prime
+
+- GIVEN a manual "Launch Test" has completed successfully since the last cache invalidation
+- WHEN a recording session starts
+- THEN the engine's `primedSinceLastInvalidation` flag is `true`
+- AND `RecordingService` does NOT call `invalidateCache()`
+- AND the cached server, config, and gauge are retained (warm handoff)
+- AND the prime flag is reset (read-once semantics) so a second session without a fresh prime cold-starts
+
+#### Scenario: Cold start when no successful prime
+
+- GIVEN no manual "Launch Test" has completed successfully since the last cache invalidation (or the flag was reset by a previous session, or the process was restarted)
+- WHEN a recording session starts
+- THEN the engine's `primedSinceLastInvalidation` flag is `false`
+- AND `RecordingService` calls `invalidateCache()` (today's behavior)
+- AND the session performs fresh config fetch, server selection, and gauge
+
+#### Scenario: Cold start after manual prime failure
+
+- GIVEN a manual "Launch Test" has completed with failure since the last cache invalidation
+- WHEN a recording session starts
+- THEN the engine's `primedSinceLastInvalidation` flag is `false` (failure path auto-invalidates)
+- AND `RecordingService` calls `invalidateCache()`
+- AND the session cold-starts
+
+#### Scenario: Cold start after process restart
+
+- GIVEN the app process has been restarted
+- WHEN a recording session starts
+- THEN the engine's `primedSinceLastInvalidation` flag is `false` (in-memory flag does not survive restart)
+- AND `RecordingService` calls `invalidateCache()` (today's behavior)
 
