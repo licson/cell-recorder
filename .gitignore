@@ -33,3 +33,6 @@ captures/
 
 # Spec drafts (development notes, not for repo)
 spec-drafts/
+
+# opencode (local agent tooling)
+.opencode/
